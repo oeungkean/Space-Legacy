@@ -1,0 +1,14 @@
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude local settings (keep shared CLAUDE.md)
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Dependencies/build output if introduced later
+node_modules/
+dist/
+coverage/
