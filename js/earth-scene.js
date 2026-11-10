@@ -9,6 +9,8 @@
 import * as THREE from "three";
 import { createGlow } from "./glow.js";
 import { makePlanet, PLANET_LOOKS } from "./planet-look.js";
+import { guardContextLoss } from "./webgl-context.js";
+import { onResizeDebounced } from "./resize.js";
 
 // The tour order. angle = where the planet sits around the Sun (degrees).
 const TOUR = [
@@ -31,6 +33,7 @@ const canvas = document.getElementById("space-canvas");
 const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+guardContextLoss(canvas);
 if (THREE.ACESFilmicToneMapping !== undefined) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -207,7 +210,7 @@ function animate(now) {
 place(0);
 requestAnimationFrame(animate);
 
-window.addEventListener("resize", function () {
+onResizeDebounced(function () {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);

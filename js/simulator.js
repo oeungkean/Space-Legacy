@@ -20,6 +20,7 @@ import {
 } from "../data/simulator.js";
 import { buildObjectives, getPoints, getUpgrades, spendPoint, onProgressChange } from "./progress.js";
 import { play } from "./sounds.js";
+import { guardContextLoss } from "./webgl-context.js";
 
 const el = function (id) { return document.getElementById(id); };
 const stepButtons = document.querySelectorAll ? document.querySelectorAll("[data-sim-step]") : [];
@@ -564,6 +565,7 @@ function render() {
 // ----- 3D viewers (garage pad and suit locker) -----
 function makeViewer(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+  guardContextLoss(canvas);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   const scene = new THREE.Scene();
   const key = new THREE.DirectionalLight(0xfff1e0, 2.6);

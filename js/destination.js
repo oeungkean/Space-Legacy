@@ -8,6 +8,8 @@ import { hardwareList } from "../data/hardware.js";
 import { hardwareReplays } from "../data/hardware-replays.js";
 import { play } from "./sounds.js";
 import { createGlow } from "./glow.js";
+import { guardContextLoss } from "./webgl-context.js";
+import { onResizeDebounced } from "./resize.js";
 
 // ----- Find the page elements we need -----
 const canvas = document.getElementById("destination-canvas");
@@ -130,6 +132,7 @@ let currentWorldName = null;
 // ----- Basic setup -----
 const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+guardContextLoss(canvas);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x02040a);
@@ -846,7 +849,7 @@ function resizeRenderer() {
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
 }
-window.addEventListener("resize", resizeRenderer);
+onResizeDebounced(resizeRenderer);
 
 // ----- Animation loop -----
 const clock = new THREE.Clock();

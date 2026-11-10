@@ -1,0 +1,12 @@
+{
+  "name": "space-legacy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "An interactive 3D tour of space exploration: solar system, missions, hardware and a mission simulator.",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "check": "node scripts/check.mjs",
+    "test": "node --test"
+  }
+}
