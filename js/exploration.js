@@ -23,6 +23,8 @@ import {
   collideBoulders, boulderAhead, drawRelief, getTerrain
 } from "./terrain.js";
 import { uiIcon } from "./icons.js";
+import { guardContextLoss } from "./webgl-context.js";
+import { onResizeDebounced } from "./resize.js";
 import { modelIcon } from "./explorer.js";
 import { collectiblesForSite } from "../data/collectibles.js";
 import { play, setLoop } from "./sounds.js";
@@ -87,6 +89,7 @@ scene.add(worldGroup);
 function ensureRenderer() {
   if (renderer) return;
   renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, preserveDrawingBuffer: true });
+  guardContextLoss(canvas);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
   if (renderer.shadowMap) {
     renderer.shadowMap.enabled = true;
@@ -2091,7 +2094,7 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 
-window.addEventListener("resize", resize);
+onResizeDebounced(resize);
 document.addEventListener("keydown", onKeyDown);
 document.addEventListener("keyup", onKeyUp);
 

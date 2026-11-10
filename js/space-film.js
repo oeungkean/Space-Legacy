@@ -22,6 +22,8 @@ import { createParticleSystem } from "./particles.js";
 import { buildTerrainShape, buildGround, heightAt } from "./terrain.js";
 import { play, setLoop } from "./sounds.js";
 import { getPlaybackSpeed } from "./playback.js";
+import { guardContextLoss } from "./webgl-context.js";
+import { onResizeDebounced } from "./resize.js";
 
 const canvas = document.getElementById("film-canvas");
 
@@ -71,6 +73,7 @@ function glowTexture(inner, outer) {
 function init() {
   if (renderer) return;
   renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  guardContextLoss(canvas);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5)); // sharp: the screen's real pixel density
   if (renderer.shadowMap) renderer.shadowMap.enabled = true;
   scene = new THREE.Scene();
@@ -109,7 +112,7 @@ function resize() {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
-window.addEventListener("resize", resize);
+onResizeDebounced(resize);
 
 // ----- Worlds -----
 const TEXTURES = {

@@ -14,6 +14,8 @@ import { createParticleSystem } from "./particles.js";
 import { play, isSoundOn, setSoundOn, onSoundChange, isGroupOn } from "./sounds.js";
 import { wantsReducedMotion } from "./settings.js";
 import { getPlaybackSpeed } from "./playback.js";
+import { guardContextLoss } from "./webgl-context.js";
+import { onResizeDebounced } from "./resize.js";
 
 const launchScreen = document.getElementById("launch-screen");
 const canvas = document.getElementById("launch-canvas");
@@ -507,6 +509,7 @@ function init() {
   if (renderer) return;
 
   renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  guardContextLoss(canvas);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5)); // sharp: the screen's real pixel density
 
   scene = new THREE.Scene();
@@ -540,7 +543,7 @@ function resize() {
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
 }
-window.addEventListener("resize", resize);
+onResizeDebounced(resize);
 
 // ----- Sound (made with the browser's audio, no sound files) -----
 function startAudio() {

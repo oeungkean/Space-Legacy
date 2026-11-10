@@ -21,6 +21,8 @@ import { getPlaybackSpeed } from "./playback.js";
 // The real exploration terrain is used for these landings (same craters, rilles and dunes as when you explore)
 const LANDING_SITE = { apollo11: "tranquility", apollo15: "hadley", apollo17: "taurus-littrow", curiosity: "gale", perseverance: "jezero" };
 import { play, setLoop } from "./sounds.js";
+import { guardContextLoss } from "./webgl-context.js";
+import { onResizeDebounced } from "./resize.js";
 
 // Sound levels for this frame (0 to 1): rocket engines and rushing air
 let engineLevel = 0;
@@ -217,6 +219,7 @@ function init() {
   if (renderer) return;
 
   renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  guardContextLoss(canvas);
   // Sharp picture: draw at the screen's real pixel density (capped so very dense phones stay smooth)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
   if (THREE.ACESFilmicToneMapping !== undefined) {
@@ -330,7 +333,7 @@ function init() {
   scene.add(actorRoot);
   particles = createParticleSystem(scene, 900);
 
-  window.addEventListener("resize", resize);
+  onResizeDebounced(resize);
 }
 
 function resize() {

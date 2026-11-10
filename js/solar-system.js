@@ -18,6 +18,8 @@ import { PLANET_LOOKS, planetMaterial as lookMaterial, cloudMaterial, ringMateri
 import { play, setLoop, isSoundOn, isGroupOn, setGroupOn, onSoundChange } from "./sounds.js";
 import { accentCss, accentNumber, onThemeChange } from "./theme.js";
 import { speak, stopSpeaking, speechSupported } from "./narrator.js";
+import { guardContextLoss } from "./webgl-context.js";
+import { onResizeDebounced } from "./resize.js";
 
 // ----- Find the page elements we need -----
 const solarScreen = document.getElementById("solar-system-screen");
@@ -164,6 +166,7 @@ function makeProceduralTexture(colorHex, style) {
 // ----- Basic setup -----
 // logarithmicDepthBuffer lets the camera get very close to the tiny launch craft without glitches
 const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, logarithmicDepthBuffer: true });
+guardContextLoss(canvas);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 if (THREE.ACESFilmicToneMapping !== undefined) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping; // film-like highlights, so the Sun side does not burn out
@@ -2668,7 +2671,7 @@ function resizeRenderer() {
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
 }
-window.addEventListener("resize", resizeRenderer);
+onResizeDebounced(resizeRenderer);
 
 // ----- Entering the site: one continuous camera move from Earth, out through orbit, to the whole Solar System -----
 // Minimal subtitles sit low on the screen and never cover the planets; Skip and CC (captions on/off) are always visible.

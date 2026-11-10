@@ -23,6 +23,8 @@ import { makePlanet } from "./planet-look.js";
 import { createGlow } from "./glow.js";
 import { play } from "./sounds.js";
 import { onThemeChange, accentNumber } from "./theme.js";
+import { guardContextLoss } from "./webgl-context.js";
+import { onResizeDebounced } from "./resize.js";
 
 // ----- Page elements -----
 const screen = document.getElementById("explorer-screen");
@@ -703,6 +705,7 @@ function drawThumbnails() {
     try {
       const canvas = document.createElement("canvas");
       thumbRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+      guardContextLoss(canvas);
       thumbRenderer.setPixelRatio(1);
       thumbRenderer.setSize(360, 240, false);
       thumbScene = new THREE.Scene();
@@ -760,6 +763,7 @@ let viewer = null;
 function setupViewer() {
   if (viewer) return viewer;
   const renderer = new THREE.WebGLRenderer({ canvas: detailCanvas, antialias: true, alpha: true });
+  guardContextLoss(detailCanvas);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   const scene = new THREE.Scene();
   addLights(scene);
@@ -885,7 +889,7 @@ viewerReset.addEventListener("click", function () {
   viewer.camera.position.copy(viewer.home);
   viewer.controls.target.set(0, 0, 0);
 });
-window.addEventListener("resize", resizeViewer);
+onResizeDebounced(resizeViewer);
 
 // ----- The detail panel -----
 let openId = null;
