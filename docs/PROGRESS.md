@@ -1,5 +1,24 @@
 # Progress
 
+## Completed (2026-11-13): Kampu Space Master Doc (4)
+- **Player controls are at the bottom again.** The previous round gave their container `position: relative` for the drag thumb, which overrode its bottom placement. The draggable bar still works.
+- **Climb to orbit:**
+  - The camera starts low, with the horizon and Earth below and the rocket climbing above, so the rocket is seen leaving Earth.
+  - Earth moves much farther below as the rocket climbs (not to scale, since the rocket is drawn far too big), so it becomes a globe, not a blurred close-up.
+  - The separations keep their camera, as asked.
+  - The climb ends with a long pull-back to the whole Earth (the Solar System's Earth), with the path flown traced from Florida and a glow on the rocket. It no longer fades to black.
+- **Stars over Earth:** fixed. They had no depth test and were drawn after the planet; now they sit far behind it and Earth hides them.
+- **Parking orbit:** opens on the same whole-Earth view (lit), flies in behind the spacecraft, and turns the camera so Earth is below with its horizon ahead and space above.
+- **Departure:** the burn is seen from behind; then the camera swings wide round to look back at the spacecraft with Earth behind it.
+- **Moon arrival:** the Moon grows ahead, a course correction, the craft turns, the braking burn fires, and the craft swings around the Moon into orbit.
+- **Spacecraft leaving the picture:** this was a camera bug. The camera smoothed its own position, and with a fast craft it fell up to about 20 m behind it (the craft ended up behind the camera). The new chase camera only smooths its offset from the craft. Measured: the craft stays on screen for the whole departure and arrival.
+- **Scene changes:** a slower, gentler melt (1.8 s), and the title and caption fade in instead of snapping.
+- **Moon close-up:** the surface grain is blended from two sizes, so its repeat is not visible.
+
+**Tested** on the Live Server at 1366×768: the Apollo 11 launch to Moon arrival. Screenshots at each stage, plus the craft's screen position measured in the departure and arrival. No console errors.
+
+**Not verified:** smoothness on a real GPU, and the fade-in of titles (CSS animations don't run in the hidden test pane).
+
 ## Completed (2026-11-13): Kampu Space Master Doc (3)
 **Launch**
 - **Rollout before the countdown** (new first scene, 11 s, sped up and labelled as such), matched to how each rocket really reached its pad:

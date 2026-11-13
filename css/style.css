@@ -8860,8 +8860,9 @@ body.reduce-motion .hud-steps li.now {
   opacity: 0;
   transform: scale(1.035);
   filter: blur(3px);
-  transform: scale(1.06);
-  transition: opacity 1.4s var(--ease-journey), transform 1.4s var(--ease-journey), filter 1.4s ease;
+  transform: scale(1.05);
+  filter: blur(1.5px);
+  transition: opacity 1.8s cubic-bezier(0.45, 0, 0.25, 1), transform 1.8s cubic-bezier(0.3, 0, 0.2, 1), filter 1.8s ease;
 }
 @media (prefers-reduced-motion: reduce) {
   .mp-dissolve.melt {
@@ -9024,9 +9025,8 @@ body.player-on .landing-site {
 }
 
 /* ---- Mission player: the progress bar can be dragged (backward or forward) ---- */
-.mp-has-scrub {
-  position: relative;
-}
+/* (.mp-bottom is already positioned at the bottom of the screen, so the drag thumb lines up with it;
+   giving it position: relative here moved the whole control bar to the top) */
 .mp-timeline {
   cursor: pointer;
   touch-action: none;
@@ -9072,3 +9072,15 @@ body.player-on .landing-site {
 .mp-seg span {
   line-height: 26px;
 }
+/* the scene title and caption fade in when the scene changes */
+.mp-swap {
+  animation: mp-swap 0.9s cubic-bezier(0.3, 0, 0.2, 1) both;
+}
+@keyframes mp-swap {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-swap { animation: none; }
+}
+body.reduce-motion .mp-swap { animation: none; }

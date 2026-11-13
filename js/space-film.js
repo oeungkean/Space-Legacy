@@ -363,6 +363,25 @@ function glide(goal, look, dt, rate, world, radius) {
   camera.lookAt(camLook);
 }
 
+// A camera that rides with a fast-moving spacecraft: only its offset from the craft is smoothed, so it
+// never falls behind. (glide() smooths the camera's absolute position, which lagged tens of meters
+// behind a fast craft and left it out of the picture.)
+function ride(state, target, goal, look, dt, rate, world, radius) {
+  const offset = goal.clone().sub(target);
+  const lookOffset = look.clone().sub(target);
+  if (!state.offset) { state.offset = offset.clone(); state.lookOffset = lookOffset.clone(); }
+  const k = 1 - Math.exp(-(rate || 3) * dt);
+  state.offset.lerp(offset, k);
+  state.lookOffset.lerp(lookOffset, Math.min(1, k * 1.6));
+  camera.position.copy(target).add(state.offset);
+  if (world && radius) {
+    const off = camera.position.clone().sub(world.position);
+    if (off.length() < radius * 1.06) camera.position.copy(world.position).add(off.normalize().multiplyScalar(radius * 1.06));
+  }
+  camLook.copy(target).add(state.lookOffset);
+  camera.lookAt(camLook);
+}
+
 function snapCamera(goal, look) {
   camera.position.copy(goal);
   camLook.copy(look);
@@ -381,52 +400,75 @@ function keepOut(points, center, clear) {
 // ----- Shots -----
 const R = 60; // radius of the main world in a shot
 
+// Parking orbit, then the departure burn. It opens on the whole Earth (where the launch scene ended,
+// so the two scenes join up), glides in behind the spacecraft, and keeps it in view the whole time,
+// with enough of Earth below to see the globe curve away (not a blurred close-up of the ground).
 function orbitShot(o) {
   const earth = makeWorld(o.world || "earth", R);
   const craft = makeCraft(o.craft, 2.2);
   const r = R * 1.12;
   const burn = Boolean(o.burn);
+  const far = V(-0.35, 0.78, 0.92).normalize().multiplyScalar(R * 3.1);
   return {
     duration: o.duration || 14,
-    start: function () { setSun(V(0.61, 0.3, -0.71)); snapCamera(V(r + 6, 4, -12), V(r, 0, 0)); }, // daylight under the orbit
+    start: function () { setSun(V(0.66, 0.62, 0.42)); snapCamera(far, V(0, 0, 0)); }, // daylight on both the opening view and the orbit
     update: function (t, u, dt) {
       const extra = burn ? smooth(0.55, 1, u) : 0;
       const a = -0.3 + 0.32 * u + extra * extra * 0.5;
       const radius = r + extra * extra * 14;
       craft.position.set(Math.cos(a) * radius, Math.sin(a * 0.7) * 3, Math.sin(a) * radius);
-      const dir = V(-Math.sin(a), 0.02, Math.cos(a)).normalize();
+      const dir = V(-Math.sin(a), 0.02 + extra * 0.08, Math.cos(a)).normalize();
       aim(craft, dir, 3, dt);
       if (o.roll) craft.userData.model.rotation.z += dt * 0.12;
-      if (burn && u > 0.55 && u < 0.95) engineFire(craft, 1);
+      if (burn && u > 0.55 && u < 0.97) engineFire(craft, 1);
       if (!burn && Math.abs(u - 0.5) < 0.01) thrusterPuff(craft);
       const outward = craft.position.clone().normalize();
-      const goal = craft.position.clone().addScaledVector(dir, -7 - extra * 6).addScaledVector(outward, 2.6 + extra * 4).add(V(0, 1.5, 0));
-      glide(goal, craft.position.clone().addScaledVector(dir, 2), dt, 2.2, earth, R);
+      // chase position: behind the craft and well above it, so Earth's curve and the craft both show
+      const chase = craft.position.clone().addScaledVector(dir, -12 - extra * 6).addScaledVector(outward, 7 + extra * 4);
+      const look = craft.position.clone().addScaledVector(dir, 6).addScaledVector(outward, -1.5);
+      // the first three seconds fly in from the whole-Earth view
+      const arrive = ease(smooth(0, 0.22, u));
+      // "up" on screen turns to point away from Earth: Earth below, its horizon ahead, space above
+      camera.up.copy(V(0, 1, 0).lerp(outward, arrive)).normalize();
+      glide(lerpV(far, chase, arrive), lerpV(V(0, 0, 0), look, arrive), dt, 3, earth, R);
       if (earth.userData.clouds) earth.userData.clouds.rotation.y += dt * 0.004;
       earth.rotation.y += dt * 0.006;
     }
   };
 }
 
+// Leaving Earth: the departure burn, seen from just ahead of the spacecraft looking back at it, with
+// Earth behind it getting smaller. The craft stays in the picture the whole time.
 function departShot(o) {
   const earth = makeWorld(o.world || "earth", R);
   const craft = makeCraft(o.craft, 2.2);
-  const curve = new THREE.CatmullRomCurve3(keepOut([V(R * 1.15, 0, 0), V(R * 1.4, 4, R * 0.9), V(R * 3, 14, R * 3), V(R * 9, 30, R * 8)], V(0, 0, 0), R * 1.1));
+  const curve = new THREE.CatmullRomCurve3(keepOut([V(R * 1.2, 4, R * 0.25), V(R * 1.6, 9, R * 1.1), V(R * 3, 16, R * 3), V(R * 8, 30, R * 7.5)], V(0, 0, 0), R * 1.12));
+  const follow = {};
   return {
     duration: o.duration || 13,
-    start: function () { setSun(V(0.81, 0.35, 0.46)); snapCamera(V(R * 1.15 - 8, 3, -6), V(R * 1.15, 0, 0)); }, // looking back, Earth is almost full
+    start: function () {
+      setSun(V(0.81, 0.35, 0.46)); // looking back, Earth is almost full
+      const p = curve.getPoint(0);
+      const d = curve.getTangent(0).normalize();
+      craft.position.copy(p);
+      snapCamera(p.clone().addScaledVector(d, -10).add(V(0, 4, 0)), p.clone().addScaledVector(d, 4));
+    },
     update: function (t, u, dt) {
-      const s = ease(u);
+      const s = ease(u) * 0.92 + u * 0.08;
       craft.position.copy(curve.getPoint(s));
       const dir = curve.getTangent(Math.min(0.999, s + 0.001)).normalize();
       aim(craft, dir, 3, dt);
-      if (u < 0.45) engineFire(craft, 1);
-      // First behind the craft, then ahead of it looking back at Earth getting smaller
-      const turn = smooth(0.35, 0.75, u);
-      const behind = craft.position.clone().addScaledVector(dir, -8).add(V(0, 2.5, 0));
-      const ahead = craft.position.clone().addScaledVector(dir, 10).add(V(4, 3, 0));
-      const look = lerpV(craft.position.clone().addScaledVector(dir, 3), craft.position.clone().lerp(earth.position, 0.25), turn);
-      glide(lerpV(behind, ahead, turn), look, dt, 2, earth, R);
+      if (u < 0.6) engineFire(craft, 1);   // the departure burn (trans-lunar injection for the Moon)
+      const side = dir.clone().cross(V(0, 1, 0)).normalize();
+      // behind the craft at first (the burn), then swinging round ahead of it to look back at Earth
+      const turn = ease(smooth(0.25, 0.65, u));
+      const behind = craft.position.clone().addScaledVector(dir, -10).addScaledVector(side, 3).add(V(0, 3.5, 0));
+      const ahead = craft.position.clone().addScaledVector(dir, 9 + u * 6).addScaledVector(side, 6).add(V(0, 3, 0));
+      const lookAhead = craft.position.clone().addScaledVector(dir, 4);
+      const lookBack = craft.position.clone().lerp(earth.position, 0.06); // the craft in front, Earth behind it
+      // swing round on a wide arc (out to the side), not past the craft at close range
+      const swingPos = lerpV(behind, ahead, turn).addScaledVector(side, Math.sin(Math.PI * turn) * 9);
+      ride(follow, craft.position, swingPos, lerpV(lookAhead, lookBack, turn), dt, 4, earth, R);
     }
   };
 }
@@ -503,6 +545,9 @@ function setSun(dir) {
   worldsInShot.forEach(function (w) { if (w.userData.lights) w.userData.lights.userData.setSun(d); });
 }
 
+// Arriving: like the trip home, the world grows ahead while the spacecraft coasts toward it; then
+// the craft turns around and fires its engine against its direction of travel (the braking burn) and
+// swings around the world into orbit. The camera follows closely, so the craft never leaves the picture.
 function arriveShot(o) {
   const ringed = o.world === "saturn";
   const world = makeWorld(o.world, o.radius || R);
@@ -513,31 +558,36 @@ function arriveShot(o) {
   const phiQ = -0.9;
   const Q = V(r * Math.sin(phiQ), h, r * Math.cos(phiQ));
   const tan = V(Math.cos(phiQ), 0, -Math.sin(phiQ)).normalize();
-  const lineLength = radius * 9;
-  const arcLength = r * 1.3;
+  const lineLength = radius * 7;
+  const arcLength = r * 2.2; // well around the world, not just touching it
+  const follow = {};
   function at(sDist) {
     if (sDist < lineLength) return { p: Q.clone().addScaledVector(tan, -(lineLength - sDist)), d: tan.clone() };
     const phi = phiQ + (sDist - lineLength) / r;
     return { p: V(r * Math.sin(phi), h, r * Math.cos(phi)), d: V(Math.cos(phi), 0, -Math.sin(phi)) };
   }
   return {
-    duration: o.duration || 16,
+    duration: o.duration || 18,
     start: function () {
       const p = at(0).p;
       setSun(V(-0.18, 0.7, 0.69)); // daylight over the arrival point, low enough to cast crater shadows
-      snapCamera(p.clone().addScaledVector(tan, -10).add(V(3, 3, 0)), p);
+      craft.position.copy(p);
+      snapCamera(p.clone().addScaledVector(tan, -11).add(V(0, 3.5, 0)), p.clone().lerp(world.position, 0.2));
     },
     update: function (t, u, dt) {
-      // Fast at first, then the braking burn slows the craft into orbit
-      const sDist = (lineLength + arcLength) * (1 - Math.pow(1 - u, 1.7));
+      // a steady coast at first, slowing after the braking burn
+      const sDist = (lineLength + arcLength) * (u < 0.5 ? u * 1.25 : 0.625 + (1 - Math.pow(1 - (u - 0.5) / 0.5, 1.6)) * 0.375);
       const state = at(sDist);
       craft.position.copy(state.p);
-      const flip = smooth(0.3, 0.42, u) * (1 - smooth(0.78, 0.9, u));
+      const flip = smooth(0.3, 0.4, u) * (1 - smooth(0.78, 0.88, u));
       aim(craft, flip > 0.5 ? state.d.clone().negate() : state.d, 2.2, dt);
-      if (u > 0.44 && u < 0.76) engineFire(craft, 1);
+      if (u < 0.12) engineFire(craft, 0.5);            // a last course correction
+      if (u > 0.4 && u < 0.76) engineFire(craft, 1);   // the braking burn
       const outward = craft.position.clone().sub(world.position).normalize();
-      const goal = craft.position.clone().addScaledVector(state.d, -9).addScaledVector(outward, 4).add(V(0, 2, 0));
-      glide(goal, craft.position.clone().lerp(world.position, 0.15), dt, 2, world, radius * (ringed ? 2.4 : 1));
+      // close behind and above the craft; it looks ahead past the craft toward the world
+      const goal = craft.position.clone().addScaledVector(state.d, -10).addScaledVector(outward, 4.5).add(V(0, 2, 0));
+      const look = craft.position.clone().addScaledVector(state.d, 3).lerp(world.position, 0.08);
+      ride(follow, craft.position, goal, look, dt, 4, world, radius * (ringed ? 2.4 : 1));
       world.rotation.y += dt * 0.01;
     }
   };
@@ -995,6 +1045,7 @@ const SHOTS = {
 
 // ----- Running a shot -----
 function clearShot() {
+  if (camera) camera.up.set(0, 1, 0);
   while (shotGroup.children.length) shotGroup.remove(shotGroup.children[0]);
   worldsInShot.length = 0;
   craftsInShot.length = 0;

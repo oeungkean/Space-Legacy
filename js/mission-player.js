@@ -174,6 +174,12 @@ function setText(c) {
   dateText.textContent = c.date || "";
   captionText.textContent = c.caption || "";
   captionText.classList.toggle("hidden", !captionsOn || !c.caption);
+  // the new scene's title and caption fade in, rather than snapping to the new text
+  [chapterText, captionText, dateText].forEach(function (node) {
+    node.classList.remove("mp-swap");
+    void node.offsetWidth;
+    node.classList.add("mp-swap");
+  });
   showSceneLabel();
   nextButton.textContent = index >= plan.chapters.length - 1 ? "Finish ⏭" : "Skip ⏭";
 }
@@ -235,7 +241,7 @@ function meltHeldFrame() {
   // give the new scene a moment to draw its first frames, then melt the old picture away
   setTimeout(function () {
     dissolve.classList.add("melt");
-    setTimeout(function () { dissolve.classList.remove("on", "melt"); }, 1600);
+    setTimeout(function () { dissolve.classList.remove("on", "melt"); }, 2000);
   }, 140);
 }
 

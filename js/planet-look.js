@@ -318,7 +318,7 @@ export function addSurfaceDetail(material, options) {
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", "#include <common>\nuniform sampler2D uDetail; uniform vec2 uDetailRepeat; uniform float uDetailNear; uniform float uDetailFar; uniform float uDetailStrength;\nfloat detailBumpFade = 1.0;")
       .replace("#include <bumpmap_pars_fragment>", bumpChunk)
-      .replace("#include <map_fragment>", "#include <map_fragment>\n  float detailFade = 1.0 - smoothstep(uDetailNear, uDetailFar, length(vViewPosition));\n  detailBumpFade = detailFade;\n#ifdef USE_MAP\n  float detailGrain = texture2D(uDetail, vMapUv * uDetailRepeat).r;\n  diffuseColor.rgb *= mix(1.0, 0.7 + detailGrain * 0.6, detailFade * uDetailStrength);\n#endif");
+      .replace("#include <map_fragment>", "#include <map_fragment>\n  float detailFade = 1.0 - smoothstep(uDetailNear, uDetailFar, length(vViewPosition));\n  detailBumpFade = detailFade;\n#ifdef USE_MAP\n  float detailGrain = 0.5 * (texture2D(uDetail, vMapUv * uDetailRepeat).r + texture2D(uDetail, vMapUv * uDetailRepeat * 0.37 + vec2(0.31, 0.17)).r); // two scales, so the repeat is not visible\n  diffuseColor.rgb *= mix(1.0, 0.7 + detailGrain * 0.6, detailFade * uDetailStrength);\n#endif");
   };
   material.customProgramCacheKey = function () { return "surface-detail"; };
   material.needsUpdate = true;

@@ -164,6 +164,8 @@ let reflections = null;       // environment map for metal and paint (built once
 let padGroup = null;
 let earthBall = null;
 let ascent = null;            // state of the climb to orbit
+let ascentTrail = null;       // the path flown, drawn on Earth
+let ascentMarker = null;      // a glow on the rocket for the pull-back
 let totalTime = 0;
 let captionOverride = null;  // the mission name and date, in liftoff-only mode
 
@@ -891,6 +893,16 @@ function buildEarthBall() {
   earthBall.add(air);
   earthBall.visible = false;
   scene.add(earthBall);
+  // The path flown so far, drawn on the turning Earth (it starts at the launch site), and a glowing
+  // marker on the rocket: in the final pull-back the rocket itself is far too small to see
+  const trailGeometry = new THREE.BufferGeometry();
+  trailGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(600 * 3), 3));
+  trailGeometry.setDrawRange(0, 0);
+  ascentTrail = new THREE.Line(trailGeometry, new THREE.LineBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0, depthWrite: false, fog: false }));
+  ascentTrail.frustumCulled = false;
+  earthBall.add(ascentTrail);
+  ascentMarker = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeSunTexture(), color: 0xfff1d6, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false }));
+  scene.add(ascentMarker);
 }
 
 function buildSky() {
@@ -925,9 +937,9 @@ function buildSky() {
   const starPositions = new Float32Array(2500 * 3);
   for (let i = 0; i < 2500; i++) {
     const direction = new THREE.Vector3(random(-1, 1), random(-1, 1), random(-1, 1)).normalize();
-    starPositions[i * 3] = direction.x * 2500;
-    starPositions[i * 3 + 1] = direction.y * 2500;
-    starPositions[i * 3 + 2] = direction.z * 2500;
+    starPositions[i * 3] = direction.x * 18000;
+    starPositions[i * 3 + 1] = direction.y * 18000;
+    starPositions[i * 3 + 2] = direction.z * 18000;
   }
   const starGeometry = new THREE.BufferGeometry();
   starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
@@ -935,9 +947,11 @@ function buildSky() {
     starGeometry,
     new THREE.PointsMaterial({
       color: 0xffffff, size: 2, sizeAttenuation: false,
-      transparent: true, opacity: 0, depthWrite: false, depthTest: false, fog: false
+      transparent: true, opacity: 0, depthWrite: false, depthTest: true, fog: false
     })
   );
+  // Stars sit far beyond Earth and test depth, so Earth hides them. (They were drawn with no depth test
+  // after Earth, which put stars on top of the planet.)
   stars.renderOrder = -1;
   scene.add(stars);
 
@@ -1077,7 +1091,7 @@ function init() {
   scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xf0b98a, 120, 2600);
 
-  camera = new THREE.PerspectiveCamera(50, 1, 0.5, 20000);
+  camera = new THREE.PerspectiveCamera(50, 1, 0.5, 40000);
 
   // Reflections for metal and paint: a soft studio environment built in code (no download)
   try {
@@ -1599,7 +1613,11 @@ function beginAscent() {
   rocketRoot.position.set(0, 0, 0);
   rocketRoot.rotation.set(0, 0, 0);
   const split = STAGE_SPLIT[rocketKey];
+  if (ascentTrail) { ascentTrail.geometry.setDrawRange(0, 0); ascentTrail.material.opacity = 0; }
+  if (ascentMarker) ascentMarker.material.opacity = 0;
   ascent = {
+    trailCount: 0,
+    trailTimer: 0,
     step: -1,
     split: split ? split * rocketModel.userData.height : 0,
     lower: null,
@@ -1865,12 +1883,14 @@ function vaporCone(dt) {
 }
 
 function updateAscent(t, dt) {
-  const fadeIn = 1 - smoothstep(0, 0.6, t);
-  const fadeOut = smoothstep(SCENES[3].duration - 1.4, SCENES[3].duration, t);
-  fadeBox.style.opacity = String(Math.max(fadeIn, fadeOut));
+  // fades in; no fade to black at the end: the next scene takes over from the whole-Earth view
+  fadeBox.style.opacity = String(1 - smoothstep(0, 0.6, t));
 
-  // Altitude in km (compressed): from about 10 km to about 200 km
-  const altitude = 10 + 190 * smoothstep(0, 22, t) * (0.6 + 0.4 * smoothstep(0, 22, t));
+  // Height above Earth in display units. Not to scale: the rocket is drawn hundreds of times too big,
+  // so Earth is moved much farther away than the real altitude, until the whole planet is in view and
+  // looks like the Solar System's Earth (same maps), instead of a blurred close-up of the ground.
+  const climb = smoothstep(0, 25, t);
+  const altitude = 10 + 1500 * Math.pow(climb, 1.6);
   const pitch = 0.25 + 1.0 * smoothstep(0, 21, t);          // the gravity turn (radians from vertical)
   rocketRoot.rotation.set(0, 0, -pitch);
 
@@ -1897,8 +1917,9 @@ function updateAscent(t, dt) {
   ascent.downrange += dt * (0.002 + 0.01 * smoothstep(0, 20, t));
   earthBall.position.set(0, -(EARTH_R + altitude * 0.94), 0);
   earthBall.rotation.z = ascent.downrange;
-  skyMaterial.uniforms.uSpace.value = smoothstep(15, 90, altitude);
-  stars.material.opacity = smoothstep(50, 140, altitude);
+  skyMaterial.uniforms.uSpace.value = smoothstep(15, 160, altitude);
+  stars.material.opacity = smoothstep(120, 420, altitude);
+  updateAscentTrail(dt);
 
   // Parts that have separated fall behind (in the rocket's frame they drift back and down)
   const back = new THREE.Vector3(0, -1, 0).applyQuaternion(rocketRoot.quaternion);
@@ -1920,18 +1941,64 @@ function updateAscent(t, dt) {
   const size = fullSize - f * splitAt * 0.7;
   const middle = fullSize * 0.45 + f * (splitAt + (fullSize - splitAt) * 0.5 - fullSize * 0.45);
   const swing = t * 0.035;
-  // Wide shots: the camera pulls far back twice (after max Q, and on the way to orbit), so Earth's
-  // curve, the rocket and black space are all in the picture; it comes in close for the separations
-  const wide = smoothstep(2.5, 5, t) * (1 - smoothstep(8.5, 10.2, t)) + smoothstep(16.5, 19.5, t);
-  const pull = 1 + wide * 3.2;
-  const offset = new THREE.Vector3(Math.sin(swing) * size * 1.6 - size * 0.4, size * (0.9 + wide * 0.9), Math.cos(swing) * size * 2.2).multiplyScalar(pull);
+  // Early in the climb the camera stays low and looks out toward the horizon and the sky, so the rocket
+  // is seen leaving Earth (not skimming over a blurred ground). By the separations (which keep the
+  // camera they had) it is beside and a little above the rocket.
+  const low = 1 - smoothstep(6, 9.5, t);
+  const offset = new THREE.Vector3(Math.sin(swing) * size * 1.6 - size * 0.4, size * (0.9 - low * 0.75), Math.cos(swing) * size * 2.2);
   offset.add(new THREE.Vector3(0, middle - fullSize * 0.45, 0).applyQuaternion(rocketRoot.quaternion));
-  camera.position.copy(offset);
   const target = new THREE.Vector3(0, middle, 0).applyQuaternion(rocketRoot.quaternion);
-  target.y += wide * size * 3.2; // in the wide shots look up a little: the curve of Earth and black space come into view
-  shakeCamera(ascent.step === 1 ? 0.35 : ascent.engineOff > 0 ? 0 : 0.08, target);
+  target.y -= low * size * 0.45; // aimed a little down: the horizon and Earth in the lower part, the rocket climbing above
+
+  // The end of the climb: a long, smooth pull-back to the whole Earth (the same Earth as the Solar
+  // System), with the path flown traced on it and a glow on the rocket
+  const away = smoothstep(18, 24.5, t);
+  const earthCenter = earthBall.position;
+  const farPos = earthCenter.clone().add(new THREE.Vector3(-0.35, 0.78, 0.92).normalize().multiplyScalar(EARTH_R * 3.1));
+  const farTarget = earthCenter.clone().lerp(new THREE.Vector3(0, 0, 0), 0.4);
+  if (away > 0) {
+    const nearDir = offset.clone().normalize();
+    const farDir = farPos.clone().normalize();
+    const k = away * away * (3 - 2 * away);
+    const distance = Math.exp(Math.log(offset.length()) * (1 - k) + Math.log(farPos.length()) * k);
+    camera.position.copy(nearDir.lerp(farDir, k).normalize().multiplyScalar(distance));
+    target.lerp(farTarget, k);
+  } else {
+    camera.position.copy(offset);
+  }
+  if (ascentTrail) ascentTrail.material.opacity = 0.85 * smoothstep(17.5, 20, t);
+  if (ascentMarker) {
+    ascentMarker.material.opacity = smoothstep(19, 21, t);
+    ascentMarker.position.set(0, size * 0.5, 0);
+    const d = camera.position.distanceTo(ascentMarker.position);
+    ascentMarker.scale.setScalar(d * 0.028); // about the same size on screen however far the camera is
+  }
+  shakeCamera(away > 0.05 ? 0 : ascent.step === 1 ? 0.35 : ascent.engineOff > 0 ? 0 : 0.08, target);
   camera.lookAt(target);
   setRumble(ascent.engineOff > 0 ? 0.05 : 0.3 * (1 - smoothstep(20, 120, altitude)) + 0.05, 300);
+}
+
+// Records where the rocket is, in Earth's own (turning) frame, a few times a second
+function updateAscentTrail(dt) {
+  if (!ascentTrail || !ascent) return;
+  ascent.trailTimer -= dt;
+  if (ascent.trailTimer > 0 || ascent.trailCount >= 600) return;
+  ascent.trailTimer = 0.08;
+  earthBall.updateMatrixWorld(true);
+  const local = earthBall.worldToLocal(new THREE.Vector3(0, 0, 0));
+  const array = ascentTrail.geometry.attributes.position.array;
+  if (ascent.trailCount === 0) {
+    // start at the launch site on the ground, straight below the rocket's first position
+    const ground = local.clone().setLength(EARTH_R * 1.001);
+    array[0] = ground.x; array[1] = ground.y; array[2] = ground.z;
+    ascent.trailCount = 1;
+  }
+  array[ascent.trailCount * 3] = local.x;
+  array[ascent.trailCount * 3 + 1] = local.y;
+  array[ascent.trailCount * 3 + 2] = local.z;
+  ascent.trailCount += 1;
+  ascentTrail.geometry.attributes.position.needsUpdate = true;
+  ascentTrail.geometry.setDrawRange(0, ascent.trailCount);
 }
 
 // ----- Main loop -----
