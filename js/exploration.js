@@ -27,7 +27,7 @@ import { modelIcon } from "./explorer.js";
 import { collectiblesForSite } from "../data/collectibles.js";
 import { play, setLoop } from "./sounds.js";
 import {
-  recordObject, isRecorded, addPhoto, addSample, completeObjective, setMissionState, addDiscovery, getMission,
+  recordObject, isRecorded, addPhoto, addSample, completeObjective, failObjective, setMissionState, addDiscovery, getMission,
   showInfoCard, isInfoCardOpen, closeInfoCard
 } from "./progress.js";
 
@@ -1001,6 +1001,7 @@ function updateLm(dt, g) {
       setMessage("Contact! A soft landing. Now step down the ladder.", 4);
     } else {
       play("boom");
+      failObjective("land");
       setMessage("Too fast (" + (-lm.vy).toFixed(1) + " m/s down, " + side.toFixed(1) + " m/s sideways). Try again, or press L for auto-land.", 6);
       lm.alt = 70; lm.vy = -3; lm.vx = 0.8; lm.vz = -0.6; lm.fuel = 100; lm.throttle = 0.45; lm.auto = false;
     }

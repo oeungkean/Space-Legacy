@@ -140,8 +140,20 @@ export function completeObjective(id) {
   const objective = mission.objectives.find(function (o) { return o.id === id; });
   if (!objective || objective.done) return false;
   objective.done = true;
+  objective.failed = false;
   renderHud();
   flashHud(objective.text);
+  return true;
+}
+
+// Marks the last attempt at an objective as failed (for example a landing that came down too fast).
+// It stays open, so the player can try again; completing it later clears the failed mark.
+export function failObjective(id) {
+  if (!mission) return false;
+  const objective = mission.objectives.find(function (o) { return o.id === id; });
+  if (!objective || objective.done) return false;
+  objective.failed = true;
+  renderHud();
   return true;
 }
 
@@ -198,8 +210,8 @@ export function renderHud() {
   hudList.innerHTML = "";
   mission.objectives.forEach(function (o) {
     const li = document.createElement("li");
-    li.className = o.done ? "done" : (o === current ? "current" : "");
-    li.textContent = o.text;
+    li.className = o.done ? "done" : (o.failed ? "failed" : "") + (o === current ? " current" : "");
+    li.textContent = o.text + (o.failed && !o.done ? " (last attempt failed, try again)" : "");
     hudList.appendChild(li);
   });
   hudDiscoveries.textContent = mission.discoveries.length

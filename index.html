@@ -16,7 +16,7 @@
 
   <link rel="stylesheet" href="css/style.css">
 
-  <!-- Tells the browser where to download Three.js from -->
+  <!-- Tells the browser where to download Hi hello bro Three.js from -->
   <script type="importmap">
   {
     "imports": {
@@ -547,19 +547,27 @@
         <p class="sidebar-title">Mission Builder</p>
         <button class="sidebar-close panel-close" data-sidebar="sim-sidebar" aria-label="Close the steps">&times;</button>
       </div>
-      <p class="sidebar-heading">How do you want to play?</p>
+      <p class="sidebar-heading">Choose a mode</p>
       <div class="sim-mode" role="radiogroup" aria-label="Mode">
-        <button class="sim-mode-btn mode-card" data-sim-mode="historical" role="radio">
-          <svg class="mode-preview" viewBox="0 0 64 40" aria-hidden="true"><rect x="1" y="1" width="62" height="38" rx="6"/><path d="M14 31V15l4-6 4 6v16"/><path d="M12 31h12"/><path d="M33 14h20M33 20h16M33 26h18"/><path d="M45 31l3 3 6-7" class="mp-accent"/></svg>
-          <span class="mode-text"><b>Real Missions</b><span>Only the rockets, spacecraft and places that really flew together.</span></span>
+        <button class="sim-mode-btn mode-card" data-sim-mode="historical" role="radio" aria-checked="false">
+          <span class="mode-icon" aria-hidden="true">
+            <!-- a shield with a check: real, verified history -->
+            <svg viewBox="0 0 24 24"><path d="M12 3l7 3v5.5c0 4.3-2.9 7.9-7 9.5-4.1-1.6-7-5.2-7-9.5V6z"/><path d="M8.6 12.2l2.4 2.4 4.6-4.8"/></svg>
+          </span>
+          <span class="mode-text"><b>Real Missions</b><span>Fly history as it happened</span></span>
+          <span class="mode-radio" aria-hidden="true"></span>
         </button>
-        <button class="sim-mode-btn mode-card" data-sim-mode="sandbox" role="radio">
-          <svg class="mode-preview" viewBox="0 0 64 40" aria-hidden="true"><rect x="1" y="1" width="62" height="38" rx="6"/><path d="M14 31V15l4-6 4 6v16"/><path d="M12 31h12"/><circle cx="38" cy="20" r="6"/><path d="M46 28l8 8M50 24l-4 4" class="mp-accent"/></svg>
-          <span class="mode-text"><b>Free Build</b><span>Mix anything you like. Combinations that never flew are labelled fictional.</span></span>
+        <button class="sim-mode-btn mode-card" data-sim-mode="sandbox" role="radio" aria-checked="false">
+          <span class="mode-icon" aria-hidden="true">
+            <!-- building blocks with a spark: build your own -->
+            <svg viewBox="0 0 24 24"><rect x="3.5" y="12.5" width="7" height="7" rx="1.2"/><rect x="12.5" y="12.5" width="7" height="7" rx="1.2"/><rect x="8" y="4.5" width="7" height="7" rx="1.2"/><path d="M19 3.5v3M17.5 5h3"/></svg>
+          </span>
+          <span class="mode-text"><b>Free Build</b><span>Mix any parts you like</span></span>
+          <span class="mode-radio" aria-hidden="true"></span>
         </button>
       </div>
-      <p id="sim-mode-note" class="sim-mode-note"></p>
-      <p class="sidebar-foot">Fictional combinations are always labelled</p>
+      <p id="sim-mode-note" class="sim-mode-note" aria-live="polite"></p>
+      <p class="sidebar-foot mode-legend"><span class="mode-tag">Fictional</span> marks a mix that never flew</p>
     </nav>
 
     <main class="sim-main">

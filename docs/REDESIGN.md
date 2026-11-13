@@ -140,3 +140,18 @@ Where each piece of information lives (once):
 - **Sharp planet surfaces** need the texture files listed in `docs/ASSETS.md`. Without them, painted stand-ins are used (Earth's are now 1024 px).
 - **Engine plumes, parachutes and dust** are the existing particle effects with steadier camera work. Photographic plumes would need video or volumetric rendering, which is beyond a no-build Three.js site.
 - **Mode names "Real Missions" / "Free Build"** were the suggestion in the brief. If you want different names, they appear in `index.html` (the mode cards) and in a few lines of text in `js/simulator.js`.
+
+---
+
+# Round 3 (v13): design and realism pass
+
+| Area | Problem found (cause) | Now |
+|---|---|---|
+| Mission Builder bay | Models are not built with their origin at their base, but `fill()` placed every model at y = 0. Spacecraft sank 49–77% into the floor and rocket nozzles 2–5%. The launch platform sat entirely under the floor. | Each object is placed from its measured bounding box onto the platform deck. The platform stands on the floor. The work rings follow the rocket. |
+| Status colours | Amber, a blue→yellow gradient and blue all meant "done" or "in progress" in different places. There was no failed state. | `--st-done / --st-active / --st-pending / --st-failed` tokens, each paired with a shape (✓, ring, slate, ✕). |
+| Opening screen | 59px logo, 9–14px gaps, rules redefined in several layers | One consolidated block: a 96–128px logo on a 28/16/40/18px spacing scale |
+| Mission Builder look | Ordinary panels in a separate amber theme | A planning console: a 4-slot manifest (keyboard-accessible), a monitor frame, a "Telemetry" readout, "✓ Selected" chips, the one accent colour |
+| Launch | Engines buried inside the pad (no visible fire). Emission counted per frame (varied with screen refresh rate). A full particle pool dropped fire. No tone mapping, reflections or shadows. Jittery random shake. Hard-edged clouds. Painted placeholder Earth over the North Pole. | Hold-down mount sized per rocket; per-second emission; a bigger pool that reuses the oldest smoke first; ACES tone mapping, reflections and sun shadows; smooth shake; soft clouds; the real Earth turned so Kennedy Space Center is below the launch |
+| Solar System panels | The mission progress panel covered the planet panel | The mission panel sits bottom-left on that screen |
+
+Details, tests and known limits are in `docs/PROGRESS.md`.

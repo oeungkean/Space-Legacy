@@ -8,9 +8,11 @@
 // The camera shakes in the cabin and liftoff parts only.
 
 import * as THREE from "three";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { createLauncher, createAstronaut, strut } from "./models.js";
 import { createRocket } from "./rockets.js";
 import { createParticleSystem } from "./particles.js";
+import { planetMaterial, cloudMaterial } from "./planet-look.js";
 import { play, isSoundOn, setSoundOn, onSoundChange, isGroupOn } from "./sounds.js";
 import { wantsReducedMotion } from "./settings.js";
 import { getPlaybackSpeed } from "./playback.js";
@@ -70,6 +72,8 @@ const LIFTOFF_AT = 2.5;          // seconds into the liftoff part
 const BOOSTER_SEPARATION = 4.5;  // seconds after liftoff
 const ROCKET_SCALE = 8;
 const PAD_Y = 0.6;
+let restY = PAD_Y;     // height of the rocket's origin when it stands on its mount (set per rocket)
+let mountGroup = null; // the hold-down posts under the rocket
 const reduceMotion =
   window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -81,6 +85,22 @@ function random(min, max) {
 function smoothstep(a, b, x) {
   const t = Math.min(Math.max((x - a) / (b - a), 0), 1);
   return t * t * (3 - 2 * t);
+}
+
+// How many particles to start this frame for a steady rate (per second), whatever the frame rate.
+// The fraction left over is carried to the next frame, so "60 per second" stays 60 per second
+// at 30, 60 or 144 frames per second (before, emission was counted per frame).
+function perSecond(key, rate, dt) {
+  carry[key] = (carry[key] || 0) + rate * dt;
+  const count = Math.floor(carry[key]);
+  carry[key] -= count;
+  return count;
+}
+
+// Spreads puffs started in the same frame along their path, so a plume looks continuous
+// instead of coming out in clumps (one clump per frame).
+function spread(position, velocity, dt) {
+  return position.addScaledVector(velocity, -Math.random() * dt);
 }
 
 function pad2(n) {
@@ -114,6 +134,7 @@ let activeScenes = SCENES;   // all three, or only the liftoff (plus the climb t
 let rocketKey = null;
 let sunLight = null;
 let sunSprite = null;
+let reflections = null;       // environment map for metal and paint (built once in init)
 let padGroup = null;
 let earthBall = null;
 let ascent = null;            // state of the climb to orbit
@@ -207,11 +228,13 @@ function buildEnvironment() {
   );
   ground.rotation.x = -Math.PI / 2;
   ground.userData.intro = true;
+  ground.receiveShadow = true;
   padGroup.add(ground);
 
   const padMaterial = new THREE.MeshStandardMaterial({ color: 0xb8b8b4, roughness: 0.9 });
   const padMesh = new THREE.Mesh(new THREE.CylinderGeometry(24, 26, PAD_Y, 64), padMaterial);
   padMesh.position.y = PAD_Y / 2;
+  padMesh.receiveShadow = true;
   padGroup.add(padMesh);
 
   const trench = new THREE.Mesh(
@@ -299,6 +322,28 @@ function coastTexture() {
   return texture;
 }
 
+// One soft cloud puff: a few overlapping round blobs that fade out at the edges
+function cloudPuffTexture() {
+  const c = document.createElement("canvas");
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext("2d");
+  if (!ctx || !ctx.createRadialGradient) return null;
+  for (let i = 0; i < 9; i++) {
+    const x = 64 + random(-26, 26);
+    const y = 68 + random(-14, 10);
+    const r = random(22, 40);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, "rgba(255,255,255,0.55)");
+    g.addColorStop(0.6, "rgba(255,255,255,0.25)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+  }
+  const texture = new THREE.CanvasTexture(c);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 function buildCoast() {
   coastGroup = new THREE.Group();
   coastGroup.visible = false;
@@ -306,6 +351,7 @@ function buildCoast() {
   const land = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), new THREE.MeshStandardMaterial({ map: coastTexture(), roughness: 1 }));
   land.rotation.x = -Math.PI / 2;
   land.position.y = -0.05;
+  land.receiveShadow = true;
   coastGroup.add(land);
   // The Atlantic Ocean, just east of the pad, with a sandy beach
   const ocean = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), new THREE.MeshStandardMaterial({ color: 0x2a6c94, roughness: 0.18, metalness: 0.35 }));
@@ -342,12 +388,27 @@ function buildCoast() {
   const tank = new THREE.Mesh(new THREE.SphereGeometry(14, 20, 14), steel);
   tank.position.set(170, 80, -230);
   coastGroup.add(tank);
-  // Low clouds far away
-  const cloudMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, transparent: true, opacity: 0.85 });
+  // Low clouds far away: each is a cluster of soft, overlapping puffs (billboards) with a flatter,
+  // greyer base, instead of one hard-edged ellipsoid
+  const puffTop = new THREE.SpriteMaterial({ map: cloudPuffTexture(), color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false });
+  const puffBase = new THREE.SpriteMaterial({ map: puffTop.map, color: 0xc9d3de, transparent: true, opacity: 0.7, depthWrite: false });
   for (let i = 0; i < 18; i++) {
-    const cloud = new THREE.Mesh(new THREE.SphereGeometry(random(60, 140), 10, 8), cloudMaterial);
+    const cloud = new THREE.Group();
+    const width = random(160, 320);
+    const puffs = 5 + Math.floor(random(0, 4));
+    for (let p = 0; p < puffs; p++) {
+      const across = (p / (puffs - 1) - 0.5) * width;
+      const size = width * random(0.35, 0.55) * (1 - Math.abs(across) / width);
+      const top = new THREE.Sprite(puffTop);
+      top.scale.set(size * 1.4, size * 0.75, 1);
+      top.position.set(across, size * random(0.12, 0.3), random(-20, 20));
+      cloud.add(top);
+      const base = new THREE.Sprite(puffBase);
+      base.scale.set(size * 1.6, size * 0.4, 1);
+      base.position.set(across * 1.05, -size * 0.05, random(-20, 20));
+      cloud.add(base);
+    }
     const angle = random(0, Math.PI * 2);
-    cloud.scale.set(1.8, 0.35, 1);
     cloud.position.set(Math.cos(angle) * random(2400, 3400), random(380, 650), Math.sin(angle) * random(2400, 3400));
     coastGroup.add(cloud);
   }
@@ -367,33 +428,43 @@ function setLaunchSite(coast) {
   sunSprite.visible = !coast;
 }
 
-// Earth seen from high up during the climb to orbit: oceans, clouds and a thin blue atmosphere
-function earthTexture() {
-  const c = document.createElement("canvas");
-  c.width = 512; c.height = 256;
-  const ctx = c.getContext("2d");
-  if (!ctx || !ctx.fillRect) return null;
-  ctx.fillStyle = "#1d4f8a";
-  ctx.fillRect(0, 0, 512, 256);
-  for (let i = 0; i < 26; i++) {
-    ctx.fillStyle = Math.random() < 0.5 ? "rgba(70,110,60,0.85)" : "rgba(150,130,90,0.8)";
-    ctx.beginPath && ctx.beginPath();
-    if (ctx.ellipse) { ctx.ellipse(random(0, 512), random(40, 216), random(20, 70), random(10, 35), random(0, 3), 0, Math.PI * 2); ctx.fill(); }
-  }
-  for (let i = 0; i < 140; i++) {
-    ctx.fillStyle = "rgba(255,255,255," + random(0.25, 0.7) + ")";
-    if (ctx.ellipse) { ctx.beginPath(); ctx.ellipse(random(0, 512), random(0, 256), random(10, 45), random(3, 10), random(-0.3, 0.3), 0, Math.PI * 2); ctx.fill(); }
-  }
-  const texture = new THREE.CanvasTexture(c);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
+// Earth seen from high up during the climb to orbit. It uses the same Earth as the Solar System
+// (js/planet-look.js): the real day map, surface relief and ocean shine from the CDN, with a real cloud
+// layer above it. Offline, both fall back to painted maps, so the scene still works.
+const EARTH_R = 6000;   // display units (about 1 unit per km at this scale)
+// The launch site at the top of the globe: Kennedy Space Center, Florida (28.6 N, 80.6 W).
+// Every launch in this simulator shares this view; it is an illustration of the climb, not a
+// trajectory for the specific mission.
+const LAUNCH_SITE = { lat: 28.6, lon: -80.6 };
+
+// Turns the globe so a latitude/longitude point faces straight up (+Y), with east along +X,
+// which is the direction the rocket pitches over toward.
+function siteOnTop(lat, lon) {
+  // three.js SphereGeometry: u = longitude from -180, v = latitude; this is the matching direction
+  const phi = (lon + 180) / 360 * Math.PI * 2;
+  const theta = (90 - lat) / 180 * Math.PI;
+  const up = new THREE.Vector3(-Math.cos(phi) * Math.sin(theta), Math.cos(theta), Math.sin(phi) * Math.sin(theta));
+  const east = new THREE.Vector3(Math.sin(phi), 0, Math.cos(phi)).normalize();
+  const toTop = new THREE.Quaternion().setFromUnitVectors(up, new THREE.Vector3(0, 1, 0));
+  east.applyQuaternion(toTop);
+  const spin = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(east.z, east.x));
+  return spin.multiply(toTop);
 }
 
-const EARTH_R = 6000;   // display units (about 1 unit per km at this scale)
 function buildEarthBall() {
   earthBall = new THREE.Group();
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 96, 64), new THREE.MeshStandardMaterial({ map: earthTexture(), roughness: 0.8, fog: false }));
-  earthBall.add(ball);
+  const globe = new THREE.Group();
+  globe.quaternion.copy(siteOnTop(LAUNCH_SITE.lat, LAUNCH_SITE.lon));
+  earthBall.add(globe);
+  const surface = planetMaterial("Earth");
+  surface.fog = false;
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 128, 96), surface);
+  globe.add(ball);
+  const cloudLayer = cloudMaterial();
+  cloudLayer.fog = false;
+  cloudLayer.opacity = 0.7; // thinner, so the coast and the ocean show through
+  const clouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.004, 128, 96), cloudLayer);
+  globe.add(clouds);
   const air = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.012, 96, 64), new THREE.MeshBasicMaterial({
     color: 0x6fb2ff, transparent: true, opacity: 0.28, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false, fog: false
   }));
@@ -463,6 +534,15 @@ function buildSky() {
   scene.add(sunSprite);
 }
 
+// Gives a standard material soft studio reflections, so painted and metal parts show highlights
+// instead of looking flat. strength 0-1 (kept low: the sun and sky stay the main light).
+function litLikeMetal(material, strength) {
+  if (!reflections || !material || !material.isMeshStandardMaterial) return;
+  material.envMap = reflections;
+  material.envMapIntensity = strength;
+  material.needsUpdate = true;
+}
+
 function spawnRocket(rocketType, look) {
   if (rocketRoot) scene.remove(rocketRoot);
   detached.forEach(function (booster) { scene.remove(booster); });
@@ -472,7 +552,12 @@ function spawnRocket(rocketType, look) {
   rocketModel = createRocket(rocketType, look) || createLauncher(); // the mission's real rocket, or the generic one
   rocketModel.scale.setScalar(ROCKET_SCALE);
   rocketModel.traverse(function (o) {
-    if (o.isMesh && o.material && o.material.clone) o.material = o.material.clone();
+    if (o.isMesh && o.material && o.material.clone) {
+      o.material = o.material.clone();
+      litLikeMetal(o.material, 0.55);
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
   });
 
   // Fit the tower and the camera to this rocket (sizes in meters)
@@ -485,10 +570,63 @@ function spawnRocket(rocketType, look) {
   towerGroup.position.set(towerX, 0, 0);
   padGroup.add(towerGroup);
   armPivot.position.set(towerX - 3.5, Math.min(61, heightMeters * 0.86), 0);
+  [towerGroup, armPivot].forEach(function (group) {
+    group.traverse(function (o) {
+      if (o.isMesh) {
+        o.castShadow = true;
+        if (o.material) litLikeMetal(o.material, 0.35);
+      }
+    });
+  });
+
+  // The sun's shadow camera covers the pad and the tallest rocket (sizes grow with the rocket)
+  const reach = Math.max(90, heightMeters * 1.3);
+  const shadowCam = sunLight.shadow.camera;
+  shadowCam.left = -reach;
+  shadowCam.right = reach;
+  shadowCam.top = reach * 1.4;
+  shadowCam.bottom = -reach * 0.6;
+  shadowCam.near = 10;
+  shadowCam.far = 1500;
+  shadowCam.updateProjectionMatrix();
+  sunLight.target.position.set(0, heightMeters * 0.35, 0);
   rocketRoot.add(rocketModel);
-  rocketRoot.position.set(0, PAD_Y, 0);
+
+  // Stand the rocket on its hold-down posts above the flame trench. The models hang their engine
+  // nozzles a few metres below their origin, so without this lift the engines (and their fire)
+  // were buried inside the pad. The lift is measured from the model, so it fits every rocket.
+  rocketModel.updateMatrixWorld(true);
+  const nozzles = Math.max(0, -new THREE.Box3().setFromObject(rocketModel).min.y);
+  const lift = nozzles + 1.2; // clearance between the nozzles and the trench opening
+  restY = PAD_Y + lift;
+  rocketRoot.position.set(0, restY, 0);
+  buildMount(lift, radiusMeters);
+
   boosters = rocketModel.userData.boosters.slice();
   scene.add(rocketRoot);
+}
+
+// The launch mount: four hold-down posts on the pad, just outside the engines, that the rocket rests on
+// until liftoff (they stay behind on the pad)
+function buildMount(lift, radius) {
+  if (mountGroup) padGroup.remove(mountGroup);
+  mountGroup = new THREE.Group();
+  const steel = new THREE.MeshStandardMaterial({ color: 0x5f656e, roughness: 0.55, metalness: 0.6 });
+  litLikeMetal(steel, 0.35);
+  const r = Math.max(radius * 0.92, 3.5);
+  for (let i = 0; i < 4; i++) {
+    const angle = Math.PI / 4 + (i * Math.PI) / 2;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(1.4, lift, 1.4), steel);
+    post.position.set(Math.cos(angle) * r, PAD_Y + lift / 2, Math.sin(angle) * r);
+    post.castShadow = true;
+    post.receiveShadow = true;
+    mountGroup.add(post);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.5, 2.2), steel);
+    cap.position.set(post.position.x, PAD_Y + lift - 0.25, post.position.z);
+    cap.castShadow = true;
+    mountGroup.add(cap);
+  }
+  padGroup.add(mountGroup);
 }
 
 function spawnAstronauts() {
@@ -508,16 +646,37 @@ function init() {
 
   renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5)); // sharp: the screen's real pixel density
+  // Filmic tone mapping, like the Solar System, landing and Mission Builder scenes: bright engine light
+  // and sunlit paint roll off smoothly instead of clipping to flat white
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.2;
+  // Soft sun shadows on the pad (the rocket, tower and arm cast them)
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xf0b98a, 120, 2600);
 
   camera = new THREE.PerspectiveCamera(50, 1, 0.5, 20000);
 
+  // Reflections for metal and paint: a soft studio environment built in code (no download)
+  try {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    reflections = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+  } catch (error) {
+    reflections = null; // optional
+  }
+
   scene.add(new THREE.HemisphereLight(0x9fb4e8, 0x4a3d33, 0.9));
   sunLight = new THREE.DirectionalLight(0xffc48a, 2.4);
   sunLight.position.set(-300, 70, 500);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.shadow.bias = -0.0004;
+  sunLight.shadow.normalBias = 0.4;
   scene.add(sunLight);
+  scene.add(sunLight.target);
 
   padLight = new THREE.PointLight(0xff9a45, 0, 240, 1.2);
   padLight.position.set(0, 5, 0);
@@ -526,7 +685,10 @@ function init() {
   buildSky();
   buildEnvironment();
   buildEarthBall();
-  particles = createParticleSystem(scene, 900);
+  // 1200 sprites: enough for the thick pad smoke at liftoff; when it is full, the oldest smoke is
+  // reused so the engine fire never drops out (see js/particles.js)
+  particles = createParticleSystem(scene, 1200);
+  particles.setCamera(camera); // smoke right in front of the lens fades instead of whiting out the view
   if (renderer) renderer.localClippingEnabled = true;
 
   resize();
@@ -652,21 +814,24 @@ function enterScene(index) {
   camera.fov = id === "cabin" ? 62 : id === "liftoff" ? 40 : id === "ascent" ? 45 : id === "launch" ? 30 : 50;
   camera.updateProjectionMatrix();
 
-  carry.fire = 0;
-  carry.smoke = 0;
-  carry.trail = 0;
+  Object.keys(carry).forEach(function (key) { carry[key] = 0; });
   lastBeep = -1;
 
   blink();
 }
 
 // ----- Camera shake -----
+// A smooth, rumbling shake made of a few sine waves at unrelated speeds. Before, every frame jumped to a
+// new random offset, which looked like jitter (and got worse on fast screens). This moves continuously,
+// like a camera on a tripod near a launch.
 function shakeCamera(amount, target) {
   if (reduceMotion || wantsReducedMotion() || amount <= 0) return;
-  camera.position.x += random(-1, 1) * amount;
-  camera.position.y += random(-1, 1) * amount;
-  target.x += random(-1, 1) * amount * 0.6;
-  target.y += random(-1, 1) * amount * 0.6;
+  const s = performance.now() / 1000;
+  const wave = function (a, b, c) { return Math.sin(s * a) * 0.55 + Math.sin(s * b + 1.7) * 0.3 + Math.sin(s * c + 4.1) * 0.15; };
+  camera.position.x += wave(23.1, 37.7, 61.3) * amount;
+  camera.position.y += wave(29.3, 43.9, 71.9) * amount;
+  target.x += wave(19.7, 33.1, 53.3) * amount * 0.6;
+  target.y += wave(26.9, 41.3, 67.1) * amount * 0.6;
 }
 
 // ----- Scene 1: crew walkout -----
@@ -716,57 +881,64 @@ function updateScene2(t) {
 // ----- Scene 3: liftoff -----
 const cameraTarget = new THREE.Vector3(0, 32, 0);
 
-function emitFire(base, power) {
-  // The mission rockets list their engines in userData.exhaust (with a size for each)
-  const exhaust = rocketModel.userData.exhaust;
-  if (exhaust) {
-    const separated = boosters.length === 0;
-    exhaust.forEach(function (engine) {
-      if (engine.booster && separated) return; // the boosters have dropped away
+function emitFire(base, power, dt) {
+  // 60 puffs per second from each engine
+  const count = perSecond("fire", 60, dt);
+  for (let k = 0; k < count; k++) {
+    // The mission rockets list their engines in userData.exhaust (with a size for each)
+    const exhaust = rocketModel.userData.exhaust;
+    if (exhaust) {
+      const separated = boosters.length === 0;
+      exhaust.forEach(function (engine) {
+        if (engine.booster && separated) return; // the boosters have dropped away
+        const position = new THREE.Vector3(
+          base.x + engine.point.x * ROCKET_SCALE,
+          base.y + engine.point.y * ROCKET_SCALE,
+          base.z + engine.point.z * ROCKET_SCALE
+        );
+        const velocity = new THREE.Vector3(random(-3, 3), -random(26, 46) * power, random(-3, 3));
+        const size = engine.size * 3.2 * (0.6 + 0.6 * power);
+        position.y -= size * 0.4; // start just below the nozzle, so the bell does not cut the flame's shape
+        particles.emit(true, spread(position, velocity, dt), velocity, size, 1.5, random(0.22, 0.42), 0.7, undefined, 0);
+      });
+      continue;
+    }
+
+    const points = rocketModel.userData.exhaustPoints;
+    points.forEach(function (point, index) {
+      const isBooster = index >= 4;
       const position = new THREE.Vector3(
-        base.x + engine.point.x * ROCKET_SCALE,
-        base.y + engine.point.y * ROCKET_SCALE,
-        base.z + engine.point.z * ROCKET_SCALE
+        base.x + point.x * ROCKET_SCALE,
+        base.y + point.y * ROCKET_SCALE,
+        base.z + point.z * ROCKET_SCALE
       );
       const velocity = new THREE.Vector3(random(-3, 3), -random(26, 46) * power, random(-3, 3));
-      const size = engine.size * 3.2 * (0.6 + 0.6 * power);
-      particles.emit(true, position, velocity, size, 1.5, random(0.22, 0.42), 0.85, undefined, 0);
+      const size = (isBooster ? 8 : 6) * (0.6 + 0.6 * power);
+      position.y -= size * 0.4; // start just below the nozzle
+      particles.emit(true, spread(position, velocity, dt), velocity, size, 1.5, random(0.22, 0.42), 0.7, undefined, 0);
     });
-    return;
   }
-
-  const points = rocketModel.userData.exhaustPoints;
-  points.forEach(function (point, index) {
-    const isBooster = index >= 4;
-    const position = new THREE.Vector3(
-      base.x + point.x * ROCKET_SCALE,
-      base.y + point.y * ROCKET_SCALE,
-      base.z + point.z * ROCKET_SCALE
-    );
-    const velocity = new THREE.Vector3(random(-3, 3), -random(26, 46) * power, random(-3, 3));
-    const size = (isBooster ? 8 : 6) * (0.6 + 0.6 * power);
-    particles.emit(true, position, velocity, size, 1.5, random(0.22, 0.42), 0.85, undefined, 0);
-  });
 }
 
-function emitSmoke(base, rocketY, power, t) {
+function emitSmoke(base, rocketY, power, t, dt) {
   // Smoke and steam spreading over the pad (covers the bottom of the screen)
   if (rocketY < 160) {
-    carry.smoke += (t < LIFTOFF_AT ? 40 + 60 * power : 150) * (1 / 60);
+    carry.smoke += (t < LIFTOFF_AT ? 40 + 60 * power : 150) * dt;
     while (carry.smoke >= 1) {
       carry.smoke -= 1;
       const angle = random(0, Math.PI * 2);
       const speed = random(6, t < LIFTOFF_AT ? 16 : 26);
       const position = new THREE.Vector3(random(-6, 6), PAD_Y + 1.5, random(-6, 6));
       const velocity = new THREE.Vector3(Math.cos(angle) * speed, random(0.5, 3), Math.sin(angle) * speed);
-      const tint = Math.random() < 0.3 ? 0xffd9b0 : 0xffffff;
+      // steam near the engines is lit from below by the fire: more of it is warm at full thrust
+      const tint = Math.random() < 0.25 + 0.3 * power ? (power > 0.6 ? 0xffc690 : 0xffd9b0) : 0xffffff;
       particles.emit(false, position, velocity, random(12, 20), random(55, 90), random(6, 9), random(0.5, 0.7), tint, 0.3);
     }
   }
 
   // A trail left behind the rising vehicle
   if (rocketY > 6 && rocketY < 700) {
-    carry.trail += 60 * (1 / 60);
+    carry.trail += 60 * dt;
     while (carry.trail >= 1) {
       carry.trail -= 1;
       const position = new THREE.Vector3(base.x + random(-2, 2), base.y - 2, base.z + random(-2, 2));
@@ -800,7 +972,7 @@ function updateScene3(t, dt) {
   }
   const power = t < LIFTOFF_AT ? smoothstep(0.4, 2.6, t) * 0.8 : 1;
 
-  let rocketY = PAD_Y;
+  let rocketY = restY;
   if (sinceLiftoff > 0) {
     rocketY += 0.5 * 8 * sinceLiftoff * sinceLiftoff + 2.2 * sinceLiftoff * sinceLiftoff * sinceLiftoff;
   }
@@ -808,8 +980,8 @@ function updateScene3(t, dt) {
   const base = rocketRoot.position;
 
   if (power > 0.02) {
-    emitFire(base, power);
-    emitSmoke(base, rocketY, power, t);
+    emitFire(base, power, dt);
+    emitSmoke(base, rocketY, power, t, dt);
   }
 
   if (!hasAscent() && sinceLiftoff > BOOSTER_SEPARATION && boosters.length > 0) separateBoosters();
@@ -860,9 +1032,10 @@ function updateScene3(t, dt) {
 
 // ----- Mission launch: countdown, water deluge, ignition, hold-down release, tower clear -----
 // Camera shots like a launch broadcast: a long lens across the water, the engines, the tower, then tracking.
-function emitDeluge(power) {
-  // The sound suppression system floods the pad with water just before ignition
-  for (let i = 0; i < 4; i++) {
+function emitDeluge(power, dt) {
+  // The sound suppression system floods the pad with water just before ignition (240 sprays a second)
+  const count = perSecond("deluge", 240, dt);
+  for (let i = 0; i < count; i++) {
     const angle = random(0, Math.PI * 2);
     const r = random(6, 12);
     const position = new THREE.Vector3(Math.cos(angle) * r, PAD_Y + 0.5, Math.sin(angle) * r);
@@ -883,15 +1056,15 @@ function updateMissionLaunch(t, dt) {
     play("ignition");
   }
   // A heavy rocket climbs slowly at first, then faster and faster
-  let rocketY = PAD_Y;
+  let rocketY = restY;
   if (sinceLiftoff > 0) rocketY += 0.5 * 2.2 * sinceLiftoff * sinceLiftoff + 0.25 * sinceLiftoff * sinceLiftoff * sinceLiftoff;
   rocketRoot.position.y = rocketY;
   rocketRoot.rotation.z = -smoothstep(LAUNCH_LIFTOFF + 4, SCENES[4].duration, t) * 0.08; // the roll and pitch program begins
   const base = rocketRoot.position;
-  if (t > 2 && t < LAUNCH_LIFTOFF + 4) emitDeluge(t < LAUNCH_IGNITION ? 0.6 : 1);
+  if (t > 2 && t < LAUNCH_LIFTOFF + 4) emitDeluge(t < LAUNCH_IGNITION ? 0.6 : 1, dt);
   if (ignition > 0.01) {
-    emitFire(base, ignition * (sinceLiftoff > 0 ? 1 : 0.85));
-    emitSmoke(base, rocketY, ignition, sinceLiftoff > 0 ? LIFTOFF_AT + 0.1 : 0);
+    emitFire(base, ignition * (sinceLiftoff > 0 ? 1 : 0.85), dt);
+    emitSmoke(base, rocketY, ignition, sinceLiftoff > 0 ? LIFTOFF_AT + 0.1 : 0, dt);
   }
   const flicker = 0.85 + Math.random() * 0.3;
   padLight.intensity = 320 * ignition * flicker * (1 - smoothstep(10, 140, rocketY));
@@ -906,12 +1079,13 @@ function updateMissionLaunch(t, dt) {
     camera.fov = 16;
     camera.position.set(620 * s, 12, 820 * s);
     target = new THREE.Vector3(0, 32 * s, 0);
-    if (Math.random() < 0.3) particles.emit(false, new THREE.Vector3(random(-2, 2), random(20, 50) * s, random(-2, 2)), new THREE.Vector3(random(1, 3), random(-0.5, 0.5), 0), random(1.5, 3), random(6, 10), 2.5, 0.4, 0xffffff, 0.5); // venting
+    for (let v = perSecond("vent", 18, dt); v > 0; v--) particles.emit(false, new THREE.Vector3(random(-2, 2), random(20, 50) * s, random(-2, 2)), new THREE.Vector3(random(1, 3), random(-0.5, 0.5), 0), random(1.5, 3), random(6, 10), 2.5, 0.4, 0xffffff, 0.5); // venting
   } else if (t < LAUNCH_LIFTOFF + 1.2) {
     // 2. Close on the engines: ignition, flames into the flame trench
+    // aimed low, so the engines and their fire sit in the middle of the picture (above the captions)
     camera.fov = 38;
     camera.position.set(-34 * s, 4, 46 * s);
-    target = new THREE.Vector3(0, 8 * s + Math.max(0, rocketY - PAD_Y) * 0.6, 0);
+    target = new THREE.Vector3(0, 3.5 * s + Math.max(0, rocketY - restY) * 0.6, 0);
     shake = 0.05 + 0.25 * ignition;
   } else if (t < LAUNCH_LIFTOFF + 4.2) {
     // 3. From the base of the tower looking up as the rocket clears it
@@ -986,6 +1160,7 @@ function beginAscent() {
   // Above the air the sunlight is white, not orange
   sunLight.color.set(0xffffff);
   sunLight.intensity = 2.8;
+  sunLight.castShadow = false; // nothing below the rocket to receive a shadow up here
   sunSprite.visible = false;
   detached.forEach(function (part) { scene.remove(part); });
   detached = [];
@@ -1068,7 +1243,9 @@ function separateNose() {
   play("separation");
 }
 
-function emitAscentFire(power, altitude) {
+function emitAscentFire(power, altitude, dt) {
+  const count = perSecond("ascentFire", 120, dt);  // 120 puffs per second from each engine
+  const trail = perSecond("ascentTrail", 60, dt);
   rocketRoot.updateMatrixWorld(true);
   const up = new THREE.Vector3(0, 1, 0).applyQuaternion(rocketRoot.quaternion);
   const vacuum = smoothstep(30, 140, altitude); // the plume spreads out as the air thins
@@ -1082,25 +1259,29 @@ function emitAscentFire(power, altitude) {
   } else (rocketModel.userData.exhaustPoints || []).forEach(function (p) { points.push({ point: p, size: 0.8 }); });
   points.forEach(function (engine) {
     const world = rocketModel.localToWorld(engine.point.clone());
-    for (let k = 0; k < 2; k++) {
+    for (let k = 0; k < count; k++) {
       const velocity = up.clone().multiplyScalar(-random(70, 110)).add(new THREE.Vector3(random(-4, 4), random(-4, 4), random(-4, 4)).multiplyScalar(1 + vacuum * 4));
       const size = engine.size * 3.2 * power * (1 + vacuum * 2.5);
-      particles.emit(true, world, velocity, size, size * (2 + vacuum * 4), random(0.25, 0.45) * (1 + vacuum), 0.85 - vacuum * 0.35, vacuum > 0.5 ? 0xbfd6ff : undefined, 0);
+      particles.emit(true, spread(world.clone(), velocity, dt), velocity, size, size * (2 + vacuum * 4), random(0.25, 0.45) * (1 + vacuum), 0.85 - vacuum * 0.35, vacuum > 0.5 ? 0xbfd6ff : undefined, 0);
     }
   });
   // A white smoke trail in the lower atmosphere only
   if (altitude < 45 && !ascent.secondStage) {
     const tail = rocketModel.localToWorld(new THREE.Vector3(0, 0, 0));
-    particles.emit(false, tail, up.clone().multiplyScalar(-random(60, 80)), random(6, 10), random(26, 40), random(2.5, 4), 0.35 * (1 - altitude / 45), 0xffffff, 0.4);
+    for (let k = 0; k < trail; k++) {
+      const velocity = up.clone().multiplyScalar(-random(60, 80));
+      particles.emit(false, spread(tail.clone(), velocity, dt), velocity, random(6, 10), random(26, 40), random(2.5, 4), 0.35 * (1 - altitude / 45), 0xffffff, 0.4);
+    }
   }
 }
 
 // Max Q: a cone of condensed vapor can form around the rocket for a moment
-function vaporCone() {
+function vaporCone(dt) {
   rocketRoot.updateMatrixWorld(true);
   const mid = rocketModel.localToWorld(new THREE.Vector3(0, rocketModel.userData.height * 0.55, 0));
   const up = new THREE.Vector3(0, 1, 0).applyQuaternion(rocketRoot.quaternion);
-  for (let i = 0; i < 6; i++) {
+  const count = perSecond("vapor", 250, dt);
+  for (let i = 0; i < count; i++) {
     const angle = random(0, Math.PI * 2);
     const out = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)).applyQuaternion(rocketRoot.quaternion).multiplyScalar(random(3, 7));
     particles.emit(false, mid, out.addScaledVector(up, -random(40, 60)), random(2, 4), random(8, 14), random(0.35, 0.6), 0.5, 0xffffff, 1.5);
@@ -1132,8 +1313,8 @@ function updateAscent(t, dt) {
   }
   ascent.engineOff = Math.max(0, ascent.engineOff - dt);
   const throttle = ascent.step === 1 ? 0.7 : 1;
-  if (ascent.engineOff <= 0) emitAscentFire(throttle, altitude);
-  if (ascent.step === 1 && Math.random() < 0.7) vaporCone();
+  if (ascent.engineOff <= 0) emitAscentFire(throttle, altitude, dt);
+  if (ascent.step === 1) vaporCone(dt);
   countdownBox.textContent = steps[Math.max(0, ascent.step)][1];
 
   // Earth below: farther away and curving as we climb; it slides backward as we gain speed
@@ -1248,6 +1429,7 @@ export function startCinematic(onFinish, options) {
     padGroup.visible = true;
     rocketRoot.rotation.set(0, 0, 0);
     earthBall.visible = false;
+    sunLight.castShadow = true; // switched off during the climb to orbit
     setLaunchSite(Boolean(options.mission));
     ascent = null;
     pausedAt = null;

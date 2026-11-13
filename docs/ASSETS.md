@@ -12,8 +12,8 @@ Download the 2K versions (8K also works, but loads slower). Rename them to these
 | File | Solar System Scope map |
 |---|---|
 | `mercury.jpg` | Mercury |
-| `venus_atmosphere.jpg` | Venus Atmosphere (cloud tops, as seen from space) |
-| `venus.jpg` | Venus Surface (optional; used if the atmosphere map is missing) |
+| `venus.jpg` | Venus Atmosphere (cloud tops, as seen from space; used for the planet in the solar system view) |
+| `venus_surface.jpg` | Venus Surface (used on the Venus detail screen, and as a fallback if `venus.jpg` is missing) |
 | `mars.jpg` | Mars |
 | `jupiter.jpg` | Jupiter |
 | `saturn.jpg` | Saturn |

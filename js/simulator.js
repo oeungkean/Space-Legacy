@@ -427,6 +427,9 @@ bayNext.addEventListener("click", function () {
 
 // The build sheet at the top of the bay: what you have chosen so far
 function renderBuildSheet() {
+  // The sheet is rebuilt on every change, so remember which slot had keyboard focus and restore it
+  const focused = document.activeElement && buildSheet.contains && buildSheet.contains(document.activeElement)
+    ? document.activeElement.getAttribute("data-slot") : null;
   buildSheet.innerHTML = "";
   const rows = [
     ["rocket", "Rocket", state.rocket ? rocketName(state.rocket) : "Not chosen", state.rocket ? { type: "rocket", key: state.rocket } : uiIcon("rocket")],
@@ -445,8 +448,21 @@ function renderBuildSheet() {
       li.querySelector("em").textContent = row[1];
       li.querySelector("b").textContent = row[2];
     }
+    // Each manifest slot opens its station, with the mouse or the keyboard (Tab, then Enter or Space)
+    li.tabIndex = 0;
+    li.setAttribute("data-slot", row[0]);
+    li.setAttribute("role", "button");
+    li.setAttribute("aria-label", row[1] + ": " + row[2] + (done ? " (chosen)" : "") + ". Open the " + row[1] + " station");
     li.addEventListener("click", function () { play("click"); setBayTab(row[0]); });
+    li.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        play("click");
+        setBayTab(row[0]);
+      }
+    });
     buildSheet.appendChild(li);
+    if (focused === row[0] && li.focus) li.focus();
   });
 }
 
@@ -544,10 +560,14 @@ export function setMode(mode) {
 }
 
 function render() {
-  modeButtons.forEach(function (button) { button.classList.toggle("active", button.dataset.simMode === state.mode); });
+  modeButtons.forEach(function (button) {
+    const on = button.dataset.simMode === state.mode;
+    button.classList.toggle("active", on);
+    if (button.setAttribute) button.setAttribute("aria-checked", on ? "true" : "false");
+  });
   modeNote.textContent = state.mode === "historical"
-    ? "Real Missions: only rockets, spacecraft and destinations that really flew together, as they flew."
-    : "Free Build: mix anything you like. Anything that never flew is labelled FICTIONAL.";
+    ? "Only rockets, spacecraft and destinations that really flew together, as they flew."
+    : "Combine any rocket, spacecraft and destination. Anything that never flew is labelled Fictional.";
   if (state.mode === "historical" && state.rocket && !rocketAllowed(state.rocket)) state.rocket = null;
   renderRockets();
   renderSpacecraft();
@@ -663,10 +683,12 @@ function buildHangar(viewer, tallest, width) {
     g.add(strip);
   });
 
-  // Mobile launch platform under the rocket (gray deck on six legs)
+  // Mobile launch platform: stands on the floor, and the rocket and payload stand on its top deck
+  // (fill() lifts them to deckHeight()). It is long enough for everything on the pad.
   const mlpW = Math.max(width * 0.7, tallest * 0.22, 4);
-  const mlp = new THREE.Mesh(new THREE.BoxGeometry(mlpW * 1.6, tallest * 0.04 + 0.3, mlpW), darkSteel);
-  mlp.position.y = -0.02 - (tallest * 0.02 + 0.15);
+  const deckH = deckHeight(tallest);
+  const mlp = new THREE.Mesh(new THREE.BoxGeometry(Math.max(mlpW * 1.6, width + 3), deckH, mlpW), darkSteel);
+  mlp.position.y = deckH / 2;
   mlp.castShadow = true;
   mlp.receiveShadow = true;
   g.add(mlp);
@@ -735,22 +757,26 @@ function buildHangar(viewer, tallest, width) {
     g.add(brace);
   }
 
-  // Work platforms around the rocket: rings with railings at several heights
-  const ringR = Math.max(width * 0.32, 1.2);
+  // Work platforms around the rocket: rings with railings at several heights. They are sized and
+  // centred on the rocket itself (not on the whole row), so they hug it even with a payload beside it.
+  const padX = viewer.padX || 0;
+  const padW = viewer.padW || width;
+  const padH = viewer.padH || tallest;
+  const ringR = Math.max(padW * 0.5 + 0.25, 1.2);
   [0.25, 0.5, 0.72].forEach(function (f) {
-    const y = tallest * f;
+    const y = deckH + padH * f;
     const deck = new THREE.Mesh(new THREE.RingGeometry(ringR, ringR * 1.45, 40, 1, 0.6, Math.PI * 1.2), new THREE.MeshStandardMaterial({ color: 0x7a828e, roughness: 0.6, metalness: 0.6, side: THREE.DoubleSide }));
     deck.rotation.x = -Math.PI / 2;
-    deck.position.y = y;
+    deck.position.set(padX, y, 0);
     deck.receiveShadow = true;
     g.add(deck);
     const rail = new THREE.Mesh(new THREE.TorusGeometry(ringR * 1.45, size * 0.0015 + 0.01, 4, 40, Math.PI * 1.2), yellowPaint);
     rail.rotation.x = -Math.PI / 2;
     rail.rotation.z = 0.6;
-    rail.position.y = y + person * 0.55;
+    rail.position.set(padX, y + person * 0.55, 0);
     g.add(rail);
     const w = worker(person, 0x2f6fd6);
-    w.position.set(Math.cos(1.3) * ringR * 1.22, y, -Math.sin(1.3) * ringR * 1.22);
+    w.position.set(padX + Math.cos(1.3) * ringR * 1.22, y, -Math.sin(1.3) * ringR * 1.22);
     g.add(w);
   });
 
@@ -779,7 +805,7 @@ function buildHangar(viewer, tallest, width) {
   if (spot.shadow && spot.shadow.mapSize) spot.shadow.mapSize.set(1024, 1024);
   g.add(spot);
   if (spot.target) {
-    spot.target.position.set(0, tallest * 0.3, 0);
+    spot.target.position.set(padX, deckH + padH * 0.3, 0);
     g.add(spot.target);
   }
   const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff3dc });
@@ -803,26 +829,46 @@ function addTurntable(viewer) {
   viewer.scene.add(glow);
 }
 
+// The height of the mobile launch platform's top deck, which everything on the pad stands on.
+function deckHeight(tallest) {
+  return tallest * 0.04 + 0.3;
+}
+
+// Lines the objects up side by side and rests each one on the surface. The models are not all built
+// with their origin at their base (spacecraft are centred on their middle, rocket nozzles hang a little
+// below 0), so each object is placed from its measured bounding box: its lowest point touches the deck
+// and its left edge starts where the previous object ended.
 function fill(viewer, objects) {
   while (viewer.holder.children.length) viewer.holder.remove(viewer.holder.children[0]);
   let x = 0;
+  let right = 0;
   let tallest = 1;
+  let firstWidth = null;
   objects.forEach(function (object) {
     if (!object) return;
+    object.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(object);
     const size = new THREE.Vector3();
     box.getSize(size);
-    object.position.set(x + size.x / 2, 0, 0);
+    object.position.x += x - box.min.x;
+    object.position.y -= box.min.y;
+    object.position.z -= (box.min.z + box.max.z) / 2;
     object.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     viewer.holder.add(object);
-    x += size.x + Math.max(2, size.y * 0.15);
+    right = x + size.x;
+    x = right + Math.max(2, size.y * 0.15);
     tallest = Math.max(tallest, size.y);
+    if (firstWidth === null) { firstWidth = size.x; viewer.padH = size.y; }
   });
-  viewer.holder.position.x = -x / 2;
-  if (viewer.garage) buildHangar(viewer, tallest, x);
-  const distance = Math.max(tallest, x) * 1.9 + 2;
-  viewer.camera.position.set(distance * 0.55, tallest * 0.6, distance);
-  viewer.controls.target.set(0, tallest * 0.45, 0);
+  viewer.padW = firstWidth || 0;
+  const deck = viewer.garage ? deckHeight(tallest) : 0;
+  viewer.holder.position.set(-right / 2, deck, 0);
+  // The work platforms ring the first object (the rocket), wherever it ends up after centring
+  viewer.padX = -right / 2 + (firstWidth || 0) / 2;
+  if (viewer.garage) buildHangar(viewer, tallest, right);
+  const distance = Math.max(tallest, right) * 1.9 + 2;
+  viewer.camera.position.set(distance * 0.55, deck + tallest * 0.6, distance);
+  viewer.controls.target.set(0, deck + tallest * 0.45, 0);
   viewer.controls.update();
 }
 
@@ -1102,6 +1148,9 @@ function renderLocker() {
   // The astronaut on the turntable
   while (locker.holder.children.length) locker.holder.remove(locker.holder.children[0]);
   const astronaut = createSuitedAstronaut(state.suit);
+  // Stand the boots on the turntable (the model's soles sit a few centimetres below its origin)
+  astronaut.updateMatrixWorld(true);
+  astronaut.position.y -= new THREE.Box3().setFromObject(astronaut).min.y;
   locker.holder.add(astronaut);
   locker.holder.position.x = 0;
   locker.astronaut = astronaut;
