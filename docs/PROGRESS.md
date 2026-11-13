@@ -1,5 +1,42 @@
 # Progress
 
+## Completed (2026-11-13): Kampu Space Master Doc (3)
+**Launch**
+- **Rollout before the countdown** (new first scene, 11 s, sped up and labelled as such), matched to how each rocket really reached its pad:
+  - Saturn V, Shuttle and SLS ride a crawler-transporter with their launch platform and tower, out of the assembly building's open door and along the crawlerway.
+  - Atlas V, Titan IIIE/IVB and Ariane 5 roll on a platform on rails.
+  - Falcon 9, Delta IV Heavy and Proton lie on a transporter-erector.
+  - Delta II, Titan II and Atlas-Centaur were stacked on the pad, so they have no rollout.
+- **Wide shots in the climb:** the camera pulls far back after max Q and again on the way to orbit, so Earth's curve (Florida below), the rocket and the sky are in one picture. It comes back in for the separations.
+
+**Mission player**
+- **Draggable progress bar:** press and drag to any point of any scene, backward or forward. A thumb shows the scene and the percentage. Each engine can seek: the launch restarts and fast-forwards, and the space and landing scenes replay quickly without drawing.
+- **Scene changes:** a slower cross-dissolve with a push-in, including from the descent into the touchdown scene.
+- **Landing approach:** the descent opens on the whole world with the real landing site marked (red dot, ring, and a callout with the name, coordinates and mission), then flies in.
+
+**Landings**
+- **Engine burn:** clearly visible, with a hot glow at the nozzle, a brighter cone, an exhaust stream and a warm light on the ground. It's brighter than a real vacuum plume on purpose; this is noted in the code.
+- **Real landing site card:** appears as the craft reaches the ground, showing the world's map with a pulsing red dot at the real coordinates, the place name, the coordinates, the mission and the date. Works for every landing with coordinates (Moon, Mars, Venus, Mercury, Jupiter, Saturn); Titan shows text only (no map in the project).
+
+**Exploring**
+- **Rover driver:** the astronaut sits in the LRV's left seat while driving (the commander drove from the left).
+- **Rover wheels:** they wobbled because the steering was applied in the wrong rotation order, so the spin tilted the steering axis. Fixed. Each wheel now has its own suspension that reaches down to the ground (up to 15 cm).
+- **Gravity:** walking and running speeds and grip follow each world's gravity, using a pendulum rule (Froude number 0.5, leg 0.9 m). The Moon is slower and floatier, Mars is in between. Jump height already followed gravity. The mode label shows the gravity.
+- **Battery:** lasts about 10 minutes of full-speed driving (it used to be about 4). A Charge button appears while driving; it fills with the battery level, glows when low and pulses while charging. Pressing it brakes for you. B still works.
+- **Endless ground:** the ground is built in 200 m tiles that keep appearing around you (one tile per frame, no stutter). Past the mapped site, craters come from a seeded pattern and hills grow with distance. The distant ground, sun, stars and sky follow you. Tested 2 km out.
+- **Real Earth textures:** the Earth in the Moon's sky, the Earth below the orbit sites and the Earth in the splashdown scenes now use the real maps (they were plain blue balls).
+
+**Textures:** Titan, Pluto (with its bright "heart"), Bennu, comets and Arrokoth get painted maps based on mission photos, plus close-up relief. They're illustrative: only the colours and big features follow the real worlds. The Pluto caption was reworded, because the close-up now draws Pluto.
+
+**Tested** on the Live Server, 1366×768 and 375px:
+- Hadley: autopilot landing, getting into the LRV (driver visible), wheels and suspension, 2 km drive, Charge.
+- Apollo 11 replay: rollout, wide climb shot, globe marker, dragging the bar into the touchdown, site card.
+- Perseverance landing card on a phone.
+- Pluto flyby.
+- No console errors, no sideways scrolling.
+
+**Not verified:** smoothness on a real GPU (the hidden pane uses a timer for frames).
+
 ## Completed (2026-11-13): Kampu Space Master Doc (2)
 **Solar System**
 - Slim strip (84px) keeps the group labels (Star, Planets, Moons, Spacecraft) and shows each name under its icon (long names wrap to 2 lines).
