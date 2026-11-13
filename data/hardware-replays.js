@@ -13,10 +13,6 @@
 //   liftoff = true when the craft leaves the Moon (fire only, because the Moon has no air for smoke).
 //   gap = how far above the surface of the target (display units). around = turn the spot around the target (radians).
 //   scale = size of the craft at this event. zoom = how close the camera gets.
-<<<<<<< HEAD
-=======
-// make change
->>>>>>> d9dd3e5f0acb5b05137dcddeafd8ba39a4a47917
 
 export const hardwareReplays = {
   apollo11: {

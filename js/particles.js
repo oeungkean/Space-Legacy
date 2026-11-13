@@ -44,7 +44,6 @@ export function createParticleSystem(scene, maxParticles) {
     });
   }
 
-<<<<<<< HEAD
   // When every sprite is busy, reuse the smoke puff that is closest to the end of its life (it is
   // almost transparent by then, so nobody sees it go). Fire is never taken this way, so the engine
   // plume does not flicker or drop out when the smoke is thick.
@@ -111,42 +110,6 @@ export function createParticleSystem(scene, maxParticles) {
 
   function update(delta) {
     const eye = viewer ? viewer.position : null;
-=======
-  // Starts one puff. isFire = glowing fire (adds light). tint = optional color. drag = slows it down.
-  function emit(isFire, position, velocity, startSize, endSize, life, opacity, tint, drag) {
-    for (let i = 0; i < maxParticles; i++) {
-      const index = (next + i) % maxParticles;
-      const particle = pool[index];
-      if (particle.active) continue;
-
-      next = (index + 1) % maxParticles;
-
-      if (particle.isFire !== isFire) {
-        particle.isFire = isFire;
-        particle.material.map = isFire ? fireTexture : smokeTexture;
-        particle.material.blending = isFire ? THREE.AdditiveBlending : THREE.NormalBlending;
-        particle.material.needsUpdate = true;
-      }
-
-      particle.material.color.set(tint !== undefined ? tint : 0xffffff);
-      particle.active = true;
-      particle.age = 0;
-      particle.life = life;
-      particle.drag = drag || 0;
-      particle.velocity.copy(velocity);
-      particle.startSize = startSize;
-      particle.endSize = endSize;
-      particle.startOpacity = opacity;
-      particle.sprite.position.copy(position);
-      particle.sprite.scale.setScalar(startSize);
-      particle.material.opacity = 0;
-      particle.sprite.visible = true;
-      return;
-    }
-  }
-
-  function update(delta) {
->>>>>>> d9dd3e5f0acb5b05137dcddeafd8ba39a4a47917
     pool.forEach(function (particle) {
       if (!particle.active) return;
 
@@ -163,7 +126,6 @@ export function createParticleSystem(scene, maxParticles) {
       particle.sprite.scale.setScalar(THREE.MathUtils.lerp(particle.startSize, particle.endSize, u));
 
       const fadeIn = u < 0.1 ? u / 0.1 : 1;
-<<<<<<< HEAD
       let near = 1;
       if (eye && !particle.isFire) {
         // fully faded when the camera is inside the puff, fully visible once it is 1.5 puff-sizes away
@@ -172,9 +134,6 @@ export function createParticleSystem(scene, maxParticles) {
         near = THREE.MathUtils.clamp((distance - size * 0.5) / size, 0, 1);
       }
       particle.material.opacity = particle.startOpacity * fadeIn * (1 - u) * near;
-=======
-      particle.material.opacity = particle.startOpacity * fadeIn * (1 - u);
->>>>>>> d9dd3e5f0acb5b05137dcddeafd8ba39a4a47917
     });
   }
 
@@ -185,9 +144,5 @@ export function createParticleSystem(scene, maxParticles) {
     });
   }
 
-<<<<<<< HEAD
   return { emit: emit, update: update, clear: clear, setCamera: setCamera };
-=======
-  return { emit: emit, update: update, clear: clear };
->>>>>>> d9dd3e5f0acb5b05137dcddeafd8ba39a4a47917
 }

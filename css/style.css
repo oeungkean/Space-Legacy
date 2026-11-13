@@ -28,7 +28,6 @@
   --accent-glow: rgba(122, 184, 255, 0.22);
   --warm: #ffb46a;          /* used only for engines, heat and warnings */
   --danger: #ff6a5a;
-<<<<<<< HEAD
   /* Mission status: one palette for every progress indicator (stations, timeline, objectives, stage chips).
      Each state also has a shape (check, ring, cross), so they can be told apart without colour. */
   --st-done: #5cc8a0;                       /* complete: calm teal-green */
@@ -39,8 +38,6 @@
   --st-pending-text: #8a93a6;               /* not started: labels (4.5:1 or better on the dark panels) */
   --st-failed: #ef7b6b;                     /* failed attempt: softened red */
   --st-failed-soft: rgba(239, 123, 107, 0.14);
-=======
->>>>>>> d9dd3e5f0acb5b05137dcddeafd8ba39a4a47917
   --grad-panel: linear-gradient(180deg, rgba(16, 24, 44, 0.9), rgba(6, 9, 18, 0.9));
   --grad-space: radial-gradient(ellipse at 70% -20%, rgba(60, 100, 180, 0.22), transparent 60%), radial-gradient(ellipse at 0% 120%, rgba(40, 70, 140, 0.18), transparent 55%);
 
@@ -6678,7 +6675,6 @@ body.reduce-motion .screen.entering * {
 .sim-steps #sim-mode-note {
   display: none;
 }
-<<<<<<< HEAD
 
 /* ---------- Laptops: the full top bar needs about 1300px, so drop the extras first ----------
    (the clock and the logo text are already hidden on phones) */
@@ -7545,5 +7541,3 @@ body.reduce-motion .screen.entering * {
   border: 1px dashed rgba(232, 195, 90, 0.6);
   border-radius: 999px;
 }
-=======
->>>>>>> d9dd3e5f0acb5b05137dcddeafd8ba39a4a47917
