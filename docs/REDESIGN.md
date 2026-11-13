@@ -140,6 +140,7 @@ Where each piece of information lives (once):
 - **Sharp planet surfaces** need the texture files listed in `docs/ASSETS.md`. Without them, painted stand-ins are used (Earth's are now 1024 px).
 - **Engine plumes, parachutes and dust** are the existing particle effects with steadier camera work. Photographic plumes would need video or volumetric rendering, which is beyond a no-build Three.js site.
 - **Mode names "Real Missions" / "Free Build"** were the suggestion in the brief. If you want different names, they appear in `index.html` (the mode cards) and in a few lines of text in `js/simulator.js`.
+<<<<<<< HEAD
 
 ---
 
@@ -155,3 +156,5 @@ Where each piece of information lives (once):
 | Solar System panels | The mission progress panel covered the planet panel | The mission panel sits bottom-left on that screen |
 
 Details, tests and known limits are in `docs/PROGRESS.md`.
+=======
+>>>>>>> d9dd3e5f0acb5b05137dcddeafd8ba39a4a47917

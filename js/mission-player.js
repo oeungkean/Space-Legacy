@@ -112,8 +112,12 @@ function buildMap() {
     svg += '<circle cx="' + x + '" cy="' + y + '" r="' + (w === "jupiter" || w === "saturn" || w === "sun" ? 7 : 5) + '" fill="' + (MAP_COLORS[w] || "#aaa") + '"/><text x="' + x + '" y="' + (y + 16) + '" text-anchor="middle">' + w.charAt(0).toUpperCase() + w.slice(1) + "</text>";
   });
   if (returns && worlds.length) path += " Q110 92 24 66";
+<<<<<<< HEAD
   // Colours come from the shared status palette in css/style.css (.mp-map #mp-route / #mp-dot)
   svg += '<path id="mp-route" d="' + path + '" fill="none" stroke-width="1.4" stroke-dasharray="3 3"/><circle id="mp-dot" r="3.5"/></svg>';
+=======
+  svg += '<path id="mp-route" d="' + path + '" fill="none" stroke="#ffd36e" stroke-width="1.4" stroke-dasharray="3 3" opacity=".8"/><circle id="mp-dot" r="3.5" fill="#fff"/></svg>';
+>>>>>>> d9dd3e5f0acb5b05137dcddeafd8ba39a4a47917
   mapBox.innerHTML = '<p>Mission map</p>' + svg;
   mapBox.classList.toggle("hidden", worlds.length === 0);
 }

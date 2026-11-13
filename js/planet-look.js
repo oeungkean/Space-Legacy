@@ -16,8 +16,12 @@ const LOCAL = "assets/textures/";
 // air: the color of the thin atmosphere at the edge (null = no air). tilt in degrees.
 export const PLANET_LOOKS = {
   Mercury: { map: LOCAL + "mercury.jpg", colors: ["#8d8781", "#5b5651", "#b9b3ab"], bands: false, radius: 1.6, air: null, tilt: 0 },
+<<<<<<< HEAD
   // venus.jpg holds the cloud-top (atmosphere) map; venus_surface.jpg is the radar surface map
   Venus: { map: LOCAL + "venus.jpg", alt: LOCAL + "venus_surface.jpg", colors: ["#d9bb7e", "#b28d4e", "#efdcae"], bands: true, soft: true, radius: 3.8, air: 0xf3d6a0, tilt: 3 },
+=======
+  Venus: { map: LOCAL + "venus_atmosphere.jpg", alt: LOCAL + "venus.jpg", colors: ["#d9bb7e", "#b28d4e", "#efdcae"], bands: true, soft: true, radius: 3.8, air: 0xf3d6a0, tilt: 3 },
+>>>>>>> d9dd3e5f0acb5b05137dcddeafd8ba39a4a47917
   Earth: {
     map: CDN + "earth_atmos_2048.jpg", normal: CDN + "earth_normal_2048.jpg", specular: CDN + "earth_specular_2048.jpg",
     clouds: CDN + "earth_clouds_1024.png", colors: ["#1f4f8f", "#2f5d34", "#c9b98d"], earth: true, radius: 4, air: 0x6aa8ff, tilt: 23.4
