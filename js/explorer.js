@@ -171,7 +171,7 @@ function setGroupOpen(group, open) {
   group.toggle.setAttribute("aria-expanded", String(open));
   group.body.hidden = !open;
   const action = group.toggle.querySelector ? group.toggle.querySelector(".dd-action-label") : null;
-  if (action) action.textContent = open ? "Hide" : "Show";
+  if (action) action.textContent = open ? "Show less" : "Show more";
 }
 
 function sidebarRow(label, meta, dot, onClick, data) {
@@ -203,7 +203,7 @@ function sidebarHeading(text) {
   toggle.className = "dd-toggle";
   // A box: the label, the current choice below it, and a "Show / Hide" pill that says what a click does
   toggle.innerHTML = '<span class="dd-text"><span class="dd-title"></span><span class="dd-value"></span></span>' +
-    '<span class="dd-action"><span class="dd-action-label">Show</span>' +
+    '<span class="dd-action"><span class="dd-action-label">Show more</span>' +
     '<svg class="dd-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span>';
   const body = document.createElement("div");
   body.className = "dd-body";

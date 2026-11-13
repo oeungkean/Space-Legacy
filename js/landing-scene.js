@@ -17,6 +17,8 @@ import { createModel, createParachute, createBackshell, createAstronaut } from "
 import { createParticleSystem } from "./particles.js";
 import { buildTerrainShape, buildGround as buildRealGround, heightAt as realHeight } from "./terrain.js";
 import { getPlaybackSpeed } from "./playback.js";
+import { planetMaterial as lookMaterial, cloudMaterial } from "./planet-look.js";
+import { createGlow } from "./glow.js";
 
 // The real exploration terrain is used for these landings (same craters, rilles and dunes as when you explore)
 const LANDING_SITE = { apollo11: "tranquility", apollo15: "hadley", apollo17: "taurus-littrow", curiosity: "gale", perseverance: "jezero" };
@@ -205,6 +207,10 @@ let lastTime = 0;
 let autoCamera = true;
 let dustCarry = 0;
 let fireCarry = 0;
+let flameCarry = 0;
+let frameDt = 1 / 60;
+let engineLight = null;
+let coreFlameMaterial = null;
 
 const cameraGoal = V(0, 10, 30);
 const lookGoal = V(0, 0, 0);
@@ -321,6 +327,9 @@ function init() {
 
   flashLight = new THREE.PointLight(0xfff2dd, 0, 600, 1.4);
   scene.add(flashLight);
+  engineLight = new THREE.PointLight(0xffd8a8, 0, 60, 1.6);
+  scene.add(engineLight);
+  coreFlameMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending });
 
   flameMaterial = new THREE.MeshBasicMaterial({
     color: 0xffd59a, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending
@@ -569,7 +578,7 @@ function applyEnvironment(worldName) {
   sunSprite.visible = !env.fog || env.fog.far > 500; // the Sun is hidden in Venus's thick clouds
 
   flameMaterial.color.set(env.flameColor);
-  flameMaterial.opacity = env.flameOpacity;
+  flameMaterial.opacity = Math.min(0.75, env.flameOpacity * 2.4); // visible on purpose (see addFlames)
 }
 
 // ----- Giant planets: layers of cloud instead of ground -----
@@ -703,6 +712,27 @@ function makeModel(name, scale) {
 }
 
 // Faint engine plumes. Rocket exhaust is almost invisible in a vacuum, so on the Moon and Mercury it is very faint.
+// The burn is drawn brighter than a real vacuum plume would look (the Apollo descent engine's exhaust
+// was nearly invisible on camera), so you can see when and how hard the engine fires: a hot glow at the
+// nozzle, a translucent cone, a stream of exhaust and a warm light on the ground.
+let nozzleGlowMap = null;
+function nozzleGlow() {
+  if (nozzleGlowMap) return nozzleGlowMap;
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const ctx = c.getContext && c.getContext("2d");
+  if (ctx && ctx.createRadialGradient) {
+    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.3, "rgba(255,220,170,0.7)");
+    g.addColorStop(1, "rgba(255,160,80,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 64, 64);
+  }
+  nozzleGlowMap = new THREE.CanvasTexture(c);
+  return nozzleGlowMap;
+}
+
 function addFlames(model) {
   const engines = model.userData.engines || [];
   model.userData.flames = engines.map(function (point) {
@@ -712,18 +742,47 @@ function addFlames(model) {
     cone.rotation.x = Math.PI;
     cone.position.y = -0.55;
     holder.add(cone);
+    const core = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.5, 12, 1, true), coreFlameMaterial);
+    core.rotation.x = Math.PI;
+    core.position.y = -0.25;
+    holder.add(core);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: nozzleGlow(), color: 0xffe2b8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    glow.scale.set(0.7, 0.7, 1);
+    glow.position.y = -0.05;
+    holder.add(glow);
     holder.visible = false;
     model.add(holder);
     return holder;
   });
 }
 
+const flameDown = V(0, -1, 0);
+const flameWorld = V(0, 0, 0);
 function setFlames(model, strength) {
   if (model.visible !== false) engineLevel = Math.max(engineLevel, strength);
-  (model.userData.flames || []).forEach(function (holder) {
-    holder.visible = strength > 0.02;
-    holder.scale.set(1, 0.4 + strength * 1.3 * (0.85 + Math.random() * 0.3), 1);
+  const on = strength > 0.02 && model.visible !== false;
+  const flames = model.userData.flames || [];
+  flames.forEach(function (holder) {
+    holder.visible = on;
+    const flicker = 0.85 + Math.random() * 0.3;
+    holder.scale.set(1 + strength * 0.25, 0.5 + strength * 1.6 * flicker, 1 + strength * 0.25);
   });
+  if (!on || !flames.length || paused) return;
+  // exhaust stream and the light it throws on the ground
+  model.updateMatrixWorld(true);
+  const scale = model.getWorldScale ? model.getWorldScale(V(1, 1, 1)).x : 1;
+  const down = flameDown.set(0, -1, 0).applyQuaternion(model.getWorldQuaternion ? model.getWorldQuaternion(new THREE.Quaternion()) : model.quaternion);
+  flameCarry += 90 * strength * frameDt;
+  while (flameCarry >= 1) {
+    flameCarry -= 1;
+    const holder = flames[Math.floor(Math.random() * flames.length)];
+    holder.getWorldPosition(flameWorld);
+    const velocity = down.clone().multiplyScalar(random(9, 16) * scale).add(V(random(-1, 1), random(-1, 1), random(-1, 1)).multiplyScalar(scale * 0.8));
+    particles.emit(true, flameWorld.clone().addScaledVector(down, 0.1 * scale), velocity, 0.35 * scale, 1.4 * scale, random(0.18, 0.32), 0.75, env.air ? 0xffc890 : 0xd8e6ff, 0);
+  }
+  flames[0].getWorldPosition(flameWorld);
+  engineLight.position.copy(flameWorld).addScaledVector(down, 1.5 * scale);
+  engineLight.intensity = Math.max(engineLight.intensity, 60 * strength * (0.85 + Math.random() * 0.3));
 }
 
 // Points the model's "up" (+Y) in a direction (used to tilt landers during the braking burn)
@@ -1659,11 +1718,20 @@ function fitSize(model, meters) {
 function earthFromAbove() {
   const g = new THREE.Group();
   const radius = 6000;
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(radius, 96, 64), new THREE.MeshStandardMaterial({ color: 0x2a5f9a, roughness: 0.8, fog: false }));
+  // the real Earth (same maps as the Solar System), real clouds and the soft glow of the air
+  const surface = lookMaterial("Earth", null, { hd: true });
+  surface.fog = false;
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(radius, 128, 96), surface);
+  ball.rotation.y = 1.4; // the Pacific below (splashdowns were in the Pacific or Atlantic)
   g.add(ball);
-  const clouds = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.003, 96, 64), new THREE.MeshStandardMaterial({ map: makeCloudTexture(["#ffffff", "#e6eef7"], 7), transparent: true, opacity: 0.55, depthWrite: false, fog: false }));
+  const cloudLayer = cloudMaterial();
+  cloudLayer.fog = false;
+  cloudLayer.opacity = 0.6;
+  const clouds = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.003, 128, 96), cloudLayer);
+  clouds.rotation.y = 1.4;
   g.add(clouds);
-  const air = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.02, 96, 64), new THREE.MeshBasicMaterial({ color: 0x7fb6ff, transparent: true, opacity: 0.22, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  const air = createGlow(radius, { color: 0x6aa8ff, strength: 0.9, size: 1.02 });
+  air.traverse(function (o) { if (o.material) o.material.fog = false; });
   g.add(air);
   g.position.set(0, -radius - 2200, 0);
   actorRoot.add(g);
@@ -1876,6 +1944,8 @@ function frame(now) {
   rafId = requestAnimationFrame(frame);
   const dt = Math.min((now - lastTime) / 1000, 0.05) * getPlaybackSpeed(); // 2x / 4x playback
   lastTime = now;
+  frameDt = dt;
+  if (engineLight) engineLight.intensity *= 0.5; // fades unless an engine keeps it lit this frame
 
   if (!paused && !finished) {
     phaseTime += dt;
@@ -1894,6 +1964,7 @@ function frame(now) {
       }
     }
     progressBar.style.setProperty("--fill", String(Math.min(1, elapsed / totalTime)));
+    updateSiteCard();
   }
 
   if (!paused) particles.update(dt);
@@ -1953,12 +2024,84 @@ export function hasLanding(hardware) {
   return Boolean(hardware && hardware.landing && ENVIRONMENTS[hardware.destination]);
 }
 
+// ----- The real landing site: a card with a map of the world, a dot at the real coordinates, the
+// place name, the coordinates and the date. It appears as the spacecraft reaches the ground, so you can
+// see at once that this is where the real mission landed. -----
+const SITE_MAPS = {
+  Moon: "assets/textures/moon.jpg", Mars: "assets/textures/mars.jpg", Mercury: "assets/textures/mercury.jpg",
+  Venus: "assets/textures/venus_surface.jpg", Jupiter: "assets/textures/jupiter.jpg", Saturn: "assets/textures/saturn.jpg",
+  Earth: "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg"
+};
+const siteCard = document.getElementById("landing-site");
+function formatCoordinate(value, positive, negative) {
+  return Math.abs(value).toFixed(2) + "° " + (value >= 0 ? positive : negative);
+}
+function fillSiteCard(hardware) {
+  if (!siteCard) return false;
+  siteCard.classList.add("hidden");
+  siteCard.classList.remove("on");
+  if (!hardware || typeof hardware.lat !== "number" || typeof hardware.lon !== "number") return false;
+  const mapBox = siteCard.querySelector(".ls-map");
+  const img = siteCard.querySelector(".ls-map img");
+  const dot = siteCard.querySelector(".ls-dot");
+  const url = SITE_MAPS[hardware.destination];
+  mapBox.classList.toggle("hidden", !url);
+  if (url) {
+    img.src = url;
+    img.alt = "Map of " + hardware.destination + " with the landing site marked";
+    // the maps are equirectangular: longitude -180 to 180 left to right, latitude 90 to -90 top to bottom
+    const lon = ((hardware.lon + 540) % 360) - 180;
+    dot.style.left = ((lon + 180) / 360 * 100).toFixed(2) + "%";
+    dot.style.top = ((90 - hardware.lat) / 180 * 100).toFixed(2) + "%";
+  }
+  siteCard.querySelector(".ls-place").textContent = hardware.location || hardware.destination;
+  siteCard.querySelector(".ls-coords").textContent = formatCoordinate(hardware.lat, "N", "S") + ", " + formatCoordinate(hardware.lon, "E", "W");
+  siteCard.querySelector(".ls-mission").textContent = [hardware.mission, hardware.landingDate].filter(Boolean).join(" · ");
+  siteCard.title = hardware.coordinateNote || "";
+  return true;
+}
+let siteCardReady = false;
+function updateSiteCard() {
+  if (!siteCard || !siteCardReady) return;
+  const show = totalTime > 0 && elapsed / totalTime > 0.62;
+  if (show && siteCard.classList.contains("hidden")) {
+    siteCard.classList.remove("hidden");
+    requestAnimationFrame(function () { siteCard.classList.add("on"); });
+  } else if (!show && !siteCard.classList.contains("hidden")) {
+    siteCard.classList.add("hidden");
+    siteCard.classList.remove("on");
+  }
+}
+
+// Jump to a point in the landing (0 to 1), for the mission player's progress bar: the scene is
+// replayed quickly from the start without drawing, so every part is where it should be
+export function seekLanding(fraction) {
+  if (!item || !phases.length) return;
+  restart();
+  const goal = Math.max(0, Math.min(0.995, fraction)) * totalTime;
+  const step = 1 / 30;
+  frameDt = step;
+  while (elapsed < goal) {
+    phaseTime += step;
+    elapsed += step;
+    const phase = phases[phaseIndex];
+    phase.update(Math.min(phaseTime / phase.duration, 1), step);
+    if (phaseTime >= phase.duration && phaseIndex < phases.length - 1) enterPhase(phaseIndex + 1);
+  }
+  particles.clear();
+  camera.position.copy(cameraGoal);
+  lookNow.copy(lookGoal);
+  controls.target.copy(lookNow);
+  updateSiteCard();
+}
+
 export function startLanding(hardware) {
   init();
   resize();
   item = hardware;
   titleBox.textContent = hardware.name;
   applyEnvironment(hardware.destination);
+  siteCardReady = fillSiteCard(hardware);
   restart();
 
   running = true;
@@ -1979,6 +2122,7 @@ export function landingProgress() {
 
 export function stopLanding() {
   running = false;
+  if (siteCard) { siteCard.classList.add("hidden"); siteCard.classList.remove("on"); }
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;

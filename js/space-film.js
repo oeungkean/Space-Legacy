@@ -22,6 +22,8 @@ import { createParticleSystem } from "./particles.js";
 import { buildTerrainShape, buildGround, heightAt } from "./terrain.js";
 import { play, setLoop } from "./sounds.js";
 import { getPlaybackSpeed } from "./playback.js";
+import { PLANET_LOOKS, planetMaterial as lookMaterial, cloudMaterial, cityLights, ringMaterial as lookRingMaterial, ringGeometry, smallWorldMap, addSurfaceDetail } from "./planet-look.js";
+import { createGlow } from "./glow.js";
 
 const canvas = document.getElementById("film-canvas");
 
@@ -43,7 +45,9 @@ let elapsed = 0;
 let doneCallback = null;
 let finished = false;
 const camLook = new THREE.Vector3();
-const SUN_DIR = new THREE.Vector3(-0.75, 0.25, 0.6).normalize();
+// Sunlight comes from the side where the spacecraft flies in most shots, so the planet below it is in
+// daylight. (Before, the craft started over Earth's night side, and Earth looked like a black ball.)
+const SUN_DIR = new THREE.Vector3(0.6, 0.3, 0.74).normalize();
 
 // ----- Helpers -----
 function V(x, y, z) { return new THREE.Vector3(x, y, z); }
@@ -157,7 +161,28 @@ function proceduralTexture(name) {
   return t;
 }
 
-function planetMaterial(name) {
+// The same planet look as the Solar System (js/planet-look.js): real photo maps, Earth's ocean shine
+// and relief, and for rocky worlds fine close-up detail so they stay sharp in low orbit.
+const SHARED_LOOK = { earth: "Earth", moon: "Moon", mars: "Mars", venus: "Venus", mercury: "Mercury", jupiter: "Jupiter",
+  saturn: "Saturn", uranus: "Uranus", neptune: "Neptune" };
+const ROCKY = { moon: true, mars: true, mercury: true };
+function planetMaterial(name, radius) {
+  const shared = SHARED_LOOK[name];
+  if (shared && PLANET_LOOKS[shared]) {
+    const r = radius || R;
+    return lookMaterial(shared, null, {
+      hd: name === "earth",
+      detail: ROCKY[name] ? { repeat: Math.round(48 * Math.max(0.5, Math.min(2, r / 60))), near: r * 0.25, far: r * 2.2, strength: 0.4, bump: 0.9 } : false
+    });
+  }
+  // small worlds without a photo map: a painted map that follows the real world's look, plus close-up relief
+  const small = { titan: true, pluto: true, bennu: true, comet: true, arrokoth: true };
+  if (small[name]) {
+    const r = radius || R;
+    const painted = new THREE.MeshStandardMaterial({ map: smallWorldMap(name) || proceduralTexture(name), roughness: name === "titan" ? 1 : 0.95, metalness: 0 });
+    if (name !== "titan") addSurfaceDetail(painted, { repeat: name === "pluto" ? 40 : 24, near: r * 0.25, far: r * 2.2, strength: 0.45, bump: name === "pluto" ? 0.8 : 1.4 });
+    return painted;
+  }
   const material = new THREE.MeshStandardMaterial({ map: texCache[name] || proceduralTexture(name), roughness: 0.9, metalness: 0 });
   if (name === "sun") {
     material.emissive = new THREE.Color(0xffa040);
@@ -192,19 +217,28 @@ function makeWorld(name, radius) {
     }
     geometry.computeVertexNormals();
   }
-  const ball = new THREE.Mesh(geometry, planetMaterial(name));
+  const ball = new THREE.Mesh(geometry, planetMaterial(name, radius));
   ball.receiveShadow = true;
   g.add(ball);
   g.userData.ball = ball;
   const look = LOOKS[name];
+  const shared = PLANET_LOOKS[SHARED_LOOK[name]];
   if (name === "earth") {
-    const clouds = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.012, 96, 64), new THREE.MeshStandardMaterial({ map: cloudTexture(), transparent: true, opacity: 0.9, depthWrite: false }));
+    // the real cloud map (not painted ovals), city lights on the night side
+    const clouds = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.008, 128, 96), cloudMaterial());
     g.add(clouds);
     g.userData.clouds = clouds;
+    const lights = cityLights(radius, SUN_DIR);
+    g.add(lights);
+    g.userData.lights = lights;
   }
-  if (look && look[3]) g.add(rimGlow(radius * (name === "earth" ? 1.035 : 1.025), look[3], name === "earth" ? 1.2 : 0.8));
+  if (shared && shared.air) {
+    g.add(createGlow(radius, { color: shared.air, strength: name === "earth" ? 1 : 0.6, size: name === "earth" ? 1.05 : 1.035 }));
+  } else if (look && look[3]) {
+    g.add(rimGlow(radius * 1.025, look[3], 0.8));
+  }
   if (name === "saturn") {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(radius * 1.25, radius * 2.3, 128, 1), new THREE.MeshStandardMaterial({ color: 0xd8c39a, transparent: true, opacity: 0.75, side: THREE.DoubleSide, roughness: 1 }));
+    const ring = new THREE.Mesh(ringGeometry(radius * 1.24, radius * 2.27), lookRingMaterial());
     ring.rotation.x = -Math.PI / 2;
     g.add(ring);
   }
@@ -354,7 +388,7 @@ function orbitShot(o) {
   const burn = Boolean(o.burn);
   return {
     duration: o.duration || 14,
-    start: function () { snapCamera(V(r + 6, 4, -12), V(r, 0, 0)); },
+    start: function () { setSun(V(0.61, 0.3, -0.71)); snapCamera(V(r + 6, 4, -12), V(r, 0, 0)); }, // daylight under the orbit
     update: function (t, u, dt) {
       const extra = burn ? smooth(0.55, 1, u) : 0;
       const a = -0.3 + 0.32 * u + extra * extra * 0.5;
@@ -380,7 +414,7 @@ function departShot(o) {
   const curve = new THREE.CatmullRomCurve3(keepOut([V(R * 1.15, 0, 0), V(R * 1.4, 4, R * 0.9), V(R * 3, 14, R * 3), V(R * 9, 30, R * 8)], V(0, 0, 0), R * 1.1));
   return {
     duration: o.duration || 13,
-    start: function () { snapCamera(V(R * 1.15 - 8, 3, -6), V(R * 1.15, 0, 0)); },
+    start: function () { setSun(V(0.81, 0.35, 0.46)); snapCamera(V(R * 1.15 - 8, 3, -6), V(R * 1.15, 0, 0)); }, // looking back, Earth is almost full
     update: function (t, u, dt) {
       const s = ease(u);
       craft.position.copy(curve.getPoint(s));
@@ -461,6 +495,14 @@ function flybyShot(o) {
   };
 }
 
+// Points the sunlight (and the Sun's glow, and Earth's city-light shell) along a direction
+function setSun(dir) {
+  const d = dir.clone().normalize();
+  sunLight.position.copy(d).multiplyScalar(1000);
+  sunSprite.position.copy(d).multiplyScalar(20000);
+  worldsInShot.forEach(function (w) { if (w.userData.lights) w.userData.lights.userData.setSun(d); });
+}
+
 function arriveShot(o) {
   const ringed = o.world === "saturn";
   const world = makeWorld(o.world, o.radius || R);
@@ -482,6 +524,7 @@ function arriveShot(o) {
     duration: o.duration || 16,
     start: function () {
       const p = at(0).p;
+      setSun(V(-0.18, 0.7, 0.69)); // daylight over the arrival point, low enough to cast crater shadows
       snapCamera(p.clone().addScaledVector(tan, -10).add(V(3, 3, 0)), p);
     },
     update: function (t, u, dt) {
@@ -549,7 +592,7 @@ function deployShot(o) {
   }
   return {
     duration: o.duration || 15,
-    start: function () { snapCamera(V(9, 3, 9), V(0, 0, 0)); if (model.userData.setDeploy) model.userData.setDeploy(o.from || 0); },
+    start: function () { if (o.place === "earth") setSun(V(0.5, 0.7, 0.5)); snapCamera(V(9, 3, 9), V(0, 0, 0)); if (model.userData.setDeploy) model.userData.setDeploy(o.from || 0); },
     update: function (t, u, dt) {
       if (model.userData.setDeploy) model.userData.setDeploy((o.from || 0) + ((o.to === undefined ? 1 : o.to) - (o.from || 0)) * smooth(0.1, 0.85, u));
       craft.rotation.y += dt * 0.05;
@@ -560,7 +603,56 @@ function deployShot(o) {
   };
 }
 
+// The descent opens on the whole world with the real landing site marked (a red dot, a ring and a
+// label with the name and coordinates), then the camera flies in toward it and the descent begins.
+// The world is turned so the marked spot is right where the spacecraft comes down.
+const SITE_INTRO = 5.5;
+function siteDirection(lat, lon) {
+  // the same mapping as the planet maps on a three.js sphere (longitude -180 at the texture's left edge)
+  const phi = (lon + 180) / 360 * Math.PI * 2;
+  const theta = (90 - lat) / 180 * Math.PI;
+  return V(-Math.cos(phi) * Math.sin(theta), Math.cos(theta), Math.sin(phi) * Math.sin(theta)).normalize();
+}
+
+function siteLabel(lines) {
+  const c = document.createElement("canvas");
+  c.width = 512; c.height = 160;
+  const ctx = c.getContext && c.getContext("2d");
+  if (ctx && ctx.fillText) {
+    ctx.fillStyle = "rgba(6,10,20,0.82)";
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(4, 4, 504, 152, 18); ctx.fill(); } else ctx.fillRect(4, 4, 504, 152);
+    ctx.fillStyle = "#ff3b30";
+    ctx.fillRect(4, 4, 8, 152);
+    ctx.fillStyle = "#ff8a80";
+    ctx.font = "600 22px Inter, Arial, sans-serif";
+    ctx.fillText("REAL LANDING SITE", 30, 40);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "600 34px Inter, Arial, sans-serif";
+    ctx.fillText(lines[0], 30, 86, 460);
+    ctx.fillStyle = "#9cc8ff";
+    ctx.font = "500 26px Inter, Arial, sans-serif";
+    ctx.fillText(lines[1], 30, 128, 460);
+  }
+  const texture = new THREE.CanvasTexture(c);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false }));
+}
+
 function descendShot(o) {
+  if (!o.site || typeof o.site.lat !== "number" || typeof o.site.lon !== "number") return descendCore(o, null);
+  const core = descendCore(o, o.site);
+  const intro = SITE_INTRO;
+  return {
+    duration: core.duration + intro,
+    start: function () { core.start(); core.introStart(); },
+    update: function (t, u, dt) {
+      if (t < intro) core.intro(t / intro, dt);
+      else core.update(t - intro, (t - intro) / core.duration, dt);
+    }
+  };
+}
+
+function descendCore(o, site) {
   const world = makeWorld(o.world, R);
   const parts = [];
   let craft;
@@ -582,11 +674,64 @@ function descendShot(o) {
   }
   const start = V(-R * 0.3, R * 0.25, R * 1.25);
   const end = V(R * 0.08, R * 0.55, R * 0.86); // grazing the top of the atmosphere / the surface
+  // the real landing site: the world turns so it lies under the end of the descent, with a marker on it
+  let marker = null;
+  const toSite = end.clone().normalize();
+  if (site) {
+    world.quaternion.setFromUnitVectors(siteDirection(site.lat, site.lon), toSite);
+    marker = new THREE.Group();
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(R * 0.012, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff3b30 }));
+    marker.add(dot);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(R * 0.022, R * 0.03, 40), new THREE.MeshBasicMaterial({ color: 0xff5a4e, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
+    ring.quaternion.setFromUnitVectors(V(0, 0, 1), toSite);
+    marker.add(ring);
+    marker.userData.ring = ring;
+    const label = siteLabel([site.label || "Landing site",
+      Math.abs(site.lat).toFixed(2) + "° " + (site.lat >= 0 ? "N" : "S") + ", " + Math.abs(site.lon).toFixed(2) + "° " + (site.lon >= 0 ? "E" : "W") + (site.mission ? " · " + site.mission : "")]);
+    label.scale.set(R * 0.62, R * 0.195, 1);
+    label.center.set(0, 0);
+    label.position.copy(toSite).multiplyScalar(R * 0.08).add(V(R * 0.04, R * 0.04, 0));
+    marker.add(label);
+    marker.userData.label = label;
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), label.position.clone()]), new THREE.LineBasicMaterial({ color: 0xff8a80, transparent: true, opacity: 0.9 }));
+    marker.add(line);
+    marker.userData.line = line;
+    marker.position.copy(toSite).multiplyScalar(R * 1.002);
+    shotGroup.add(marker);
+  }
   const dir0 = V(1, -0.1, -0.25).normalize();
   let separated = false;
+  const introFrom = toSite.clone().multiplyScalar(R * 4.2).add(V(-R * 0.6, R * 0.5, R * 0.9));
+  const introTo = start.clone().add(V(-6, 2, 6));
+  function setMarker(fade, pulse) {
+    if (!marker) return;
+    marker.visible = fade > 0.01;
+    marker.userData.label.material.opacity = fade;
+    marker.userData.line.material.opacity = 0.9 * fade;
+    marker.userData.ring.material.opacity = 0.9 * fade;
+    marker.userData.ring.scale.setScalar(1 + 0.5 * pulse);
+  }
   return {
+    introStart: function () {
+      snapCamera(introFrom, V(0, 0, 0));
+      craft.visible = false;
+      if (mother) mother.visible = false;
+      setMarker(1, 0);
+    },
+    intro: function (u, dt) {
+      // hold on the whole world with the site marked, then fly in toward it
+      const k = ease(smooth(0.35, 1, u));
+      const goal = lerpV(introFrom, introTo, k);
+      const look = lerpV(V(0, 0, 0), start, k);
+      glide(goal, look, dt, 3.2, world, R);
+      setMarker(1 - smooth(0.7, 0.95, u), (u * 2.5) % 1);
+      if (u > 0.8) { craft.visible = true; if (mother) mother.visible = true; }
+    },
     duration: o.duration || 13,
     start: function () {
+      setMarker(0, 0);
+      craft.visible = true;
+      if (mother) mother.visible = true;
       craft.position.copy(start);
       if (mother) mother.position.copy(start).add(V(0, 0.4, -3.2));
       parts.forEach(function (p) { p.position.copy(start).addScaledVector(dir0, -1.4); });
@@ -786,6 +931,7 @@ function returnShot(o) {
     start: function () {
       const p = curve.getPoint(0);
       craft.position.copy(p);
+      setSun(V(0.3, 0.8, 0.5)); // the capsule meets the atmosphere over the day side
       snapCamera(p.clone().add(V(-6, 3, -8)), p);
     },
     update: function (t, u, dt) {
@@ -832,7 +978,7 @@ function finaleShot(o) {
   if (craft && craft.userData.model.userData.setDeploy) craft.userData.model.userData.setDeploy(1);
   return {
     duration: o.duration || 12,
-    start: function () { snapCamera(V(5, 1.5, 6), V(0, 0, 0)); },
+    start: function () { setSun(V(0.4, 0.8, 0.45)); snapCamera(V(5, 1.5, 6), V(0, 0, 0)); },
     update: function (t, u, dt) {
       if (craft) craft.rotation.y += dt * 0.05;
       const d = 7 + ease(u) * 26;
@@ -886,10 +1032,12 @@ function frame(now) {
 }
 
 // shotSpec: { kind, craft, world, ... }. onDone runs when the shot's time is up (the last frame keeps showing).
+let lastSpec = null;
 export function startFilm(shotSpec, onDone) {
   init();
   resize();
   clearShot();
+  lastSpec = shotSpec;
   const make = SHOTS[shotSpec.kind] || cruiseShot;
   shot = make(shotSpec);
   elapsed = 0;
@@ -915,6 +1063,25 @@ export function stopFilm() {
 
 export function pauseFilm(on) {
   paused = Boolean(on);
+}
+
+// Jump to a point in the shot (0 to 1), for the mission player's progress bar. The shot is rebuilt
+// and played forward quickly without drawing, so the spacecraft and camera are where they should be.
+export function seekFilm(fraction) {
+  if (!lastSpec || !running) return;
+  clearShot();
+  shot = (SHOTS[lastSpec.kind] || cruiseShot)(lastSpec);
+  elapsed = 0;
+  finished = false;
+  if (shot.start) shot.start();
+  const goal = Math.max(0, Math.min(0.995, fraction)) * shot.duration;
+  const step = 1 / 30;
+  while (elapsed < goal) {
+    elapsed = Math.min(goal, elapsed + step);
+    shot.update(elapsed, elapsed / shot.duration, step);
+  }
+  particles.clear();
+  lastTime = performance.now();
 }
 
 export function filmProgress() {

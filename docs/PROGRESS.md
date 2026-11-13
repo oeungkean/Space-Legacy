@@ -1,5 +1,46 @@
 # Progress
 
+## Completed (2026-11-13): Kampu Space Master Doc (2)
+**Solar System**
+- Slim strip (84px) keeps the group labels (Star, Planets, Moons, Spacecraft) and shows each name under its icon (long names wrap to 2 lines).
+- The dock and "Controls" are always in the middle of the page (683px at 1366 wide, whether the list is full or slim).
+- × / Esc / R glide the camera back to the whole Solar System (1.6s, eased, arcing outward) instead of jumping. Dragging cancels it; Reduce Motion jumps.
+- Opening flight: none of the UI shows until it ends (the screen's own fade-in animation was revealing it). Click or tap anywhere (or Skip) to skip.
+
+**Missions:** the filter pill says "Show more" / "Show less".
+
+**Mission Builder**
+- Free Build: a gear icon ("Engineer") and blueprint cyan instead of gold (the "Fictional" labels keep their gold).
+- The bay is a closed assembly hall: four panelled walls, a roof with truss beams, lamps and a bridge crane, a high bay door with daylight at its edges, crawler tracks, three levels of side galleries. The room is sized from the camera's orbit, and the camera can't zoom out through a wall or under the floor. (Before: one wall, and the camera circled outside the room, so it looked like it floated in space.)
+
+**Mission panel (exploring):** a progress ring (3/10), "Now", one dot per objective (done / now / failed / to come), one "Next" line, and small chips (stage, status, distance, finds).
+
+**Exploration:** the Lunar Module no longer lands on the rover. The rover's model was never moved to its parking spot until someone drove it, so it sat at the site's centre, where the LM lands. It's now parked 10 m away, and hidden during the landing (it rode folded on the LM's side).
+
+**Launch**
+- Site: waves and sun shine on the ocean, turquoise shallows and surf, Florida scrub and pine stands (instanced, cheap to draw), a concrete pad apron, perimeter road and fence, two propellant spheres with pipes, roads with centre lines, a control building and workshops, a second tower down the coast. The assembly building moved out from behind the rocket.
+- Earth during the climb: the 4096px day map, thinner clouds, and the Solar System's soft blue haze instead of the hard cyan band.
+- Stage separation: the dropped stage was turned sideways and swung across the camera, because its rotation was read from a matrix that also held the ×8 scale. Fixed. It now falls back in line, tumbling slowly, with a puff of gas at the joint. Cut faces get a dark cap (no hollow tubes), and the camera eases onto the stage still flying.
+- Escape tower (Saturn V, SLS): the real tower is cut off the model (before, a copy flew off while the tower stayed on), and it fires its own motor ahead and to the side. Fairing rockets: the two halves swing open and fall away, revealing a simple payload (illustrative).
+
+**Space scenes**
+- The planets use the Solar System's look: real maps, real cloud map (the painted oval clouds are gone), the soft glow, and city lights on Earth's night side.
+- Each shot has its own sunlight, so the planet under the spacecraft is in daylight (before, the departure started over Earth's night side, so Earth looked black).
+- Moon up close: the 2048px map from `assets/`, plus fine relief and grain that only appear up close and fade out with distance (generated detail, illustrative).
+- Scene changes cross-dissolve: the last picture melts away over the new scene with a slight push in (no dip to black). If the picture can't be taken, it uses a soft dip.
+
+**Tested** on the Live Server (1366×768 and 375px):
+- Intro hidden UI, click-to-skip, dock centre, slim strip, × glide.
+- Bay screenshot.
+- Saturn V and Atlas V 541 launches (pad, climb, staging, tower, fairing).
+- Apollo 11 replay scenes: orbit, departure, Moon arrival, descent, plus the dissolve.
+- Hadley landing (rover hidden, then parked 10 m away).
+- Mission panel.
+- Phone: no sideways scroll, "Show more/less".
+- No console errors.
+
+**Not verified:** smoothness on a real GPU, since screenshots came from a hidden pane with a timer standing in for frames. The 4096 Earth map is 0.7 MB more to download. `node --check` can't run here (no Node), so every changed module was loaded in the browser instead.
+
 ## Completed (2026-11-13): Kampu Space Master Doc, part 2
 - **Solar System list:** collapsing it now leaves a slim strip of icons (68px: each world's dot, its name on hover, dividers between groups), like a social app's side menu. The panel button at the top switches between full and slim. The ☰ in the top bar is gone on wide screens (phones keep the slide-in menu).
 - **Controls:** the "Controls" button is centred under the five view buttons, wherever they are (813px with the full list, 717px with the strip, at 1366px wide).
@@ -126,7 +167,7 @@
 
 ## Current issues
 - `space-film.js` (the space shots after launch) draws the departure-burn plume as a large flat orange blob. A real vacuum burn plume is faint. Not changed in this pass.
-- The launch Earth is soft at low altitude: a 2048px world map is magnified a lot that close.
+- The launch Earth is still a little soft at low altitude (now a 4096px map; a real photo map can't be sharper than that that close).
 - Real-GPU frame rate was not measured here. Shadows (2048px) and up to 1200 smoke sprites are the main costs, so please check on the oldest computer you'll present on.
 - `node --check` can't run (Node isn't installed). Every changed module was loaded and run in the browser instead.
 - At 320px wide the top bar wraps to three rows (128px). Nothing is cut off.

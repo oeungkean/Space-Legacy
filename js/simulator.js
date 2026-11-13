@@ -649,6 +649,32 @@ function concreteTexture() {
   return texture;
 }
 
+// Wall cladding: light grey steel panels with vertical seams and a few darker stains
+function wallPanelTexture() {
+  const c = document.createElement("canvas");
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext("2d");
+  if (!ctx || !ctx.fillRect) return null;
+  ctx.fillStyle = "#9aa1ab";
+  ctx.fillRect(0, 0, 128, 128);
+  for (let x = 0; x < 128; x += 16) {
+    ctx.fillStyle = "rgba(255,255,255,0.10)";
+    ctx.fillRect(x + 1, 0, 6, 128);
+    ctx.fillStyle = "rgba(30,34,40,0.35)";
+    ctx.fillRect(x + 14, 0, 2, 128);
+  }
+  ctx.fillStyle = "rgba(30,34,40,0.45)";
+  ctx.fillRect(0, 126, 128, 2);
+  for (let i = 0; i < 300; i++) {
+    ctx.fillStyle = "rgba(40,44,50," + (Math.random() * 0.12).toFixed(2) + ")";
+    ctx.fillRect(Math.random() * 128, Math.random() * 128, 2, 4 + Math.random() * 10);
+  }
+  const texture = new THREE.CanvasTexture(c);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 // A person for scale (hard hat and coveralls): about 1.8 m tall
 function worker(height, color) {
   const g = new THREE.Group();
@@ -672,11 +698,14 @@ function worker(height, color) {
 function buildHangar(viewer, tallest, width) {
   if (viewer.hangar) viewer.scene.remove(viewer.hangar);
   const g = new THREE.Group();
-  const size = Math.max(tallest * 2.4, width * 2.2, 40);
+  // The camera circles at about 1.15 x (1.9 x the biggest size + 2): the room is wider than that
+  const cameraRadius = (Math.max(tallest, width) * 1.9 + 2) * 1.15;
+  const size = Math.max(cameraRadius * 2.7, tallest * 2.6, width * 2.4, 48);
   const person = 0.23;
   const steel = new THREE.MeshStandardMaterial({ color: 0x5d6470, roughness: 0.45, metalness: 0.75 });
   const darkSteel = new THREE.MeshStandardMaterial({ color: 0x2b3038, roughness: 0.5, metalness: 0.7 });
   const yellowPaint = new THREE.MeshStandardMaterial({ color: 0xf2b01e, roughness: 0.5, metalness: 0.2 });
+  const skirtMat = new THREE.MeshStandardMaterial({ color: 0x3a414c, roughness: 0.8, metalness: 0.3 });
 
   // Floor: polished concrete (a little shiny) with painted lines
   const floorMap = concreteTexture();
@@ -711,45 +740,132 @@ function buildHangar(viewer, tallest, width) {
   mlp.receiveShadow = true;
   g.add(mlp);
 
-  // Walls with tall vertical ribs, and the high bay door (a tall panel with stripes)
-  const wallH = tallest * 1.45 + 6;
-  const wallZ = -size * 0.32;
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x313844, roughness: 0.75, metalness: 0.3 });
-  const wall = new THREE.Mesh(new THREE.PlaneGeometry(size, wallH), wallMat);
-  wall.position.set(0, wallH / 2, wallZ);
-  wall.receiveShadow = true;
-  g.add(wall);
-  const ribs = 16;
-  for (let i = 0; i <= ribs; i++) {
-    const rib = new THREE.Mesh(new THREE.BoxGeometry(size * 0.01, wallH, size * 0.012), steel);
-    rib.position.set(-size / 2 + (size / ribs) * i, wallH / 2, wallZ + size * 0.006);
-    g.add(rib);
-  }
-  const doorW = Math.max(width * 1.3, tallest * 0.5);
-  const door = new THREE.Mesh(new THREE.PlaneGeometry(doorW, wallH * 0.92), new THREE.MeshStandardMaterial({ color: 0x8c96a6, roughness: 0.55, metalness: 0.5 }));
-  door.position.set(size * 0.18, wallH * 0.46, wallZ + size * 0.014);
+  // The building: a closed high bay (four walls and a roof) big enough that the camera always stays
+  // inside it, like a game garage. Before, there was one wall and the camera circled outside the room.
+  const roomR = size / 2;
+  const wallH = Math.max(tallest * 1.6 + 4, deckH + tallest * 0.45 + roomR * 0.9);
+  const wallZ = -roomR;
+  const panelMap = wallPanelTexture();
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xb4bac4, map: panelMap, roughness: 0.7, metalness: 0.35 });
+  if (panelMap) panelMap.repeat.set(size / 6, wallH / 12);
+  // [x, z, rotation]: back, front, left, right, each facing into the room
+  const walls = [[0, -roomR, 0], [0, roomR, Math.PI], [-roomR, 0, Math.PI / 2], [roomR, 0, -Math.PI / 2]];
+  walls.forEach(function (w) {
+    const nx = Math.sin(w[2]);   // the wall's inward direction
+    const nz = Math.cos(w[2]);
+    const ax = Math.cos(w[2]);   // along the wall
+    const az = -Math.sin(w[2]);
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(size, wallH), wallMat);
+    wall.position.set(w[0], wallH / 2, w[1]);
+    wall.rotation.y = w[2];
+    wall.receiveShadow = true;
+    g.add(wall);
+    // tall steel columns along each wall
+    const ribs = 12;
+    for (let i = 0; i <= ribs; i++) {
+      const along = -roomR + (size / ribs) * i;
+      const rib = new THREE.Mesh(new THREE.BoxGeometry(size * 0.012, wallH, size * 0.014), steel);
+      rib.position.set(w[0] + ax * along + nx * size * 0.007, wallH / 2, w[1] + az * along + nz * size * 0.007);
+      rib.rotation.y = w[2];
+      g.add(rib);
+    }
+    // a band of high windows with daylight behind them
+    const band = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.92, wallH * 0.045), new THREE.MeshBasicMaterial({ color: 0xbcd4f5 }));
+    band.position.set(w[0] + nx * size * 0.016, wallH * 0.93, w[1] + nz * size * 0.016);
+    band.rotation.y = w[2];
+    g.add(band);
+    // a dark skirting band low on the wall (scuffed paint, cable trays)
+    const skirt = new THREE.Mesh(new THREE.PlaneGeometry(size, Math.max(1.2, wallH * 0.06)), skirtMat);
+    skirt.position.set(w[0] + nx * 0.05, Math.max(0.6, wallH * 0.03), w[1] + nz * 0.05);
+    skirt.rotation.y = w[2];
+    g.add(skirt);
+  });
+
+  // The high bay door in the back wall: tall stacked panels, with a thin line of daylight at its edges
+  const doorW = Math.max(width * 1.3, tallest * 0.55, 8);
+  const doorH = Math.min(wallH * 0.86, tallest * 1.35 + 3);
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0x8c96a6, roughness: 0.5, metalness: 0.55 });
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH), doorMat);
+  door.position.set(0, doorH / 2, wallZ + size * 0.02);
   g.add(door);
-  for (let i = 1; i < 10; i++) {
-    const seam = new THREE.Mesh(new THREE.PlaneGeometry(doorW, wallH * 0.004), darkSteel);
-    seam.position.set(size * 0.18, wallH * 0.092 * i, wallZ + size * 0.015);
+  for (let i = 1; i < 12; i++) {
+    const seam = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH * 0.006), darkSteel);
+    seam.position.set(0, (doorH / 12) * i, wallZ + size * 0.021);
     g.add(seam);
   }
-  const band = new THREE.Mesh(new THREE.PlaneGeometry(size, wallH * 0.05), new THREE.MeshBasicMaterial({ color: 0x9fc4ff }));
-  band.position.set(0, wallH * 0.95, wallZ + size * 0.008);
-  g.add(band); // high windows letting daylight in
+  const daylightMat = new THREE.MeshBasicMaterial({ color: 0xeaf2ff });
+  [-1, 1].forEach(function (side) {
+    const gap = new THREE.Mesh(new THREE.PlaneGeometry(doorW * 0.008, doorH), daylightMat);
+    gap.position.set(side * doorW / 2, doorH / 2, wallZ + size * 0.022);
+    g.add(gap);
+  });
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(doorW * 1.08, doorH * 0.04, size * 0.03), yellowPaint);
+  lintel.position.set(0, doorH * 1.02, wallZ + size * 0.02);
+  g.add(lintel);
+  // Crawler tracks on the floor, leading from the pad to the door
+  const trackMat = new THREE.MeshStandardMaterial({ color: 0x5a5f67, roughness: 0.9 });
+  [-1, 1].forEach(function (side) {
+    const track = new THREE.Mesh(new THREE.PlaneGeometry(doorW * 0.16, roomR), trackMat);
+    track.rotation.x = -Math.PI / 2;
+    track.position.set(side * doorW * 0.28, 0.006, -roomR / 2);
+    track.receiveShadow = true;
+    g.add(track);
+  });
 
-  // Roof truss beams and an overhead bridge crane with a hook
-  const roofY = wallH * 0.98;
-  for (let i = -3; i <= 3; i++) {
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(size, size * 0.012, size * 0.012), steel);
-    beam.position.set(0, roofY, wallZ + (i + 3.5) * size * 0.09);
+  // Work galleries along the side walls: three levels of catwalks with yellow railings and lamps
+  const galleryMat = new THREE.MeshStandardMaterial({ color: 0x6d7581, roughness: 0.6, metalness: 0.6 });
+  const galleryDepth = Math.max(1.2, size * 0.03);
+  const galleryLampMat = new THREE.MeshBasicMaterial({ color: 0xfff0d6 });
+  [-1, 1].forEach(function (side) {
+    [0.22, 0.42, 0.62].forEach(function (f) {
+      const y = wallH * f;
+      const walk = new THREE.Mesh(new THREE.BoxGeometry(galleryDepth, size * 0.006 + 0.08, size * 0.86), galleryMat);
+      walk.position.set(side * (roomR - galleryDepth / 2), y, 0);
+      walk.receiveShadow = true;
+      g.add(walk);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(size * 0.004 + 0.03, size * 0.004 + 0.03, size * 0.86), yellowPaint);
+      rail.position.set(side * (roomR - galleryDepth), y + person * 4.5, 0);
+      g.add(rail);
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, size * 0.7), galleryLampMat);
+      lamp.position.set(side * (roomR - galleryDepth * 0.5), y - 0.15, 0);
+      g.add(lamp);
+    });
+  });
+
+  // Roof: a dark ceiling with a steel truss grid, rows of high bay lamps, and a bridge crane on rails
+  const roofY = wallH;
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ color: 0x23272e, roughness: 0.9, metalness: 0.2 }));
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.y = roofY;
+  g.add(ceiling);
+  for (let i = -4; i <= 4; i++) {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(size, size * 0.016, size * 0.012), steel);
+    beam.position.set(0, roofY - size * 0.012, i * size * 0.11);
     g.add(beam);
+    const cross = new THREE.Mesh(new THREE.BoxGeometry(size * 0.012, size * 0.012, size), darkSteel);
+    cross.position.set(i * size * 0.11, roofY - size * 0.026, 0);
+    g.add(cross);
   }
-  const crane = new THREE.Mesh(new THREE.BoxGeometry(size * 0.03, size * 0.025, size * 0.7), yellowPaint);
-  crane.position.set(-box * 0.2, roofY - size * 0.03, 0);
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff6e4 });
+  const lampGeo = new THREE.CylinderGeometry(size * 0.012, size * 0.016, size * 0.008, 12);
+  for (let i = -3; i <= 3; i++) {
+    for (let j = -3; j <= 3; j++) {
+      const lamp = new THREE.Mesh(lampGeo, lampMat);
+      lamp.position.set(i * size * 0.13, roofY - size * 0.04, j * size * 0.13);
+      g.add(lamp);
+    }
+  }
+  [-1, 1].forEach(function (side) {
+    const railBeam = new THREE.Mesh(new THREE.BoxGeometry(size * 0.02, size * 0.02, size), yellowPaint);
+    railBeam.position.set(side * roomR * 0.7, roofY - size * 0.06, 0);
+    g.add(railBeam);
+  });
+  const crane = new THREE.Mesh(new THREE.BoxGeometry(roomR * 1.4, size * 0.03, size * 0.035), yellowPaint);
+  crane.position.set(0, roofY - size * 0.08, -box * 0.5);
   g.add(crane);
-  const hook = new THREE.Mesh(new THREE.CylinderGeometry(size * 0.002, size * 0.002, tallest * 0.25, 6), darkSteel);
-  hook.position.set(-box * 0.2, roofY - size * 0.03 - tallest * 0.125, box * 0.3);
+  const hookLength = Math.max(1, roofY - size * 0.08 - (deckH + tallest * 1.1));
+  const hook = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, hookLength, 6), darkSteel);
+  hook.position.set(box * 0.3, roofY - size * 0.08 - hookLength / 2, -box * 0.5);
   g.add(hook);
 
   // Service tower (red lattice) with an access arm, beside the pad
@@ -813,12 +929,19 @@ function buildHangar(viewer, tallest, width) {
     g.add(w);
   });
 
-  // Lights: daylight from the high windows, warm work lights, and a spotlight on the rocket (with shadows)
-  const daylight = new THREE.DirectionalLight(0xdfe9ff, 1.1);
+  // Lights: soft light from the roof lamps and the windows, warm lamps around the hall,
+  // and a spotlight on the rocket (with shadows)
+  g.add(new THREE.HemisphereLight(0xe4ecff, 0x50545c, 0.9));
+  const daylight = new THREE.DirectionalLight(0xdfe9ff, 0.8);
   daylight.position.set(size * 0.2, wallH, size * 0.4);
   g.add(daylight);
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
+    const lamp = new THREE.PointLight(0xffe7c4, 1.4, size * 1.1, 1.2);
+    lamp.position.set(c[0] * roomR * 0.55, wallH * 0.75, c[1] * roomR * 0.55);
+    g.add(lamp);
+  });
   const spot = new THREE.SpotLight(0xfff0d8, 3.4, 0, 0.5, 0.55);
-  spot.position.set(size * 0.1, wallH, size * 0.25);
+  spot.position.set(size * 0.1, wallH * 0.95, size * 0.25);
   spot.castShadow = true;
   if (spot.shadow && spot.shadow.mapSize) spot.shadow.mapSize.set(1024, 1024);
   g.add(spot);
@@ -826,11 +949,14 @@ function buildHangar(viewer, tallest, width) {
     spot.target.position.set(padX, deckH + padH * 0.3, 0);
     g.add(spot.target);
   }
-  const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff3dc });
-  for (let i = -2; i <= 2; i++) {
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(size * 0.45, size * 0.004, size * 0.01), lightMat);
-    strip.position.set(0, roofY - size * 0.01, i * size * 0.07);
-    g.add(strip);
+  // The camera stays inside the building: it can't zoom out through a wall or drop under the floor
+  const controls = viewer.controls;
+  controls.maxDistance = roomR * 0.82;
+  controls.minDistance = Math.max(1.5, tallest * 0.2);
+  controls.maxPolarAngle = Math.PI * 0.49;
+  if (viewer.scene.fog) {
+    viewer.scene.fog.near = roomR * 1.2;
+    viewer.scene.fog.far = roomR * 5;
   }
   viewer.scene.add(g);
   viewer.hangar = g;
@@ -884,7 +1010,8 @@ function fill(viewer, objects) {
   // The work platforms ring the first object (the rocket), wherever it ends up after centring
   viewer.padX = -right / 2 + (firstWidth || 0) / 2;
   if (viewer.garage) buildHangar(viewer, tallest, right);
-  const distance = Math.max(tallest, right) * 1.9 + 2;
+  let distance = Math.max(tallest, right) * 1.9 + 2;
+  if (viewer.garage && viewer.controls.maxDistance < Infinity) distance = Math.min(distance, viewer.controls.maxDistance / 1.15);
   viewer.camera.position.set(distance * 0.55, deck + tallest * 0.6, distance);
   viewer.controls.target.set(0, deck + tallest * 0.45, 0);
   viewer.controls.update();
@@ -990,8 +1117,8 @@ function renderLab() {
       const pmrem = new THREE.PMREMGenerator(lab.renderer);
       lab.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
       if ("environmentIntensity" in lab.scene) lab.scene.environmentIntensity = 0.6;
-      lab.scene.background = new THREE.Color(0x14171d);
-      lab.scene.fog = new THREE.Fog(0x14171d, 200, 900);
+      lab.scene.background = new THREE.Color(0x2a2f37);
+      lab.scene.fog = new THREE.Fog(0x2a2f37, 200, 900);
     } catch (error) {
       // reflections are optional
     }

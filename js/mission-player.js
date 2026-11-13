@@ -6,9 +6,9 @@
 // Controls: Previous, Play/Pause, Next scene, a clickable chapter timeline, Narration and Captions toggles.
 // Keyboard: Space = pause, Right arrow = next scene, Left arrow = previous, Esc = exit.
 
-import { startCinematic, stopCinematic, pauseCinematic, nextCinematicScene, cinematicInfo } from "./launch-cinematic.js";
-import { startFilm, stopFilm, pauseFilm, filmProgress } from "./space-film.js";
-import { startLanding, stopLanding, pauseLanding, landingProgress } from "./landing-scene.js";
+import { startCinematic, stopCinematic, pauseCinematic, nextCinematicScene, cinematicInfo, seekCinematic } from "./launch-cinematic.js";
+import { startFilm, stopFilm, pauseFilm, filmProgress, seekFilm } from "./space-film.js";
+import { startLanding, stopLanding, pauseLanding, landingProgress, seekLanding } from "./landing-scene.js";
 import { speak, stopSpeaking, speechSupported, getVoices, getChosenVoice, onVoicesChange, voiceQuality } from "./narrator.js";
 import { getSetting, setSetting } from "./settings.js";
 import { getPlaybackSpeed, setPlaybackSpeed } from "./playback.js";
@@ -78,7 +78,11 @@ function buildTimeline() {
     seg.setAttribute("data-silent", "");
     seg.innerHTML = '<i></i><span></span>';
     if (seg.querySelector) seg.querySelector("span").textContent = c.label;
-    seg.addEventListener("click", function () { play("click"); goTo(i); });
+    seg.addEventListener("click", function () {
+      if (scrub.justDragged) return; // the drag already moved there
+      play("click");
+      goTo(i);
+    });
     timeline.appendChild(seg);
   });
   buildMap();
@@ -135,7 +139,7 @@ function chapterProgress() {
   if (!c) return 0;
   if (c.engine === "launch") {
     const info = cinematicInfo();
-    return info ? (info.index + info.progress) / 2 : engineDone ? 1 : 0;
+    return info ? (info.index + info.progress) / (info.count || 2) : engineDone ? 1 : 0;
   }
   if (c.engine === "film") return filmProgress();
   if (c.pre) return inPre ? filmProgress() * 0.4 : 0.4 + landingProgress() * 0.6;
@@ -189,10 +193,56 @@ function startChapter(i) {
   card.classList.add("hidden");
   if (options.onChapter) options.onChapter(c, i);
 
-  // A short dip to black between scenes, like a film cut
-  fade.classList.add("on");
-  setTimeout(function () {
+  // Between scenes: a cross-dissolve. The last picture of the old scene is held on top and melts away
+  // while the new scene starts underneath (with a slow push in). If the picture can't be taken, a soft
+  // dip is used instead.
+  holdLastFrame(function (held) {
     if (my !== token) return;
+    if (!held) fade.classList.add("on");
+    setTimeout(function () { if (my === token) beginChapter(my, c, held); }, held ? 0 : 320);
+  });
+}
+
+// The cross-dissolve picture: drawn into a 2D canvas inside an animation frame, right after the 3D
+// scene has drawn (a WebGL canvas can only be copied then)
+const dissolve = document.createElement("canvas");
+dissolve.className = "mp-dissolve";
+dissolve.setAttribute("aria-hidden", "true");
+if (root.insertBefore) root.insertBefore(dissolve, root.firstChild);
+function holdLastFrame(done) {
+  const source = document.querySelector(".screen:not(.hidden) canvas");
+  if (firstScene || !source || !dissolve.getContext || !source.width) { done(false); return; } // the first scene fades in from black
+  requestAnimationFrame(function () {
+    try {
+      dissolve.width = source.width;
+      dissolve.height = source.height;
+      const ctx = dissolve.getContext("2d");
+      ctx.drawImage(source, 0, 0);
+      // a picture of nothing (the scene had not drawn yet) is not worth holding
+      const probe = ctx.getImageData(Math.floor(source.width / 2), Math.floor(source.height / 2), 1, 1).data;
+      const corner = ctx.getImageData(4, 4, 1, 1).data;
+      if (probe[3] === 0 && corner[3] === 0) { done(false); return; }
+      dissolve.classList.remove("melt");
+      dissolve.classList.add("on");
+      done(true);
+    } catch (error) {
+      done(false);
+    }
+  });
+}
+function meltHeldFrame() {
+  if (!dissolve.classList.contains("on")) return;
+  // give the new scene a moment to draw its first frames, then melt the old picture away
+  setTimeout(function () {
+    dissolve.classList.add("melt");
+    setTimeout(function () { dissolve.classList.remove("on", "melt"); }, 1600);
+  }, 140);
+}
+
+let firstScene = true;
+function beginChapter(my, c, held) {
+  firstScene = false;
+  {
     hooks.show(c.engine);
     if (c.engine === "launch") {
       startCinematic(function () { if (my === token) { engineDone = true; tryAdvance(my, true); } }, { mission: true, caption: plan.title + " · " + c.title + (c.date ? " · " + c.date : ""), rocket: c.rocket, look: c.look || null });
@@ -203,20 +253,41 @@ function startChapter(i) {
       inPre = true;
       hooks.show("film");
       setPreText(c, true);
-      startFilm(c.pre.shot, function () {
-        if (my !== token) return;
-        inPre = false;
-        setPreText(c, false);
-        hooks.show("landing");
-        startLanding(c.item);
-        sayLine(my, c.narration);
-      });
+      startFilm(withSite(c.pre.shot, c.item), function () { toLandingPart(my, c); });
     } else {
       startLanding(c.item);
     }
     fade.classList.remove("on");
+    if (held) meltHeldFrame();
+    if (pendingSeek !== null) applySeek(c, pendingSeek);
     sayLine(my, c.pre ? c.pre.narration : c.narration);
-  }, 380);
+  }
+}
+
+// From the descent (space film) to the touchdown scene, with a cross-dissolve between them
+function toLandingPart(my, c) {
+  if (my !== token || !inPre) return;
+  holdLastFrame(function (held) {
+    if (my !== token) return;
+    inPre = false;
+    stopFilm();
+    setPreText(c, false);
+    hooks.show("landing");
+    startLanding(c.item);
+    if (held) meltHeldFrame();
+    sayLine(my, c.narration);
+    if (pendingSeek !== null) { seekLanding(pendingSeek); pendingSeek = null; }
+  });
+}
+
+// The landing site (real coordinates) is passed to the descent shot, which marks it on the globe
+function withSite(shot, item) {
+  if (!item || typeof item.lat !== "number" || typeof item.lon !== "number") return shot;
+  return Object.assign({}, shot, { site: { lat: item.lat, lon: item.lon, label: shortPlace(item.location || item.name), mission: item.mission || "" } });
+}
+function shortPlace(text) {
+  const first = String(text || "").split(/[(,]/)[0].trim();
+  return first.length > 34 ? first.slice(0, 33) + "…" : first;
 }
 
 function sayLine(my, text) {
@@ -278,6 +349,91 @@ function finish(cut) {
   play("success");
   if (options.onFinish && options.finishWithoutCard) { close(false); done(finished, false); }
 }
+
+// ----- Dragging the progress bar: backward or forward, to any point of any scene -----
+const scrub = { active: false, justDragged: false, chapter: 0, fraction: 0 };
+let pendingSeek = null;
+const scrubThumb = document.createElement("span");
+scrubThumb.className = "mp-scrub hidden";
+scrubThumb.setAttribute("aria-hidden", "true");
+scrubThumb.innerHTML = "<b></b>";
+if (timeline.parentNode && timeline.parentNode.insertBefore) {
+  timeline.parentNode.insertBefore(scrubThumb, timeline.nextSibling);
+  timeline.parentNode.classList.add("mp-has-scrub");
+}
+
+function scrubAt(clientX) {
+  const segs = timeline.children;
+  if (!segs.length) return null;
+  for (let i = 0; i < segs.length; i++) {
+    const r = segs[i].getBoundingClientRect();
+    const last = i === segs.length - 1;
+    if (clientX < r.right + 1.5 || last) {
+      const f = Math.max(0, Math.min(1, (clientX - r.left) / Math.max(1, r.width)));
+      return { chapter: i, fraction: f };
+    }
+  }
+  return null;
+}
+
+function showScrub(clientX, at) {
+  const box = timeline.getBoundingClientRect();
+  const parentBox = timeline.parentNode.getBoundingClientRect();
+  scrubThumb.classList.remove("hidden");
+  scrubThumb.style.left = (Math.max(box.left, Math.min(box.right, clientX)) - parentBox.left) + "px";
+  scrubThumb.style.top = (box.top - parentBox.top) + "px";
+  const c = plan.chapters[at.chapter];
+  scrubThumb.querySelector("b").textContent = (at.chapter + 1) + ". " + (c.label || "") + " · " + Math.round(at.fraction * 100) + "%";
+}
+
+function applySeek(c, f) {
+  pendingSeek = null;
+  if (f <= 0.01) return;
+  if (c.engine === "launch") seekCinematic(f);
+  else if (c.engine === "film") seekFilm(f);
+  else if (c.pre) {
+    // the first 40% is the descent from orbit, the rest is the touchdown scene
+    if (f < 0.4) seekFilm(f / 0.4);
+    else { pendingSeek = (f - 0.4) / 0.6; toLandingPart(token, c); }
+  } else seekLanding(f);
+}
+
+function seekTo(chapter, fraction) {
+  if (!plan) return;
+  if (chapter === index) applySeek(plan.chapters[index], fraction);
+  else {
+    pendingSeek = fraction;
+    goTo(chapter);
+  }
+}
+
+timeline.addEventListener("pointerdown", function (event) {
+  if (!plan || event.button > 0) return;
+  scrub.active = true;
+  scrub.moved = false;
+  scrub.startX = event.clientX;
+  if (timeline.setPointerCapture) { try { timeline.setPointerCapture(event.pointerId); } catch (error) { /* not needed */ } }
+  const at = scrubAt(event.clientX);
+  if (at) { scrub.chapter = at.chapter; scrub.fraction = at.fraction; showScrub(event.clientX, at); }
+});
+timeline.addEventListener("pointermove", function (event) {
+  if (!scrub.active) return;
+  if (Math.abs(event.clientX - scrub.startX) > 3) scrub.moved = true;
+  const at = scrubAt(event.clientX);
+  if (at) { scrub.chapter = at.chapter; scrub.fraction = at.fraction; showScrub(event.clientX, at); }
+});
+function endScrub(commit) {
+  if (!scrub.active) return;
+  scrub.active = false;
+  scrubThumb.classList.add("hidden");
+  if (!commit) return;
+  scrub.justDragged = true;
+  setTimeout(function () { scrub.justDragged = false; }, 0);
+  play("click");
+  seekTo(scrub.chapter, scrub.fraction < 0.03 ? 0 : scrub.fraction);
+}
+timeline.addEventListener("pointerup", function () { endScrub(true); });
+timeline.addEventListener("pointercancel", function () { endScrub(false); });
 
 function goTo(i) {
   if (!plan) return;
@@ -352,6 +508,7 @@ export function playPlan(p, opts) {
   setSpeed(1); // every replay starts at normal speed
   fillVoicePicker();
   buildTimeline();
+  firstScene = true;
   startChapter(0);
   if (tickId === null) tick();
   return true;

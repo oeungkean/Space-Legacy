@@ -182,12 +182,14 @@ const hudStage = document.getElementById("hud-stage");
 const hudStatus = document.getElementById("hud-status");
 const hudCurrent = document.getElementById("hud-current");
 const hudDistance = document.getElementById("hud-distance");
-const hudList = document.getElementById("hud-objectives");
+const hudSteps = document.getElementById("hud-steps");
+const hudNext = document.getElementById("hud-next");
+const hudRingFill = document.getElementById("hud-ring-fill");
+const hudRingText = document.getElementById("hud-ring-text");
 const hudDiscoveries = document.getElementById("hud-discoveries");
 const hudToggle = document.getElementById("hud-toggle");
 const hudFlash = document.getElementById("hud-flash");
 const hudNextLabel = document.getElementById("hud-next-label");
-const hudProgressBar = document.getElementById("hud-progress-bar");
 const hudProgressText = document.getElementById("hud-progress-text");
 
 let hudVisible = false;
@@ -212,30 +214,29 @@ export function renderHud() {
     : "All objectives complete";
   hud.classList.toggle("now-failed", Boolean(current && current.failed));
   hudDistance.textContent = mission.distance || "";
+  hudDistance.title = mission.distance || "";
   hudDistance.classList.toggle("hidden", !mission.distance);
-  // A short checklist: only the next two objectives after the current one; finished ones become a count
-  const remaining = mission.objectives.filter(function (o) { return !o.done && o !== current; });
-  const next = remaining.slice(0, 2);
-  hudList.innerHTML = "";
-  next.forEach(function (o) {
+  // One dot per objective: done, now, failed or still to come (the shape and colour both say it)
+  hudSteps.innerHTML = "";
+  mission.objectives.forEach(function (o) {
     const li = document.createElement("li");
-    li.className = o.failed ? "failed" : "";
-    li.textContent = o.text;
-    hudList.appendChild(li);
+    li.className = o.done ? "done" : o === current ? (o.failed ? "now failed" : "now") : o.failed ? "failed" : "";
+    li.title = o.text + (o.done ? " (done)" : "");
+    hudSteps.appendChild(li);
   });
-  if (remaining.length > next.length) {
-    const more = document.createElement("li");
-    more.className = "hud-more";
-    more.textContent = "+ " + (remaining.length - next.length) + " more";
-    hudList.appendChild(more);
-  }
-  if (hudNextLabel) hudNextLabel.classList.toggle("hidden", next.length === 0);
+  // Only the very next objective is written out
+  const remaining = mission.objectives.filter(function (o) { return !o.done && o !== current; });
+  hudNext.textContent = remaining.length ? remaining[0].text : "";
+  if (hudNextLabel) hudNextLabel.classList.toggle("hidden", remaining.length === 0);
   const doneCount = mission.objectives.filter(function (o) { return o.done; }).length;
-  if (hudProgressBar) hudProgressBar.style.width = Math.round(doneCount / Math.max(1, mission.objectives.length) * 100) + "%";
+  const total = Math.max(1, mission.objectives.length);
+  const circumference = 2 * Math.PI * 18;
+  hudRingFill.style.strokeDasharray = circumference.toFixed(1);
+  hudRingFill.style.strokeDashoffset = (circumference * (1 - doneCount / total)).toFixed(1);
+  hudRingText.textContent = doneCount + "/" + mission.objectives.length;
   if (hudProgressText) hudProgressText.textContent = doneCount + " of " + mission.objectives.length + " objectives done";
-  hudDiscoveries.textContent = mission.discoveries.length
-    ? mission.discoveries.length + " discovered: " + mission.discoveries.join(", ")
-    : "";
+  hudDiscoveries.textContent = mission.discoveries.length ? "✦ " + mission.discoveries.length + " found" : "";
+  hudDiscoveries.title = mission.discoveries.join(", ");
   hudDiscoveries.classList.toggle("hidden", !mission.discoveries.length);
 }
 

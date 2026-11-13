@@ -567,10 +567,10 @@
         <button class="sim-mode-btn mode-card mode-free" data-sim-mode="sandbox" role="radio" aria-checked="false">
           <span class="mode-art" aria-hidden="true">
             <span class="mode-icon">
-              <!-- a blueprint: a pencil drawing inside a dashed frame -->
-              <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2" stroke-dasharray="2.2 2.2"/><path d="M8 16.5l.9-3.3 6.4-6.4 2.4 2.4-6.4 6.4z"/><path d="M14 8.1l2.4 2.4"/></svg>
+              <!-- engineering: a gear -->
+              <svg viewBox="0 0 24 24"><path d="M10.2 3.6h3.6l.5 2.2 1.6.7 1.9-1.2 2.5 2.5-1.2 1.9.7 1.6 2.2.5v3.6l-2.2.5-.7 1.6 1.2 1.9-2.5 2.5-1.9-1.2-1.6.7-.5 2.2h-3.6l-.5-2.2-1.6-.7-1.9 1.2-2.5-2.5 1.2-1.9-.7-1.6-2.2-.5v-3.6l2.2-.5.7-1.6-1.2-1.9 2.5-2.5 1.9 1.2 1.6-.7z"/><circle cx="12" cy="12" r="3"/></svg>
             </span>
-            <span class="mode-art-tag">Your design</span>
+            <span class="mode-art-tag">Engineer</span>
           </span>
           <span class="mode-row">
             <span class="mode-text"><b>Free Build</b><span>Mix any parts (marked fictional)</span></span>
@@ -765,6 +765,7 @@
         <button class="auto-btn" data-auto="cruise" data-icon="drive" data-silent title="Cruise control (T)"><span class="auto-icon"></span>Cruise</button>
         <button class="auto-btn" data-auto="goto" data-icon="target" data-silent title="Go to the nearest unrecorded object (G)"><span class="auto-icon"></span>Go to nearest</button>
         <button class="auto-btn" data-auto="stop" data-silent title="Stop (W or S)"><span class="auto-icon"></span>Stop</button>
+        <button id="explore-charge" class="auto-btn charge-btn hidden" data-silent title="Charge the battery (B)" aria-label="Charge the battery (B)"><span class="charge-bolt" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></span><span class="charge-label">Charge</span></button>
       </div>
     </div>
     <div id="explore-prompt" class="explore-prompt hidden"><b id="explore-prompt-name"></b><span id="explore-prompt-keys"></span></div>
@@ -1038,19 +1039,24 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>Mission</span>
     </button>
     <div id="hud-body" class="hud-body">
-      <p id="hud-mode" class="hud-mode"></p>
-      <h4 id="hud-title"></h4>
-      <p class="hud-line"><b id="hud-stage"></b><span aria-hidden="true"> · </span><span id="hud-status"></span></p>
+      <div class="hud-top">
+        <div class="hud-ring" aria-hidden="true">
+          <svg viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="18"/><circle id="hud-ring-fill" class="ring-fill" cx="22" cy="22" r="18"/></svg>
+          <span id="hud-ring-text">0/0</span>
+        </div>
+        <div class="hud-id">
+          <p id="hud-mode" class="hud-mode"></p>
+          <h4 id="hud-title"></h4>
+        </div>
+      </div>
       <div class="hud-now">
         <em>Now</em>
         <b id="hud-current"></b>
       </div>
-      <p id="hud-distance" class="hud-distance hidden"></p>
-      <p class="hud-next-label" id="hud-next-label">Up next</p>
-      <ol id="hud-objectives" class="hud-objectives"></ol>
-      <div class="hud-progress" aria-hidden="true"><span id="hud-progress-bar"></span></div>
-      <p id="hud-progress-text" class="hud-progress-text"></p>
-      <p id="hud-discoveries" class="hud-discoveries"></p>
+      <ol id="hud-steps" class="hud-steps"></ol>
+      <p id="hud-next-label" class="hud-next"><span>Next</span> <b id="hud-next"></b></p>
+      <p class="hud-chips"><span id="hud-stage" class="hud-chip"></span><span id="hud-status" class="hud-chip"></span><span id="hud-distance" class="hud-chip hidden"></span><span id="hud-discoveries" class="hud-chip found hidden"></span></p>
+      <p id="hud-progress-text" class="sr-only" aria-live="polite"></p>
     </div>
   </aside>
   <p id="hud-flash" class="hud-flash hidden" aria-live="polite"></p>
@@ -1101,6 +1107,16 @@
       <p id="landing-hint" class="landing-hint"></p>
 
     </div>
+    <!-- The real landing site (js/landing-scene.js): a map with a dot at the mission's coordinates -->
+    <aside id="landing-site" class="landing-site hidden" aria-label="Real landing site">
+      <div class="ls-map"><img alt="" decoding="async"><span class="ls-dot" aria-hidden="true"></span></div>
+      <div class="ls-text">
+        <em>Real landing site</em>
+        <b class="ls-place"></b>
+        <span class="ls-coords"></span>
+        <span class="ls-mission"></span>
+      </div>
+    </aside>
   </section>
 
   <!-- Settings (opened with the gear button on every screen, or the , key) -->

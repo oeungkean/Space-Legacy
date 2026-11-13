@@ -20,8 +20,9 @@ import { createSuitedAstronaut } from "./astronaut.js";
 import { SITES, EQUIPMENT, GRAVITY, SUITS } from "../data/simulator.js";
 import {
   buildTerrainShape, heightAt as terrainHeight, terrainNormal, buildGround as buildTerrainGround,
-  collideBoulders, boulderAhead, drawRelief, getTerrain
+  collideBoulders, boulderAhead, drawRelief, getTerrain, updateGround
 } from "./terrain.js";
+import { planetMaterial as lookMaterial, cloudMaterial } from "./planet-look.js";
 import { uiIcon } from "./icons.js";
 import { modelIcon } from "./explorer.js";
 import { collectiblesForSite } from "../data/collectibles.js";
@@ -111,6 +112,8 @@ export function heightAt(x, z) {
   return terrainHeight(x, z);
 }
 
+let skyGroup = null;
+
 function buildSky(world) {
   // Stars (the Moon and orbit show a black sky; Mars has a dusty butterscotch sky)
   const positions = new Float32Array(1500 * 3);
@@ -121,7 +124,11 @@ function buildSky(world) {
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   const stars = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: world === "mars" ? 0 : 0.85 }));
-  worldGroup.add(stars);
+  // The sky (stars, and Earth seen from the Moon) moves with the camera, so it stays at the same place
+  // in the sky however far you travel (the ground goes on forever)
+  skyGroup = new THREE.Group();
+  skyGroup.add(stars);
+  worldGroup.add(skyGroup);
 
   if (hemi) hemi.intensity = 0;
   if (world === "mars") {
@@ -143,9 +150,13 @@ function buildSky(world) {
     sunDirection.set(0.85, 0.3, 0.42).normalize();
     if (hemi) { hemi.color.set(0x9aa7c0); hemi.groundColor.set(0x5e5c58); hemi.intensity = 0.12; }
     // Earth hanging in the black sky
-    const earth = new THREE.Mesh(new THREE.SphereGeometry(40, 32, 24), new THREE.MeshStandardMaterial({ color: 0x3d6fd1, emissive: 0x0a1a3a, roughness: 0.7 }));
+    // the real Earth (same maps as the Solar System), lit by the same Sun as the ground
+    const earth = new THREE.Mesh(new THREE.SphereGeometry(40, 48, 32), lookMaterial("Earth"));
+    const earthClouds = new THREE.Mesh(new THREE.SphereGeometry(40.4, 48, 32), cloudMaterial());
+    earth.add(earthClouds);
+    earth.rotation.y = 2.2;
     earth.position.set(-500, 420, -900);
-    worldGroup.add(earth);
+    skyGroup.add(earth);
   } else {
     scene.background = new THREE.Color(0x000000);
     scene.fog = null;
@@ -153,7 +164,8 @@ function buildSky(world) {
     sun.intensity = 2.8;
     ambient.intensity = 0.2;
     sunDirection.set(0.8, 0.5, 0.35).normalize();
-    const earth = new THREE.Mesh(new THREE.SphereGeometry(900, 64, 48), new THREE.MeshStandardMaterial({ color: 0x2f62c6, emissive: 0x06132c, roughness: 0.8 }));
+    const earth = new THREE.Mesh(new THREE.SphereGeometry(900, 96, 64), lookMaterial("Earth", null, { hd: true })); // the real Earth below
+    earth.add(new THREE.Mesh(new THREE.SphereGeometry(903, 96, 64), cloudMaterial()));
     earth.position.set(0, -1000, 0);
     worldGroup.add(earth);
     const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(915, 64, 48), new THREE.MeshBasicMaterial({ color: 0x6fa8ff, transparent: true, opacity: 0.12, side: THREE.BackSide }));
@@ -307,7 +319,8 @@ export function loadSite(id, options) {
     const model = createModel("lrv");
     fitTo(model, 3.1);
     castShadows(model);
-    vehicle = { kind: "lrv", model: model, speed: 0, steer: 0, yaw: 0.6, pos: new THREE.Vector3(6, 0, 5), vy: 0, y: 0, air: 0, slip: 0, bodyY: 0, suspVel: 0, pitch: 0, roll: 0 };
+    vehicle = { kind: "lrv", model: model, speed: 0, steer: 0, yaw: 0.6, pos: new THREE.Vector3(8, 0, 6), vy: 0, y: 0, air: 0, slip: 0, bodyY: 0, suspVel: 0, pitch: 0, roll: 0 };
+    parkVehicle(vehicle);
     worldGroup.add(model);
   } else if (site.vehicle === "rover") {
     const model = createModel(site.rover || "perseverance");
@@ -316,6 +329,7 @@ export function loadSite(id, options) {
     model.add(arm);
     castShadows(model);
     vehicle = { kind: "rover", model: model, speed: 0, yaw: 0, pos: new THREE.Vector3(0, 0, 4), arm: arm, armOut: 0, armGoal: 0, pitch: 0, roll: 0 };
+    parkVehicle(vehicle);
     worldGroup.add(model);
   }
 
@@ -450,8 +464,9 @@ const HINTS = {
 
 function enterMode(next) {
   mode = next;
+  if (next !== "lm" && vehicle && vehicle.kind === "lrv" && !vehicle.model.visible) { parkVehicle(vehicle); vehicle.model.visible = true; }
   modeText.textContent = {
-    lm: "Lunar Module landing", foot: "On foot", lrv: "Driving the Lunar Roving Vehicle",
+    lm: "Lunar Module landing", foot: "On foot · gravity " + (GRAVITY[site.world] || 0) + " m/s²", lrv: "Driving the Lunar Roving Vehicle",
     rover: "Driving the " + (site && site.rover === "curiosity" ? "Curiosity" : "Perseverance") + " rover",
     eva: "Spacewalk (zero gravity)", cockpit: "Inside the spacecraft"
   }[next];
@@ -473,6 +488,7 @@ function enterMode(next) {
     });
   }
   updateAutoStatus();
+  if (chargeButton) chargeButton.classList.toggle("hidden", next !== "lrv" && next !== "rover");
 
   if (next === "foot") {
     if (vehicle && vehicle.kind === "lrv" && astronaut.parent === vehicle.model) {
@@ -491,10 +507,12 @@ function enterMode(next) {
   } else if (next === "lrv") {
     worldGroup.remove(astronaut);
     vehicle.model.add(astronaut);
-    astronaut.position.set(-0.32, 0.55, -0.1);
+    // In the left seat (the commander drove the LRV from the left), facing forward, hands on the controller
+    const k = 1 / vehicle.model.scale.x;
+    astronaut.scale.setScalar(k);
+    astronaut.position.set(0.28, 0.705 - 0.43 * k, 0.05);
     astronaut.rotation.set(0, 0, 0);
-    astronaut.scale.setScalar(1 / vehicle.model.scale.x);
-    astronaut.visible = false; // while driving, only the vehicle is shown
+    astronaut.visible = true;
     camDistance = 9;
   } else if (next === "rover") {
     camDistance = 8;
@@ -518,6 +536,7 @@ function startLmLanding() {
   // The autopilot lands by default. "Take control" (or L) hands the controls to you, with a short guide.
   lm = { alt: 70, vy: -3, vx: 0.8, vz: -0.6, x: -14, z: 10, fuel: 100 + extraFuel, throttle: 0.45, done: false, auto: true };
   if (astronaut) astronaut.visible = false;
+  if (vehicle && vehicle.kind === "lrv") vehicle.model.visible = false; // the rover rides folded on the LM's side
   enterMode("lm");
   if (astronaut) astronaut.visible = false;
   updateLmPanel();
@@ -1047,6 +1066,7 @@ function updateLm(dt, g) {
       // Move the whole site so the landing spot becomes the new origin of the objects' layout
       lander.position.set(lm.x, ground, lm.z);
       relocateLanding(lm.x, lm.z);
+      if (vehicle && vehicle.kind === "lrv") { parkVehicle(vehicle); vehicle.model.visible = true; } // unfolded beside the LM
       play("thud", 0.4);
       completeObjective("land");
       updateLmPanel();
@@ -1065,6 +1085,15 @@ function updateLm(dt, g) {
 }
 
 // After a landing away from the planned spot, shift everything so the lander sits at the origin again
+// Put a vehicle's model where it is parked (before, it stayed at the site's centre until someone drove it,
+// which is exactly where the Lunar Module lands)
+function parkVehicle(v) {
+  v.y = heightAt(v.pos.x, v.pos.z);
+  v.pos.y = v.y;
+  v.model.position.set(v.pos.x, v.y, v.pos.z);
+  v.model.rotation.y = v.yaw || 0;
+}
+
 function relocateLanding(x, z) {
   lander.position.set(0, heightAt(0, 0), 0);
   void x; void z;
@@ -1241,8 +1270,12 @@ function updateFoot(dt, g) {
     }
   }
   const moving = input.lengthSq() > 0;
-  // Suited walking speeds for the game (Moon: hops, Mars: heavier steps)
-  const speed = world === "moon" ? (running ? 2.2 : 1.3) : (running ? 2.4 : 1.3);
+  // Speeds follow gravity. Legs act like a pendulum: the fastest comfortable walk is about where the
+  // Froude number (speed squared / (gravity x leg length)) reaches 0.5, so weaker gravity means slower
+  // walking and a switch to hopping or loping sooner. Leg length 0.9 m; a suit slows everything down.
+  // (A simple physics rule for the game, not measured astronaut speeds.)
+  const legPendulum = Math.sqrt(Math.max(0.1, g) * 0.9);
+  const speed = Math.min(running ? 3.2 : 1.6, legPendulum * (running ? 0.95 : 0.6));
   if (moving) {
     input.normalize();
     player.yaw = Math.atan2(input.x, input.z);
@@ -1250,8 +1283,10 @@ function updateFoot(dt, g) {
   // On the ground, feet push; in the air, you keep your momentum (hardly any control)
   if (player.onGround) {
     const target = input.multiplyScalar(moving ? speed : 0);
-    player.vel.x += (target.x - player.vel.x) * Math.min(1, dt * (world === "moon" ? 3 : 6));
-    player.vel.z += (target.z - player.vel.z) * Math.min(1, dt * (world === "moon" ? 3 : 6));
+    // Grip depends on weight: in low gravity your feet push less, so starting and stopping take longer
+    const grip = Math.min(1, dt * (1 + g * 0.55));
+    player.vel.x += (target.x - player.vel.x) * grip;
+    player.vel.z += (target.z - player.vel.z) * grip;
     if (keys[" "] || jumpQueued) {
       jumpQueued = false;
       player.vel.y = 2.0; // the same push gives a ~1.2 m jump on the Moon but ~0.5 m on Mars and ~0.2 m on Earth
@@ -1311,7 +1346,7 @@ function followCamera(target, height, dt) {
     if (astronaut) astronaut.visible = false;
     return;
   }
-  if (astronaut && mode !== "rover" && mode !== "lrv") astronaut.visible = true; // driving shows only the vehicle
+  if (astronaut && mode !== "rover") astronaut.visible = true; // the LRV shows its driver; robotic rovers have none
   const distance = cameraMode === 2 ? camDistance * 3 : camDistance;
   const goal = new THREE.Vector3(
     target.x + Math.sin(camYaw) * Math.cos(camPitch) * distance,
@@ -1396,7 +1431,7 @@ function updateBattery(v, dt, max, boosting) {
       v.charging = false;
       setMessage("Charging stopped: you started driving.", 2);
     } else {
-      v.battery = Math.min(100, v.battery + dt * 16);
+      v.battery = Math.min(100, v.battery + dt * 20);
       if (v.battery >= 100) {
         v.charging = false;
         play("success");
@@ -1406,19 +1441,20 @@ function updateBattery(v, dt, max, boosting) {
     }
   }
   const load = Math.min(1.6, Math.abs(v.speed) / max);
-  let drain = 0.05 + load * 0.4 + (boosting ? 1.8 : 0);
+  let drain = 0.02 + load * 0.16 + (boosting ? 0.9 : 0); // about 10 minutes of full-speed driving per charge
   // Slow top-up: the rover's MMRTG, or (game) the lander's power when the LRV is parked beside it
   let gain = v.kind === "rover" ? 0.15 : lander && v.pos.distanceTo(lander.position) < 12 && Math.abs(v.speed) < 0.2 ? 3 : 0;
   v.battery = Math.max(0, Math.min(100, v.battery - drain * dt + gain * dt));
-  if (before >= 20 && v.battery < 20) setMessage("Battery low (20%). Stop and press B to recharge.", 4);
-  if (before > 0 && v.battery <= 0) setMessage("Battery empty: crawling at low power. Press B to recharge.", 5);
+  if (before >= 20 && v.battery < 20) setMessage("Battery low (20%). Stop and press ⚡ Charge (or B).", 4);
+  if (before > 0 && v.battery <= 0) setMessage("Battery empty: crawling at low power. Press ⚡ Charge (or B).", 5);
 }
 
 export function startCharging() {
   if ((mode !== "lrv" && mode !== "rover") || !vehicle) return false;
   if (Math.abs(vehicle.speed) > 0.3) {
-    setMessage("Stop first, then press B to recharge.", 2.5);
-    return false;
+    // the button brakes for you, then starts charging
+    vehicle.speed = 0;
+    stopAuto();
   }
   vehicle.charging = !vehicle.charging;
   if (vehicle.charging) stopAuto();
@@ -1429,7 +1465,21 @@ export function startCharging() {
   return true;
 }
 
+// The Charge button (next to the auto buttons): shown while driving, glows when the battery is low
+const chargeButton = document.getElementById("explore-charge");
+if (chargeButton) chargeButton.addEventListener("click", function () { startCharging(); });
+function updateChargeButton(v) {
+  if (!chargeButton) return;
+  const pct = Math.round(v.battery === undefined ? 100 : v.battery);
+  const label = chargeButton.querySelector ? chargeButton.querySelector(".charge-label") : null;
+  if (label) label.textContent = v.charging ? "Charging " + pct + "%" : "Charge " + pct + "%";
+  chargeButton.classList.toggle("charging", Boolean(v.charging));
+  chargeButton.classList.toggle("low", !v.charging && pct < 25);
+  chargeButton.style.setProperty("--b", String(pct / 100));
+}
+
 function batteryGauge(v) {
+  updateChargeButton(v);
   const pct = Math.round(v.battery === undefined ? 100 : v.battery);
   const color = pct > 50 ? "#6fd08c" : pct > 20 ? "#ffd36e" : "#ff6a5a";
   return '<span class="gauge gauge-battery"><em>Battery' + (v.charging ? " · charging" : "") + "</em><b>" + pct + '%</b><i style="--b:' + (pct / 100) + ";--c:" + color + '"></i></span>';
@@ -1553,9 +1603,20 @@ function updateLrv(dt, g) {
   v.model.position.set(v.pos.x, v.y + v.bodyY * 0.25, v.pos.z);
   orientVehicle(v, dt, LRV.base, LRV.track, onGround ? 8 : 1);
 
+  // Wheels: steer first, then spin around the (steered) axle. With the default rotation order the spin
+  // tilted the steering axis, so the wheels wobbled and looked broken whenever the rover turned.
+  // Each wheel also has its own suspension: it reaches down to the ground under it (up to 15 cm),
+  // like the LRV's torsion-bar suspension, while the body stays steadier.
+  v.model.updateMatrixWorld(true);
   (v.model.userData.wheels || []).forEach(function (wheel, i) {
+    if (wheel.userData.baseY === undefined) {
+      wheel.userData.baseY = wheel.position.y;
+      wheel.userData.drop = 0;
+      wheel.rotation.order = "YXZ";
+    }
     wheel.rotation.x += v.speed * dt / 0.41;
     wheel.rotation.y = (i < 2 ? 1 : -1) * v.steer;
+    suspendWheel(v, wheel, 0.41, 0.15, dt);
   });
   if (onGround && Math.abs(v.speed) > 0.3) {
     wheelTracks(v, LRV.track, Math.abs(v.speed) * dt);
@@ -1573,6 +1634,19 @@ function updateLrv(dt, g) {
   speedFov(v.speed, LRV.max * (boosting ? 0.8 : 1.3));
   followCamera(v.pos, 1.6, dt);
   setMissionState({ distance: nearestText() });
+}
+
+// Moves one wheel up or down (model units) so its bottom meets the ground, within the suspension travel
+const wheelWorld = new THREE.Vector3();
+function suspendWheel(v, wheel, radius, travel, dt) {
+  const scale = v.model.scale.x || 1;
+  wheelWorld.set(wheel.position.x, wheel.userData.baseY, wheel.position.z);
+  v.model.localToWorld(wheelWorld);
+  const bottom = wheelWorld.y - radius * scale;
+  const ground = heightAt(wheelWorld.x, wheelWorld.z);
+  const goal = Math.max(-travel, Math.min(travel, (ground - bottom) / scale));
+  wheel.userData.drop += (goal - wheel.userData.drop) * Math.min(1, dt * 14);
+  wheel.position.y = wheel.userData.baseY + wheel.userData.drop;
 }
 
 function updateRover(dt) {
@@ -2133,6 +2207,8 @@ function frame(time) {
     sun.position.set(f.x + sunDirection.x * 150, f.y + sunDirection.y * 150, f.z + sunDirection.z * 150);
     if (sun.target) { sun.target.position.set(f.x, f.y, f.z); if (sun.target.updateMatrixWorld) sun.target.updateMatrixWorld(); }
     if (!isInfoCardOpen()) { updateDust(dt); updateSmoke(dt); }
+    updateGround(f.x, f.z);
+    if (skyGroup) skyGroup.position.set(camera.position.x, 0, camera.position.z);
     drawMap(false);
   } else {
     sun.position.copy(sunDirection).multiplyScalar(150);

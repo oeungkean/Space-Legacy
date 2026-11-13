@@ -18,6 +18,7 @@ import { PLANET_LOOKS, planetMaterial as lookMaterial, cloudMaterial, ringMateri
 import { play, setLoop, isSoundOn, isGroupOn, setGroupOn, onSoundChange } from "./sounds.js";
 import { accentCss, accentNumber, onThemeChange } from "./theme.js";
 import { speak, stopSpeaking, speechSupported } from "./narrator.js";
+import { wantsReducedMotion } from "./settings.js";
 
 // ----- Find the page elements we need -----
 const solarScreen = document.getElementById("solar-system-screen");
@@ -823,11 +824,41 @@ onThemeChange(function () {
   });
 });
 
+// The × (and Esc, R) glide the camera back to the whole Solar System instead of jumping
+const HOME_SECONDS = 1.6;
+let homeFlight = null;
 function resetView() {
   play("whoosh");
   deselectBody();
-  camera.position.copy(START_CAMERA_POSITION);
-  controls.target.set(0, 0, 0);
+  zoomGoal = null;
+  if (prefersReducedMotion()) {
+    camera.position.copy(START_CAMERA_POSITION);
+    controls.target.set(0, 0, 0);
+    return;
+  }
+  const fromPos = camera.position.clone();
+  const fromTarget = controls.target.clone();
+  // A middle point between the two, lifted up, so the path arcs out instead of cutting through planets
+  const mid = fromPos.clone().lerp(START_CAMERA_POSITION, 0.5);
+  mid.y += Math.max(fromPos.distanceTo(START_CAMERA_POSITION) * 0.18, 0);
+  homeFlight = { t: 0, fromPos: fromPos, fromTarget: fromTarget, mid: mid };
+}
+function prefersReducedMotion() {
+  return wantsReducedMotion();
+}
+const homeA = new THREE.Vector3();
+const homeB = new THREE.Vector3();
+function updateHomeFlight(delta) {
+  if (!homeFlight) return;
+  if (selectedBody || replay) { homeFlight = null; return; } // a new choice took over
+  homeFlight.t += delta;
+  const u = Math.min(1, homeFlight.t / HOME_SECONDS);
+  const k = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; // slow start, slow arrival
+  homeA.copy(homeFlight.fromPos).lerp(homeFlight.mid, k);
+  homeB.copy(homeFlight.mid).lerp(START_CAMERA_POSITION, k);
+  camera.position.copy(homeA.lerp(homeB, k));
+  controls.target.copy(homeFlight.fromTarget).lerp(ORIGIN, k);
+  if (u >= 1) homeFlight = null;
 }
 
 function fillList(listElement, rows, makeRow) {
@@ -2406,6 +2437,7 @@ controls.addEventListener("start", function () {
   }
   isZooming = false;
   zoomGoal = null;
+  homeFlight = null; // dragging takes over from the glide home
   if (replay) replay.cameraGoal = null;
 });
 
@@ -2782,6 +2814,12 @@ function updateEntry(delta) {
 }
 
 entrySkip.addEventListener("click", function () { play("click"); skipEntry(); });
+// Clicking (or tapping) anywhere on the picture during the opening flight skips it too
+solarScreen.addEventListener("pointerdown", function (event) {
+  if (!entry || entry.fast) return;
+  if (event.target.closest && event.target.closest(".entry-actions")) return; // Skip / CC buttons handle themselves
+  skipEntry();
+});
 entryCc.addEventListener("click", function () {
   entryCaptions = !entryCaptions;
   entryCc.setAttribute("aria-pressed", String(entryCaptions));
@@ -2864,6 +2902,7 @@ function animate() {
   if (entry) {
     updateEntry(delta);
   } else {
+    updateHomeFlight(delta);
     updateCamera(delta);
     applyZoomGoal(delta);
     controls.update();

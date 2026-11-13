@@ -13,6 +13,7 @@ import { createLauncher, createAstronaut, strut } from "./models.js";
 import { createRocket } from "./rockets.js";
 import { createParticleSystem } from "./particles.js";
 import { planetMaterial, cloudMaterial } from "./planet-look.js";
+import { createGlow } from "./glow.js";
 import { play, isSoundOn, setSoundOn, onSoundChange, isGroupOn } from "./sounds.js";
 import { wantsReducedMotion } from "./settings.js";
 import { getPlaybackSpeed } from "./playback.js";
@@ -56,6 +57,23 @@ const SCENES = [
     duration: 16
   }
 ];
+// Rollout, before the countdown: how each rocket really got from its assembly building to the pad
+const ROLLOUT_SCENE = { id: "rollout", caption: "Rollout.", duration: 11 };
+const ROLLOUT_STYLE = {
+  // carried upright with its launch platform by a crawler-transporter
+  "saturn-v": "crawler", "saturn-v-skylab": "crawler", "sls": "crawler", "shuttle": "crawler", "shuttle-sts31": "crawler", "shuttle-sts88": "crawler",
+  // standing on a launch platform that rolls along rails
+  "atlas-v-401": "rail", "atlas-v-411": "rail", "atlas-v-541": "rail", "atlas-v-551": "rail", "titan-3e": "rail", "titan-4b": "rail", "ariane-5": "rail",
+  // lying down on a transporter-erector, raised upright at the pad
+  "falcon-9": "horizontal", "delta-4-heavy": "horizontal", "proton": "horizontal"
+  // Delta II, Titan II and Atlas-Centaur were stacked on the pad itself: no rollout
+};
+const ROLLOUT_CAPTION = {
+  crawler: "Rollout: a crawler-transporter carries the rocket, standing on its launch platform, out of the assembly building to the pad. The real crawler moves at about 1.6 km/h (1 mph), so it takes hours; this is sped up.",
+  rail: "Rollout: the rocket stands on its launch platform, which rolls along rails from the assembly building to the pad (sped up).",
+  horizontal: "Rollout: the rocket lies on its transporter-erector and rolls out of the hangar; at the pad it is raised upright (sped up)."
+};
+const BUILDING = new THREE.Vector3(-2400, 0, -1300); // the assembly building (see buildCoast)
 const LAUNCH_IGNITION = 6.2;   // seconds into the mission launch scene: engines start
 const LAUNCH_LIFTOFF = 9;      // hold-down arms release
 
@@ -67,6 +85,14 @@ const STAGE_SPLIT = {
 };
 // Crewed rockets drop a launch escape tower instead of a payload fairing
 const ESCAPE_TOWER = { "saturn-v": true, "sls": true };
+// Where the nose comes off, in meters up the model (measured from js/rockets.js), and the model's height:
+// the escape tower above the capsule, or the bottom of the payload fairing.
+const NOSE_CUT = {
+  "saturn-v": [112.3, 119.5], "saturn-v-skylab": [99, 108], "sls": [89.3, 98.1],
+  "titan-3e": [39, 56.5], "titan-4b": [36, 60], "delta-4-heavy": [42.8, 64], "atlas-centaur": [32.2, 42.8],
+  "delta-2": [33.1, 42], "delta-2-heavy": [33.1, 42], "atlas-v-401": [44.1, 57.4], "atlas-v-411": [44.1, 57.4],
+  "atlas-v-541": [34, 57], "atlas-v-551": [34, 57], "falcon-9": [55, 70], "proton": [41.5, 54.5], "ariane-5": [35.4, 53]
+};
 
 const LIFTOFF_AT = 2.5;          // seconds into the liftoff part
 const BOOSTER_SEPARATION = 4.5;  // seconds after liftoff
@@ -353,11 +379,28 @@ function buildCoast() {
   land.position.y = -0.05;
   land.receiveShadow = true;
   coastGroup.add(land);
-  // The Atlantic Ocean, just east of the pad, with a sandy beach
-  const ocean = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), new THREE.MeshStandardMaterial({ color: 0x2a6c94, roughness: 0.18, metalness: 0.35 }));
+  // The Atlantic Ocean, just east of the pad: small waves (a moving ripple map) that catch the sun,
+  // turquoise shallows and a line of surf along the beach
+  const waves = waveNormalTexture();
+  const ocean = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), new THREE.MeshStandardMaterial({
+    color: 0x1d5a80, roughness: 0.22, metalness: 0.2, normalMap: waves, normalScale: new THREE.Vector2(0.55, 0.55)
+  }));
   ocean.rotation.x = -Math.PI / 2;
   ocean.position.set(4500 + 520, 0.02, 0);
+  ocean.receiveShadow = true;
   coastGroup.add(ocean);
+  coastGroup.userData.waves = waves;
+  const shallows = new THREE.Mesh(new THREE.PlaneGeometry(70, 9000), new THREE.MeshStandardMaterial({
+    color: 0x4fa6a6, roughness: 0.3, metalness: 0.1, transparent: true, opacity: 0.75, normalMap: waves, normalScale: new THREE.Vector2(0.3, 0.3)
+  }));
+  shallows.rotation.x = -Math.PI / 2;
+  shallows.position.set(555, 0.03, 0);
+  coastGroup.add(shallows);
+  const surf = new THREE.Mesh(new THREE.PlaneGeometry(5, 9000), new THREE.MeshBasicMaterial({ color: 0xf2f6f8, transparent: true, opacity: 0.8 }));
+  surf.rotation.x = -Math.PI / 2;
+  surf.position.set(523, 0.04, 0);
+  coastGroup.add(surf);
+  coastGroup.userData.surf = surf;
   const beach = new THREE.Mesh(new THREE.PlaneGeometry(60, 9000), new THREE.MeshStandardMaterial({ color: 0xd9c9a0, roughness: 1 }));
   beach.rotation.x = -Math.PI / 2;
   beach.position.set(500, 0.01, 0);
@@ -373,11 +416,29 @@ function buildCoast() {
   });
   // A large assembly building on the horizon (simple shape, no logos)
   const building = new THREE.Mesh(new THREE.BoxGeometry(220, 160, 160), new THREE.MeshStandardMaterial({ color: 0xd5d8dc, roughness: 0.8 }));
-  building.position.set(-1500, 80, -1900);
+  building.position.set(-2400, 80, -1300); // off to the side of the long-lens shot, not right behind the rocket
   coastGroup.add(building);
-  const doors = new THREE.Mesh(new THREE.PlaneGeometry(40, 140), new THREE.MeshStandardMaterial({ color: 0x9aa2ad, roughness: 0.7 }));
-  doors.position.set(-1500, 72, -1819);
+  // the high bay door stands open: a dark doorway (the rocket comes out of it during rollout)
+  const doors = new THREE.Mesh(new THREE.PlaneGeometry(60, 150), new THREE.MeshStandardMaterial({ color: 0x15171b, roughness: 1 }));
+  doors.position.set(-2400, 75, -1219);
   coastGroup.add(doors);
+  [-1, 1].forEach(function (side) {
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(3, 152, 3), new THREE.MeshStandardMaterial({ color: 0x8a9099, roughness: 0.6, metalness: 0.4 }));
+    frame.position.set(-2400 + side * 31, 76, -1218);
+    coastGroup.add(frame);
+  });
+  const lifted = new THREE.Mesh(new THREE.BoxGeometry(62, 8, 2), new THREE.MeshStandardMaterial({ color: 0x9aa2ad, roughness: 0.7 }));
+  lifted.position.set(-2400, 154, -1218); // the door panels, raised
+  coastGroup.add(lifted);
+  // the crawlerway out of the door: two wide gravel lanes
+  [-1, 1].forEach(function (side) {
+    const lane = new THREE.Mesh(new THREE.PlaneGeometry(14, 700), new THREE.MeshStandardMaterial({ color: 0xbab3a4, roughness: 1 }));
+    lane.rotation.x = -Math.PI / 2;
+    lane.position.set(-2400 + side * 13, 0.04, -1219 + 350);
+    lane.receiveShadow = true;
+    coastGroup.add(lane);
+  });
+  doors.userData.rollout = true;
   // Water tower for the sound suppression system
   const steel = new THREE.MeshStandardMaterial({ color: 0xc9ccd0, roughness: 0.5, metalness: 0.5 });
   for (let i = 0; i < 4; i++) {
@@ -388,6 +449,9 @@ function buildCoast() {
   const tank = new THREE.Mesh(new THREE.SphereGeometry(14, 20, 14), steel);
   tank.position.set(170, 80, -230);
   coastGroup.add(tank);
+  buildPadComplex();
+  buildRoadsAndBuildings();
+  buildVegetation();
   // Low clouds far away: each is a cluster of soft, overlapping puffs (billboards) with a flatter,
   // greyer base, instead of one hard-edged ellipsoid
   const puffTop = new THREE.SpriteMaterial({ map: cloudPuffTexture(), color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false });
@@ -412,6 +476,361 @@ function buildCoast() {
     cloud.position.set(Math.cos(angle) * random(2400, 3400), random(380, 650), Math.sin(angle) * random(2400, 3400));
     coastGroup.add(cloud);
   }
+}
+
+
+// Small ripples for the ocean (a tiling normal map drawn from overlapping sine waves)
+function waveNormalTexture() {
+  const size = 128;
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const ctx = c.getContext && c.getContext("2d");
+  if (!ctx || !ctx.createImageData) return null;
+  const img = ctx.createImageData(size, size);
+  const h = function (x, y) {
+    const a = Math.PI * 2 / size;
+    return Math.sin(x * a * 3 + y * a * 1) * 0.5 + Math.sin(x * a * -2 + y * a * 5) * 0.35 +
+      Math.sin(x * a * 7 + y * a * 4) * 0.2 + Math.sin(x * a * -9 + y * a * 11) * 0.12;
+  };
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = h(x + 1, y) - h(x - 1, y);
+      const dy = h(x, y + 1) - h(x, y - 1);
+      const n = new THREE.Vector3(-dx * 2.2, -dy * 2.2, 1).normalize();
+      const i = (y * size + x) * 4;
+      img.data[i] = (n.x * 0.5 + 0.5) * 255;
+      img.data[i + 1] = (n.y * 0.5 + 0.5) * 255;
+      img.data[i + 2] = (n.z * 0.5 + 0.5) * 255;
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const texture = new THREE.CanvasTexture(c);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(600, 600);
+  return texture;
+}
+
+// The pad itself: a wide concrete hardstand, the flame trench running out to one side, a perimeter
+// road and fence, and the two big spherical propellant tanks (liquid oxygen and fuel) with pipes to the pad
+function buildPadComplex() {
+  const concrete = new THREE.MeshStandardMaterial({ color: 0xaeaaa2, roughness: 0.95 });
+  const apron = new THREE.Mesh(new THREE.CylinderGeometry(78, 82, 0.4, 8), concrete);
+  apron.rotation.y = Math.PI / 8;
+  apron.position.y = 0.05;
+  apron.receiveShadow = true;
+  coastGroup.add(apron);
+  const trench = new THREE.Mesh(new THREE.PlaneGeometry(16, 120), new THREE.MeshStandardMaterial({ color: 0x4a4740, roughness: 1 }));
+  trench.rotation.x = -Math.PI / 2;
+  trench.position.set(0, 0.28, -60);
+  coastGroup.add(trench);
+  const road = new THREE.MeshStandardMaterial({ color: 0x3b3d40, roughness: 0.9 });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(118, 126, 64), road);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.06;
+  ring.receiveShadow = true;
+  coastGroup.add(ring);
+  // fence posts around the pad (a dashed silver ring)
+  const fenceMat = new THREE.MeshStandardMaterial({ color: 0xb8bcc2, roughness: 0.6, metalness: 0.6 });
+  const fence = new THREE.InstancedMesh(new THREE.BoxGeometry(0.25, 2.4, 0.25), fenceMat, 120);
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < 120; i++) {
+    const a = (i / 120) * Math.PI * 2;
+    m.makeTranslation(Math.cos(a) * 140, 1.2, Math.sin(a) * 140);
+    fence.setMatrixAt(i, m);
+  }
+  coastGroup.add(fence);
+  // propellant spheres on short legs, white with a dark band, and pipes running to the pad
+  const white = new THREE.MeshStandardMaterial({ color: 0xeef0f2, roughness: 0.5, metalness: 0.2 });
+  const pipe = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.5, metalness: 0.6 });
+  [[-95, -75, 13], [90, -80, 11]].forEach(function (t) { // behind the pad, away from the cameras
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(t[2], 28, 18), white);
+    ball.position.set(t[0], t[2] + 3, t[1]);
+    ball.castShadow = true;
+    coastGroup.add(ball);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(t[2] * 1.0, 0.5, 6, 40), pipe);
+    band.rotation.x = Math.PI / 2;
+    band.position.copy(ball.position);
+    coastGroup.add(band);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, t[2] + 3, 6), pipe);
+      leg.position.set(t[0] + Math.cos(a) * t[2] * 0.8, (t[2] + 3) / 2, t[1] + Math.sin(a) * t[2] * 0.8);
+      coastGroup.add(leg);
+    }
+    const length = Math.hypot(t[0], t[1]) - 26;
+    const run = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, length, 8), pipe);
+    run.rotation.z = Math.PI / 2;
+    run.rotation.y = -Math.atan2(t[1], t[0]);
+    const mid = new THREE.Vector3(t[0], 0, t[1]).normalize().multiplyScalar(26 + length / 2);
+    run.position.set(mid.x, 1.2, mid.z);
+    coastGroup.add(run);
+  });
+}
+
+// Roads to the pad, a launch control building, workshops, and another launch tower down the coast
+function buildRoadsAndBuildings() {
+  const asphalt = new THREE.MeshStandardMaterial({ color: 0x35373a, roughness: 0.9 });
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0xe9e2c8 });
+  [[0, 0.07, -760, 9, 1300, 0], [-520, 0.07, 160, 9, 1100, Math.PI / 2], [300, 0.07, -500, 7, 900, 0.3]].forEach(function (r) {
+    const road = new THREE.Mesh(new THREE.PlaneGeometry(r[3], r[4]), asphalt);
+    road.rotation.x = -Math.PI / 2;
+    road.rotation.z = r[5];
+    road.position.set(r[0], r[1], r[2]);
+    road.receiveShadow = true;
+    coastGroup.add(road);
+    const line = new THREE.Mesh(new THREE.PlaneGeometry(0.3, r[4]), lineMat);
+    line.rotation.x = -Math.PI / 2;
+    line.rotation.z = r[5];
+    line.position.set(r[0], r[1] + 0.01, r[2]);
+    coastGroup.add(line);
+  });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xd9dbdc, roughness: 0.8 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x2e3a48, roughness: 0.3, metalness: 0.4 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x8d9298, roughness: 0.9 });
+  // [x, z, width, height, depth, window rows]
+  [[-640, 330, 70, 16, 34, 3], [-420, -260, 40, 9, 26, 2], [-470, -320, 26, 7, 20, 1], [260, -560, 34, 10, 22, 2],
+    [-760, -120, 50, 12, 30, 2], [380, 360, 30, 8, 18, 1]].forEach(function (b) {
+    const box = new THREE.Mesh(new THREE.BoxGeometry(b[2], b[3], b[4]), wallMat);
+    box.position.set(b[0], b[3] / 2, b[1]);
+    box.castShadow = true;
+    box.receiveShadow = true;
+    coastGroup.add(box);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(b[2] + 1, 0.6, b[4] + 1), roofMat);
+    roof.position.set(b[0], b[3] + 0.3, b[1]);
+    coastGroup.add(roof);
+    for (let row = 0; row < b[5]; row++) {
+      const windows = new THREE.Mesh(new THREE.BoxGeometry(b[2] * 0.9, 1.4, b[4] + 0.2), darkMat);
+      windows.position.set(b[0], 2.5 + row * (b[3] - 3) / Math.max(1, b[5]), b[1]);
+      coastGroup.add(windows);
+    }
+  });
+  // another launch pad down the coast: its own tower and a rocket-less mount (simplified)
+  const far = buildTower(70);
+  far.position.set(260, 0, -1500);
+  far.scale.setScalar(0.9);
+  coastGroup.add(far);
+  const farPad = new THREE.Mesh(new THREE.CylinderGeometry(50, 54, 0.4, 8), new THREE.MeshStandardMaterial({ color: 0xaeaaa2, roughness: 0.95 }));
+  farPad.position.set(250, 0.05, -1500);
+  coastGroup.add(farPad);
+}
+
+// Florida scrub, palmettos and pine stands: thousands of low bushes and trees drawn as a few
+// instanced meshes (cheap to draw), kept off the pad, the roads and the beach
+function buildVegetation() {
+  const keepClear = function (x, z) {
+    const d = Math.hypot(x, z);
+    if (d < 150) return true;                                   // pad, apron, fence
+    if (x > 470) return true;                                   // beach and ocean
+    if (Math.abs(x) < 12 && z < 0 && z > -1420) return true;     // road north
+    if (Math.abs(z - 160) < 12 && x < -60) return true;          // road west
+    return false;
+  };
+  const shrubGeo = new THREE.IcosahedronGeometry(1, 0);
+  const shrubMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true });
+  const shrubs = new THREE.InstancedMesh(shrubGeo, shrubMat, 2600);
+  const pineGeo = new THREE.ConeGeometry(1, 3, 7);
+  const pineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true });
+  const pines = new THREE.InstancedMesh(pineGeo, pineMat, 700);
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+  const pos = new THREE.Vector3();
+  const color = new THREE.Color();
+  let n = 0;
+  let tries = 0;
+  while (n < 2600 && tries < 20000) {
+    tries++;
+    const a = random(0, Math.PI * 2);
+    const d = 150 + Math.pow(Math.random(), 0.8) * 1500;
+    const x = Math.cos(a) * d;
+    const z = Math.sin(a) * d;
+    if (keepClear(x, z)) continue;
+    const r = random(1.4, 4.2);
+    pos.set(x, r * 0.35, z);
+    scale.set(r * random(1, 1.6), r * random(0.45, 0.7), r * random(1, 1.6));
+    q.setFromAxisAngle(UP_AXIS, random(0, Math.PI));
+    m.compose(pos, q, scale);
+    shrubs.setMatrixAt(n, m);
+    color.setHSL(random(0.2, 0.27), random(0.25, 0.4), random(0.2, 0.32));
+    shrubs.setColorAt(n, color);
+    n++;
+  }
+  shrubs.count = n;
+  let k = 0;
+  tries = 0;
+  while (k < 700 && tries < 20000) {
+    tries++;
+    // pines grow in stands: pick a stand center, then scatter around it
+    const a = random(0, Math.PI * 2);
+    const d = 260 + Math.random() * 1600;
+    const cx = Math.cos(a) * d;
+    const cz = Math.sin(a) * d;
+    for (let j = 0; j < 12 && k < 700; j++) {
+      const x = cx + random(-40, 40);
+      const z = cz + random(-40, 40);
+      if (keepClear(x, z)) continue;
+      const h = random(9, 18);
+      pos.set(x, h * 0.5 + 2, z);
+      scale.set(h * 0.22, h / 3, h * 0.22);
+      q.identity();
+      m.compose(pos, q, scale);
+      pines.setMatrixAt(k, m);
+      color.setHSL(random(0.25, 0.33), random(0.3, 0.45), random(0.14, 0.22));
+      pines.setColorAt(k, color);
+      k++;
+    }
+  }
+  pines.count = k;
+  [shrubs, pines].forEach(function (mesh) {
+    mesh.castShadow = false;
+    mesh.receiveShadow = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    coastGroup.add(mesh);
+  });
+}
+const UP_AXIS = new THREE.Vector3(0, 1, 0);
+
+// ----- Rollout rigs -----
+let rollout = null;
+
+function trackUnit(width, length, height, material, tread) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), material);
+  body.position.y = height / 2;
+  g.add(body);
+  for (let i = 0; i < 9; i++) {
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(width * 1.04, height * 0.12, length / 11), tread);
+    shoe.position.set(0, height * 0.06, -length / 2 + (i + 1) * length / 10);
+    g.add(shoe);
+  }
+  return g;
+}
+
+function buildRollout(style) {
+  if (rollout) { scene.remove(rollout.group); rollout = null; }
+  if (!style) return;
+  const group = new THREE.Group();
+  const steel = new THREE.MeshStandardMaterial({ color: 0x8f959c, roughness: 0.6, metalness: 0.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.8, metalness: 0.4 });
+  const grey = new THREE.MeshStandardMaterial({ color: 0x7e848c, roughness: 0.75, metalness: 0.3 });
+  const heightMeters = rocketModel.userData.height * ROCKET_SCALE;
+  const radiusMeters = (rocketModel.userData.radius || 1) * ROCKET_SCALE;
+  let deck = 0;
+  if (style === "crawler") {
+    // crawler-transporter: about 40 x 35 m, 6 m tall, four double-tracked trucks at the corners
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
+      const truck = trackUnit(10, 12, 3, dark, steel);
+      truck.position.set(c[0] * 14, 0, c[1] * 13);
+      group.add(truck);
+    });
+    const crawler = new THREE.Mesh(new THREE.BoxGeometry(40, 3, 35), grey);
+    crawler.position.y = 4.5;
+    group.add(crawler);
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(5, 3, 4), new THREE.MeshStandardMaterial({ color: 0xd7dade, roughness: 0.5 }));
+    cab.position.set(-18, 7.5, 16);
+    group.add(cab);
+    // the mobile launcher on top, with its tower
+    const platformWidth = Math.max(40, radiusMeters * 2 + 16);
+    const platform = new THREE.Mesh(new THREE.BoxGeometry(platformWidth, 7.6, 40), dark);
+    platform.position.y = 6 + 3.8;
+    group.add(platform);
+    deck = 6 + 7.6;
+    const tower = buildTower(Math.max(60, Math.ceil(heightMeters + 6)));
+    tower.position.set(-(radiusMeters + 9), deck, 0);
+    group.add(tower);
+  } else if (style === "rail") {
+    // launch platform on rail bogies, on two rails
+    const platform = new THREE.Mesh(new THREE.BoxGeometry(Math.max(26, radiusMeters * 2 + 10), 6, 22), dark);
+    platform.position.y = 4;
+    group.add(platform);
+    [-1, 1].forEach(function (side) {
+      [-1, 1].forEach(function (end) {
+        const bogie = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 6), steel);
+        bogie.position.set(side * 9, 1, end * 7);
+        group.add(bogie);
+      });
+    });
+    deck = 7;
+  } else {
+    // transporter-erector: a long frame on wheels, the rocket lying on it base first
+    const length = heightMeters + 8;
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(radiusMeters * 1.6 + 4, 2, length), grey);
+    frame.position.set(0, 3, -length / 2 + 4);
+    group.add(frame);
+    for (let i = 0; i < 6; i++) {
+      [-1, 1].forEach(function (side) {
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 1, 16), dark);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(side * (radiusMeters * 0.8 + 2.5), 1.2, 2 - i * (length - 6) / 5);
+        group.add(wheel);
+      });
+    }
+    deck = 4;
+  }
+  group.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  scene.add(group);
+  rollout = { group: group, style: style, deck: deck, height: heightMeters, radius: radiusMeters };
+}
+
+function endRollout() {
+  if (rollout) rollout.group.visible = false;
+  // the rocket stands on its pad mount again, lit by the pad's sun
+  rocketRoot.position.set(0, restY, 0);
+  rocketRoot.rotation.set(0, 0, 0);
+  const heightMeters = rocketModel.userData.height * ROCKET_SCALE;
+  sunLight.position.set(-200, 320, 400);
+  sunLight.target.position.set(0, heightMeters * 0.35, 0);
+  sunLight.target.updateMatrixWorld();
+}
+
+function updateRollout(t, dt) {
+  if (!rollout) return;
+  const d = ROLLOUT_SCENE.duration;
+  fadeBox.style.transition = "none";
+  fadeBox.style.opacity = String(Math.max(1 - smoothstep(0, 0.8, t), smoothstep(d - 0.7, d, t)));
+  rollout.group.visible = true;
+  // from inside the building, out through the door and along the crawlerway
+  const travel = 300;
+  const k = t / d;
+  const z = BUILDING.z + 10 + travel * k; // the front of the crawler reaches the door after about 2 seconds
+  rollout.group.position.set(BUILDING.x, 0, z);
+  const lift = restY - PAD_Y;
+  if (rollout.style === "horizontal") {
+    // lying down, engines first (the end that is raised at the pad)
+    rocketRoot.rotation.set(-Math.PI / 2, 0, 0);
+    rocketRoot.position.set(BUILDING.x, rollout.deck + rollout.radius * 0.55, z + 4);
+  } else {
+    rocketRoot.rotation.set(0, 0, 0);
+    rocketRoot.position.set(BUILDING.x, rollout.deck + lift, z);
+  }
+  // the sun's shadows follow the rig
+  sunLight.position.set(BUILDING.x - 200, 320, z + 400);
+  sunLight.target.position.set(BUILDING.x, rollout.height * 0.35, z);
+  sunLight.target.updateMatrixWorld();
+  // dust from the tracks
+  if (rollout.style === "crawler") {
+    for (let n = perSecond("rolldust", 10, dt); n > 0; n--) {
+      particles.emit(false, new THREE.Vector3(BUILDING.x + random(-20, 20), 1, z + 18), new THREE.Vector3(random(-1, 1), random(0.5, 1.5), random(0, 1)), 2, random(6, 10), random(1.5, 2.5), 0.25, 0xd8cfbf, 0.8);
+    }
+  }
+  // Camera: low by the crawlerway as the rocket comes out of the door, then a long lens beside it
+  const s = Math.max(1, rollout.height / 70);
+  let target;
+  // (framed a little low, so the top of the rocket stays clear of the player's title bar)
+  if (t < 5.5) {
+    camera.fov = 36;
+    camera.position.set(BUILDING.x + 170 * s, 6, BUILDING.z + 80 + 330 * s);
+    target = new THREE.Vector3(BUILDING.x, rollout.height * 0.62, BUILDING.z + 80);
+  } else {
+    camera.fov = 22;
+    const pan = (t - 5.5) / (d - 5.5);
+    camera.position.set(BUILDING.x - 520 * s, 18, z + 220 * s - pan * 60 * s);
+    target = new THREE.Vector3(BUILDING.x, rollout.height * 0.62, z);
+  }
+  camera.updateProjectionMatrix();
+  camera.lookAt(target);
+  setRumble(0.08, 200);
 }
 
 // Day or sunset: the intro uses the sunset hills, mission launches the coastal site in daylight
@@ -456,18 +875,19 @@ function buildEarthBall() {
   const globe = new THREE.Group();
   globe.quaternion.copy(siteOnTop(LAUNCH_SITE.lat, LAUNCH_SITE.lon));
   earthBall.add(globe);
-  const surface = planetMaterial("Earth");
+  const surface = planetMaterial("Earth", null, { hd: true }); // the 4096 px day map: much sharper this close
   surface.fog = false;
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 128, 96), surface);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 192, 128), surface);
   globe.add(ball);
   const cloudLayer = cloudMaterial();
   cloudLayer.fog = false;
-  cloudLayer.opacity = 0.7; // thinner, so the coast and the ocean show through
-  const clouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.004, 128, 96), cloudLayer);
+  cloudLayer.opacity = 0.55; // thin, so the coast and the ocean show through
+  const clouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.002, 192, 128), cloudLayer);
   globe.add(clouds);
-  const air = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.012, 96, 64), new THREE.MeshBasicMaterial({
-    color: 0x6fb2ff, transparent: true, opacity: 0.28, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false, fog: false
-  }));
+  // The air: the same soft glow as the Solar System's Earth (bright, thin blue haze at the horizon that
+  // fades into black space), instead of a flat colored shell
+  const air = createGlow(EARTH_R, { color: 0x6aa8ff, strength: 0.8, size: 1.018 });
+  air.traverse(function (o) { if (o.material) o.material.fog = false; });
   earthBall.add(air);
   earthBall.visible = false;
   scene.add(earthBall);
@@ -807,11 +1227,20 @@ function enterScene(index) {
 
   rocketRoot.visible = id !== "cabin"; // in the cabin we are inside the spacecraft
   if (id === "ascent") beginAscent();
-  if (id === "launch") { ignitionPlayed = false; countdownBox.classList.remove("hidden"); }
+  if (id === "launch") {
+    ignitionPlayed = false;
+    countdownBox.classList.remove("hidden");
+    endRollout();
+  }
+  if (id === "rollout" && rollout) {
+    captionBox.textContent = ROLLOUT_CAPTION[rollout.style];
+    countdownBox.textContent = "ROLLOUT";
+    countdownBox.classList.remove("hidden");
+  }
   astronauts.forEach(function (astronaut) {
     astronaut.visible = id === "walkout"; // the crew is inside the vehicle after the walkout
   });
-  camera.fov = id === "cabin" ? 62 : id === "liftoff" ? 40 : id === "ascent" ? 45 : id === "launch" ? 30 : 50;
+  camera.fov = id === "cabin" ? 62 : id === "liftoff" ? 40 : id === "ascent" ? 45 : id === "launch" ? 30 : id === "rollout" ? 38 : 50;
   camera.updateProjectionMatrix();
 
   Object.keys(carry).forEach(function (key) { carry[key] = 0; });
@@ -1045,6 +1474,9 @@ function emitDeluge(power, dt) {
 }
 
 function updateMissionLaunch(t, dt) {
+  const waves = coastGroup && coastGroup.userData.waves;
+  if (waves) { waves.offset.x += dt * 0.012; waves.offset.y += dt * 0.005; }
+  if (coastGroup && coastGroup.userData.surf) coastGroup.userData.surf.material.opacity = 0.6 + 0.25 * Math.sin(t * 1.3);
   const fadeIn = 1 - smoothstep(0, 0.8, t);
   const fadeOut = smoothstep(SCENES[4].duration - 0.5, SCENES[4].duration, t);
   fadeBox.style.transition = "none";
@@ -1171,6 +1603,9 @@ function beginAscent() {
     step: -1,
     split: split ? split * rocketModel.userData.height : 0,
     lower: null,
+    nose: [],
+    clips: [],
+    frame: 0,
     upperPlane: null,
     engineOff: 0,
     secondStage: false,
@@ -1183,64 +1618,205 @@ function beginAscent() {
 
 const UPV = new THREE.Vector3(0, 1, 0);
 
-// Cut the rocket in two at the stage line: the upper part keeps flying, the lower part falls away
-function separateStage() {
-  if (!ascent.split || ascent.lower) return;
-  const localUpper = new THREE.Plane(new THREE.Vector3(0, 1, 0), -ascent.split);
-  const localLower = new THREE.Plane(new THREE.Vector3(0, -1, 0), ascent.split);
-  const lower = rocketModel.clone(true);
-  lower.traverse(function (o) {
-    if (o.isMesh && o.material && o.material.clone) o.material = o.material.clone();
-  });
-  rocketRoot.updateMatrixWorld(true);
-  lower.matrixAutoUpdate = true;
-  scene.add(lower);
-  lower.position.setFromMatrixPosition(rocketModel.matrixWorld);
-  lower.quaternion.setFromRotationMatrix(rocketModel.matrixWorld);
-  lower.scale.setScalar(ROCKET_SCALE);
-  lower.userData.velocity = new THREE.Vector3(0, -14, 0).applyQuaternion(rocketRoot.quaternion);
-  lower.userData.spin = random(-0.25, 0.25);
-  ascent.lower = lower;
-  ascent.planes = [
-    { object: rocketModel, local: localUpper, world: new THREE.Plane() },
-    { object: lower, local: localLower, world: new THREE.Plane() }
-  ];
-  ascent.planes.forEach(function (p) {
-    p.object.traverse(function (o) { if (o.isMesh && o.material) o.material.clippingPlanes = [p.world]; });
-  });
-  updateClipping();
-  play("separation");
+// ----- Separations -----
+// A part comes off by cloning the rocket and cutting both copies with clipping planes (in the model's
+// own space, so the cut follows every tumble). Each cut face gets a dark cap, so no part looks hollow.
+function clipPart(object, localPlanes) {
+  const entry = { object: object, locals: localPlanes, worlds: localPlanes.map(function () { return new THREE.Plane(); }) };
+  ascent.clips = (ascent.clips || []).filter(function (c) { return c.object !== object; });
+  ascent.clips.push(entry);
+  object.traverse(function (o) { if (o.isMesh && o.material && !o.userData.cap) o.material.clippingPlanes = entry.worlds; });
+  return entry;
 }
 
 function updateClipping() {
-  if (!ascent || !ascent.planes) return;
-  ascent.planes.forEach(function (p) {
-    p.object.updateMatrixWorld(true);
-    p.world.copy(p.local).applyMatrix4(p.object.matrixWorld);
+  if (!ascent || !ascent.clips) return;
+  ascent.clips.forEach(function (c) {
+    c.object.updateMatrixWorld(true);
+    c.locals.forEach(function (local, i) { c.worlds[i].copy(local).applyMatrix4(c.object.matrixWorld); });
   });
 }
 
-// Two halves of the nose shell drift apart (fairing or escape tower)
-function separateNose() {
-  const top = rocketModel.userData.height * ROCKET_SCALE;
-  const radius = Math.max(1.5, (rocketModel.userData.radius || 1) * ROCKET_SCALE * 0.5);
-  const material = new THREE.MeshStandardMaterial({ color: 0xe8e8e4, roughness: 0.6, side: THREE.DoubleSide });
-  const pieces = ESCAPE_TOWER[rocketKey]
-    ? [new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.12, radius * 0.25, top * 0.08, 8), material)]
-    : [-1, 1].map(function () { return new THREE.Mesh(new THREE.CylinderGeometry(0.01, radius, top * 0.1, 16, 1, true, 0, Math.PI), material); });
-  pieces.forEach(function (piece, i) {
-    const local = new THREE.Vector3(0, top * 0.95, 0);
-    piece.position.copy(local.applyQuaternion(rocketRoot.quaternion));
-    piece.quaternion.copy(rocketRoot.quaternion);
-    if (pieces.length > 1) piece.rotateY(i * Math.PI);
-    const side = new THREE.Vector3(i === 0 ? -1 : 1, 0, 0).applyQuaternion(rocketRoot.quaternion);
-    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(rocketRoot.quaternion);
-    piece.userData.velocity = pieces.length > 1 ? side.multiplyScalar(6).addScaledVector(up, -8) : up.multiplyScalar(12).add(side.multiplyScalar(3));
-    piece.userData.spin = random(0.5, 1.2) * (i === 0 ? -1 : 1);
-    scene.add(piece);
-    detached.push(piece);
+// The rocket body's radius (model units) at a height, measured from the core's cylinders
+function radiusAt(model, y) {
+  model.updateMatrixWorld(true);
+  const toModel = new THREE.Matrix4().copy(model.matrixWorld).invert();
+  const box = new THREE.Box3();
+  let best = 0;
+  model.traverse(function (o) {
+    if (!o.isMesh || !o.geometry || !o.geometry.parameters || o.geometry.parameters.radiusTop === undefined) return;
+    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    box.copy(o.geometry.boundingBox).applyMatrix4(new THREE.Matrix4().multiplyMatrices(toModel, o.matrixWorld));
+    const cx = (box.min.x + box.max.x) / 2;
+    const cz = (box.min.z + box.max.z) / 2;
+    const r = (box.max.x - box.min.x) / 2;
+    if (box.min.y <= y && box.max.y >= y && Math.hypot(cx, cz) < r * 0.5) best = Math.max(best, r);
   });
+  return best || (model.userData.radius || 1) * 0.4;
+}
+
+// A dark disc that closes a cut (the inside of the interstage: tanks' domes and plumbing, simplified)
+function capAt(model, y, facingUp) {
+  const cap = new THREE.Mesh(
+    new THREE.CircleGeometry(radiusAt(model, y) * 0.99, 40),
+    new THREE.MeshStandardMaterial({ color: 0x2b2d31, roughness: 0.75, metalness: 0.4, side: THREE.DoubleSide })
+  );
+  cap.userData.cap = true;
+  cap.rotation.x = facingUp ? -Math.PI / 2 : Math.PI / 2;
+  cap.position.y = y;
+  model.add(cap);
+  return cap;
+}
+
+function cloneForSeparation() {
+  const copy = rocketModel.clone(true);
+  const caps = [];
+  copy.traverse(function (o) { if (o.userData.cap && o.parent === copy) caps.push(o); });
+  caps.forEach(function (o) { copy.remove(o); }); // earlier cut faces and the payload stay with the rocket
+  copy.traverse(function (o) {
+    if (o.isMesh && o.material && o.material.clone) {
+      o.material = o.material.clone();
+      o.material.clippingPlanes = null;
+    }
+  });
+  rocketRoot.updateMatrixWorld(true);
+  copy.matrixAutoUpdate = true;
+  scene.add(copy);
+  // Copy where the rocket is and which way it points. (Reading the rotation straight from the matrix
+  // went wrong, because the matrix also holds the model's x8 scale: the dropped stage came out turned
+  // sideways and swung across the camera, looking huge.)
+  rocketModel.matrixWorld.decompose(copy.position, copy.quaternion, copy.scale);
+  return copy;
+}
+
+// A short puff of gas and a flash in the gap between two separating parts
+function separationPuff(localY, radius, count, warm) {
+  rocketRoot.updateMatrixWorld(true);
+  const center = rocketModel.localToWorld(new THREE.Vector3(0, localY, 0));
+  const r = radius * ROCKET_SCALE;
+  for (let i = 0; i < count; i++) {
+    const angle = random(0, Math.PI * 2);
+    const out = new THREE.Vector3(Math.cos(angle), random(-0.2, 0.2), Math.sin(angle)).applyQuaternion(rocketRoot.quaternion);
+    const position = center.clone().addScaledVector(out, r);
+    const velocity = out.clone().multiplyScalar(random(6, 16));
+    particles.emit(warm && i % 3 === 0, position, velocity, random(1, 2) * (r / 4 + 0.5), random(6, 12) * (r / 4 + 0.5), random(0.6, 1.4), 0.6, warm ? 0xffd6a8 : 0xe6eef8, 1.2);
+  }
+}
+
+// Staging: the first stage is cut off at the stage line and falls away, tumbling slowly, while the
+// upper stage carries on. Simplified, but in the real order: engines off, a short coast, the stages
+// part (a puff of gas between them), then the next engine lights.
+function separateStage() {
+  if (!ascent.split || ascent.lower) return;
+  const lower = cloneForSeparation();
+  clipPart(rocketModel, [new THREE.Plane(new THREE.Vector3(0, 1, 0), -ascent.split)]);
+  clipPart(lower, [new THREE.Plane(new THREE.Vector3(0, -1, 0), ascent.split)]);
+  capAt(rocketModel, ascent.split + 0.002, false);
+  capAt(lower, ascent.split - 0.002, true);
+  // relative speed: a few meters per second at first; the gap then grows as the upper stage accelerates
+  lower.userData.velocity = new THREE.Vector3(0, -3, 0).applyQuaternion(rocketRoot.quaternion);
+  lower.userData.spin = random(0.04, 0.09) * (Math.random() < 0.5 ? -1 : 1);
+  lower.userData.tumble = random(0.02, 0.05);
+  lower.userData.age = 0;
+  ascent.lower = lower;
+  separationPuff(ascent.split, radiusAt(rocketModel, ascent.split), 70, true);
   play("separation");
+}
+
+// The nose comes off: the launch escape tower flies away on its own motor, or the payload fairing
+// opens like a clamshell and its two halves fall away to the sides.
+function separateNose() {
+  const cut = NOSE_CUT[rocketKey];
+  if (!cut) return;
+  const y = (cut[0] / cut[1]) * rocketModel.userData.height;
+  const tower = Boolean(ESCAPE_TOWER[rocketKey]);
+  const keepBelow = new THREE.Plane(new THREE.Vector3(0, -1, 0), y);
+  const existing = (ascent.clips || []).find(function (c) { return c.object === rocketModel; });
+  clipPart(rocketModel, (existing ? existing.locals : []).concat([keepBelow]));
+  const r = radiusAt(rocketModel, y + 0.01);
+  if (tower) {
+    const piece = cloneForSeparation();
+    clipPart(piece, [new THREE.Plane(new THREE.Vector3(0, 1, 0), -y)]);
+    piece.userData.kind = "tower";
+    piece.userData.age = 0;
+    piece.userData.velocity = new THREE.Vector3(0, 6, 0).applyQuaternion(rocketRoot.quaternion);
+    piece.userData.localY = y;
+    ascent.nose = [piece];
+  } else {
+    // the payload inside, now in view (an illustrative stand-in: a foil-wrapped spacecraft on an adapter)
+    const top = rocketModel.userData.height;
+    const inner = new THREE.Group();
+    const foil = new THREE.MeshStandardMaterial({ color: 0xc9a24a, roughness: 0.35, metalness: 0.85 });
+    const white = new THREE.MeshStandardMaterial({ color: 0xdedfe2, roughness: 0.6, metalness: 0.2 });
+    const adapter = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.45, r * 0.8, (top - y) * 0.12, 24), white);
+    adapter.position.y = (top - y) * 0.06;
+    inner.add(adapter);
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.55, r * 0.55, (top - y) * 0.42, 8), foil);
+    body.position.y = (top - y) * 0.33;
+    inner.add(body);
+    const dish = new THREE.Mesh(new THREE.SphereGeometry(r * 0.38, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2.4), white);
+    dish.position.y = (top - y) * 0.56;
+    inner.add(dish);
+    inner.position.y = y;
+    inner.userData.cap = true;
+    inner.traverse(function (o) { o.userData.cap = true; });
+    rocketModel.add(inner);
+    capAt(rocketModel, y, true);
+    // two halves: cut above the fairing base, then split down the middle
+    ascent.nose = [-1, 1].map(function (side) {
+      const half = cloneForSeparation();
+      clipPart(half, [new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), new THREE.Plane(new THREE.Vector3(side, 0, 0), 0)]);
+      half.userData.kind = "fairing";
+      half.userData.side = side;
+      half.userData.age = 0;
+      half.userData.localY = y;
+      half.userData.velocity = new THREE.Vector3(side * 2.5, 0.5, 0).applyQuaternion(rocketRoot.quaternion);
+      return half;
+    });
+  }
+  separationPuff(y, r, tower ? 18 : 30, tower);
+  play("separation");
+}
+
+// Moves the separated parts. Everything is seen from the upper stage, which keeps accelerating,
+// so dropped parts fall back ("back" = down the rocket's axis) and drift slowly to the side.
+function updateSeparatedParts(dt) {
+  const back = new THREE.Vector3(0, -1, 0).applyQuaternion(rocketRoot.quaternion);
+  const up = back.clone().negate();
+  if (ascent.lower) {
+    const lower = ascent.lower;
+    lower.userData.age += dt;
+    lower.userData.velocity.addScaledVector(back, dt * 9);
+    lower.position.addScaledVector(lower.userData.velocity, dt);
+    lower.rotateZ(dt * lower.userData.spin);
+    lower.rotateX(dt * lower.userData.tumble);
+  }
+  (ascent.nose || []).forEach(function (piece) {
+    piece.userData.age += dt;
+    const age = piece.userData.age;
+    if (piece.userData.kind === "tower") {
+      // its own solid motor burns for about a second and a half, pulling it ahead and to one side
+      if (age < 1.6) {
+        piece.userData.velocity.addScaledVector(up, dt * 60).addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(rocketRoot.quaternion), dt * 14);
+        piece.updateMatrixWorld(true);
+        const nozzle = piece.localToWorld(new THREE.Vector3(0, piece.userData.localY + 0.5, 0));
+        for (let k = perSecond("towerFire", 90, dt); k > 0; k--) {
+          const angle = random(0, Math.PI * 2);
+          const v = back.clone().multiplyScalar(random(30, 50)).add(new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)).multiplyScalar(random(6, 12)));
+          particles.emit(true, nozzle.clone(), v, 1.2, 4, random(0.25, 0.4), 0.9, undefined, 0);
+        }
+      } else {
+        piece.userData.velocity.addScaledVector(back, dt * 9);
+      }
+      piece.rotateZ(dt * 0.15);
+    } else {
+      // fairing halves swing open on their base hinge, then tumble away to the side
+      piece.userData.velocity.addScaledVector(back, dt * (age > 0.6 ? 9 : 2));
+      const open = Math.min(1, age / 1.4);
+      piece.rotateZ(-piece.userData.side * dt * (0.35 + open * 0.4));
+    }
+    piece.position.addScaledVector(piece.userData.velocity, dt);
+  });
 }
 
 function emitAscentFire(power, altitude, dt) {
@@ -1332,19 +1908,27 @@ function updateAscent(t, dt) {
     part.position.addScaledVector(part.userData.velocity, dt);
     part.rotation.z += dt * (part.userData.spin || 0.5);
   });
-  if (ascent.lower) {
-    ascent.lower.userData.velocity.addScaledVector(back, dt * 14);
-    ascent.lower.position.addScaledVector(ascent.lower.userData.velocity, dt);
-    ascent.lower.rotateZ(dt * ascent.lower.userData.spin);
-  }
+  updateSeparatedParts(dt);
   updateClipping();
 
   // Chase camera beside and a little below the rocket; it slowly swings round
-  const size = rocketModel.userData.height * ROCKET_SCALE;
+  const fullSize = rocketModel.userData.height * ROCKET_SCALE;
+  // after staging the camera eases in on the upper stage (the part still flying)
+  if (ascent.lower) ascent.frame = Math.min(1, (ascent.frame || 0) + dt / 3);
+  const f = ascent.frame ? ascent.frame * ascent.frame * (3 - 2 * ascent.frame) : 0;
+  const splitAt = ascent.split * ROCKET_SCALE;
+  const size = fullSize - f * splitAt * 0.7;
+  const middle = fullSize * 0.45 + f * (splitAt + (fullSize - splitAt) * 0.5 - fullSize * 0.45);
   const swing = t * 0.035;
-  const offset = new THREE.Vector3(Math.sin(swing) * size * 1.6 - size * 0.4, size * 0.9, Math.cos(swing) * size * 2.2);
+  // Wide shots: the camera pulls far back twice (after max Q, and on the way to orbit), so Earth's
+  // curve, the rocket and black space are all in the picture; it comes in close for the separations
+  const wide = smoothstep(2.5, 5, t) * (1 - smoothstep(8.5, 10.2, t)) + smoothstep(16.5, 19.5, t);
+  const pull = 1 + wide * 3.2;
+  const offset = new THREE.Vector3(Math.sin(swing) * size * 1.6 - size * 0.4, size * (0.9 + wide * 0.9), Math.cos(swing) * size * 2.2).multiplyScalar(pull);
+  offset.add(new THREE.Vector3(0, middle - fullSize * 0.45, 0).applyQuaternion(rocketRoot.quaternion));
   camera.position.copy(offset);
-  const target = new THREE.Vector3(0, size * 0.45, 0).applyQuaternion(rocketRoot.quaternion);
+  const target = new THREE.Vector3(0, middle, 0).applyQuaternion(rocketRoot.quaternion);
+  target.y += wide * size * 3.2; // in the wide shots look up a little: the curve of Earth and black space come into view
   shakeCamera(ascent.step === 1 ? 0.35 : ascent.engineOff > 0 ? 0 : 0.08, target);
   camera.lookAt(target);
   setRumble(ascent.engineOff > 0 ? 0.05 : 0.3 * (1 - smoothstep(20, 120, altitude)) + 0.05, 300);
@@ -1386,6 +1970,7 @@ function frame(now) {
   else if (id === "cabin") updateScene2(local);
   else if (id === "ascent") updateAscent(local, dt);
   else if (id === "launch") updateMissionLaunch(local, dt);
+  else if (id === "rollout") updateRollout(local, dt);
   else updateScene3(local, dt);
 
   particles.update(dt);
@@ -1409,12 +1994,15 @@ function finish() {
 //   liftoffOnly: true = play only the liftoff (used before a mission replay)
 //   caption: text shown during the liftoff, for example "Voyager 1 · Launch from Earth · September 5, 1977"
 //   rocket: which real rocket to show ("saturn-v", "titan-3e", "titan-4b", "delta-4-heavy", "atlas-v-541", "shuttle")
+let lastOptions = null;
 export function startCinematic(onFinish, options) {
   options = options || {};
+  lastOptions = options;
   finishCallback = onFinish;
 
-  activeScenes = options.mission ? [SCENES[4], SCENES[3]] : options.liftoffOnly ? [SCENES[2]] : SCENES.slice(0, 3);
   rocketKey = options.rocket || null;
+  const rollStyle = options.mission && !options.noRollout ? ROLLOUT_STYLE[rocketKey] : null;
+  activeScenes = options.mission ? (rollStyle ? [ROLLOUT_SCENE, SCENES[4], SCENES[3]] : [SCENES[4], SCENES[3]]) : options.liftoffOnly ? [SCENES[2]] : SCENES.slice(0, 3);
   totalTime = activeScenes.reduce(function (sum, scene) { return sum + scene.duration; }, 0);
   captionOverride = options.caption || null;
   skipButton.textContent = options.liftoffOnly || options.mission ? "Skip launch" : "Skip intro";
@@ -1426,11 +2014,13 @@ export function startCinematic(onFinish, options) {
     spawnAstronauts();
     particles.clear();
     if (ascent && ascent.lower) scene.remove(ascent.lower);
+    if (ascent && ascent.nose) ascent.nose.forEach(function (piece) { scene.remove(piece); });
     padGroup.visible = true;
     rocketRoot.rotation.set(0, 0, 0);
     earthBall.visible = false;
     sunLight.castShadow = true; // switched off during the climb to orbit
     setLaunchSite(Boolean(options.mission));
+    buildRollout(rollStyle);
     ascent = null;
     pausedAt = null;
     armPivot.rotation.y = options.liftoffOnly || options.mission ? 1.55 : 0; // the crew arm is already swung away
@@ -1513,7 +2103,24 @@ export function cinematicInfo() {
     local -= activeScenes[index].duration;
     index++;
   }
-  return { index: index, id: activeScenes[index].id, progress: Math.min(1, local / activeScenes[index].duration) };
+  return { index: index, count: activeScenes.length, id: activeScenes[index].id, progress: Math.min(1, local / activeScenes[index].duration) };
+}
+
+// Jump to a point (0 to 1, each scene an equal share, like the player's progress bar). The launch is
+// restarted and its clock moved forward, so every separation happens in order.
+export function seekCinematic(fraction) {
+  if (!running || !lastOptions) return;
+  const callback = finishCallback;
+  const wasPaused = pausedAt !== null;
+  stopCinematic(); // one animation loop only
+  const f = Math.max(0, Math.min(0.995, fraction)) * activeScenes.length;
+  const sceneIndex = Math.floor(f);
+  let time = 0;
+  for (let i = 0; i < sceneIndex; i++) time += activeScenes[i].duration;
+  time += (f - sceneIndex) * activeScenes[sceneIndex].duration;
+  startCinematic(callback, lastOptions);
+  startTime -= time * 1000;
+  if (wasPaused) pauseCinematic(true);
 }
 
 export function isCinematicRunning() {
