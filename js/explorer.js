@@ -160,7 +160,22 @@ function statusClass(label) {
 
 // ----- Building the sidebar (once) -----
 // Two ways in, both about missions: WHERE the mission went, and WHAT KIND of hardware you want to see.
+// Each way in is a dropdown: closed, its heading shows the current choice ("All missions",
+// "All hardware"). Only one dropdown is open at a time, and only one filter is used at a time:
+// choosing a destination resets the hardware type to "All hardware", and the other way round.
+const filterGroups = [];
+let currentGroup = null;
+
+function setGroupOpen(group, open) {
+  group.root.classList.toggle("open", open);
+  group.toggle.setAttribute("aria-expanded", String(open));
+  group.body.hidden = !open;
+  const action = group.toggle.querySelector ? group.toggle.querySelector(".dd-action-label") : null;
+  if (action) action.textContent = open ? "Hide" : "Show";
+}
+
 function sidebarRow(label, meta, dot, onClick, data) {
+  const group = currentGroup;
   const row = document.createElement("button");
   row.className = "sidebar-item explorer-cat";
   Object.keys(data).forEach(function (key) { row.dataset[key] = data[key]; });
@@ -173,33 +188,56 @@ function sidebarRow(label, meta, dot, onClick, data) {
   row.addEventListener("click", function () {
     onClick();
     sidebar.classList.remove("open");
+    // the dropdown stays open after choosing; it only closes when its header is clicked
     play("tick");
     render();
   });
-  categoryList.appendChild(row);
+  (group ? group.body : categoryList).appendChild(row);
   return row;
 }
 function sidebarHeading(text) {
-  const heading = document.createElement("p");
-  heading.className = "sidebar-heading";
-  heading.textContent = text;
-  categoryList.appendChild(heading);
+  const root = document.createElement("section");
+  root.className = "dd-group";
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "dd-toggle";
+  // A box: the label, the current choice below it, and a "Show / Hide" pill that says what a click does
+  toggle.innerHTML = '<span class="dd-text"><span class="dd-title"></span><span class="dd-value"></span></span>' +
+    '<span class="dd-action"><span class="dd-action-label">Show</span>' +
+    '<svg class="dd-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span>';
+  const body = document.createElement("div");
+  body.className = "dd-body";
+  body.id = "explorer-dd-" + filterGroups.length;
+  toggle.setAttribute("aria-controls", body.id);
+  if (toggle.querySelector) toggle.querySelector(".dd-title").textContent = text;
+  root.appendChild(toggle);
+  root.appendChild(body);
+  categoryList.appendChild(root);
+  const group = { root: root, toggle: toggle, body: body };
+  setGroupOpen(group, false);
+  // Each box opens and closes only when its own header is clicked
+  toggle.addEventListener("click", function () {
+    setGroupOpen(group, !root.classList.contains("open"));
+  });
+  filterGroups.push(group);
+  currentGroup = group;
 }
 const DEST_DOTS = { earth: "#4c8dff", moon: "#b9b6b0", mars: "#d9692f", inner: "#e8b24a", outer: "#c9a77a", small: "#8f877d" };
 
 function buildCategories() {
   categoryList.innerHTML = "";
+  // One selection at a time: a destination resets the hardware type, and a hardware type resets the destination
   sidebarHeading("Where they went");
   sidebarRow("All missions", String(MISSION_GROUPS.length), "#7ab8ff", function () { state.dest = ""; state.region = ""; }, { dest: "" });
   DESTINATIONS.forEach(function (dest) {
     const count = MISSION_GROUPS.filter(function (g) { return g.where === dest.id; }).length;
-    sidebarRow(dest.name, String(count), DEST_DOTS[dest.id], function () { state.dest = dest.id; state.region = ""; }, { dest: dest.id });
+    sidebarRow(dest.name, String(count), DEST_DOTS[dest.id], function () { state.dest = dest.id; state.region = ""; state.category = "all"; }, { dest: dest.id });
   });
   sidebarHeading("What it is");
   sidebarRow("All hardware", String(catalog.length), "#a3adbf", function () { state.category = "all"; }, { category: "all" });
   CATEGORIES.forEach(function (category) {
     const count = catalog.filter(function (item) { return item.category === category.id; }).length;
-    sidebarRow(category.short === "Rockets" ? "Launch vehicles" : category.short, String(count), null, function () { state.category = category.id; }, { category: category.id });
+    sidebarRow(category.short === "Rockets" ? "Launch vehicles" : category.short, String(count), null, function () { state.category = category.id; state.dest = ""; state.region = ""; }, { category: category.id });
   });
 }
 
@@ -413,13 +451,23 @@ function render() {
   filterPill.classList.toggle("hidden", !state.body);
   if (state.body) filterPill.textContent = "Linked to " + state.body + "  \u00D7";
 
-  Array.from(categoryList.children).forEach(function (row) {
+  // Only one selection shows at a time: the hardware type when one is chosen, otherwise the destination
+  const byType = state.category !== "all";
+  Array.from(categoryList.querySelectorAll ? categoryList.querySelectorAll(".explorer-cat") : []).forEach(function (row) {
     if (!row.dataset) return;
     let active = false;
-    if (row.dataset.dest !== undefined) active = row.dataset.dest === state.dest && !state.region;
-    if (row.dataset.category !== undefined) active = row.dataset.category === state.category;
+    if (row.dataset.dest !== undefined) active = !byType && row.dataset.dest === state.dest && !state.region;
+    if (row.dataset.category !== undefined) active = byType && row.dataset.category === state.category;
     if (row.classList) row.classList.toggle("active", active);
     if (row.setAttribute) row.setAttribute("aria-current", active ? "true" : "false");
+  });
+  // Each closed dropdown shows its current value
+  filterGroups.forEach(function (group, i) {
+    const value = group.toggle.querySelector ? group.toggle.querySelector(".dd-value") : null;
+    if (!value) return;
+    const activeName = group.body.querySelector ? group.body.querySelector(".explorer-cat.active .sb-name") : null;
+    value.textContent = activeName ? activeName.textContent : (i === 0 ? (state.region || "All missions") : "All hardware");
+    group.root.classList.toggle("in-use", Boolean(activeName));
   });
 
   if (document.activeElement !== searchInput) searchInput.value = state.search;
@@ -637,13 +685,19 @@ function centerModel(model) {
   box.getCenter(center);
   model.position.sub(center);
   holder.userData.radius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
+  // The sphere that holds the whole model, whichever way it turns (half the box's diagonal)
+  holder.userData.fitRadius = size.length() * 0.5 || holder.userData.radius;
   holder.userData.height = size.y;
   return holder;
 }
 
+// Frame the whole model: its bounding sphere must fit the narrower of the two view angles (on a wide
+// panel the height, on a narrow phone the width), with a margin for the buttons over the picture
 function cameraFor(camera, holder, item) {
-  const radius = holder.userData.radius;
-  const distance = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.05;
+  const radius = holder.userData.fitRadius || holder.userData.radius;
+  const halfV = THREE.MathUtils.degToRad(camera.fov / 2);
+  const halfH = Math.atan(Math.tan(halfV) * (camera.aspect || 1));
+  const distance = radius / Math.sin(Math.min(halfV, halfH)) * 1.12;
   const tall = item.model && item.model.type === "rocket";
   const direction = tall ? new THREE.Vector3(0.85, 0.12, 1) : new THREE.Vector3(1, 0.55, 1.2);
   camera.position.copy(direction.normalize().multiplyScalar(distance));
@@ -819,7 +873,7 @@ function showViewerModel(item) {
   cameraFor(v.camera, holder, item);
   v.controls.target.set(0, 0, 0);
   v.controls.minDistance = radius * 0.6;
-  v.controls.maxDistance = radius * 8;
+  v.controls.maxDistance = Math.max(radius * 8, v.camera.position.length() * 1.5); // never closer than the whole-model view
   v.controls.update();
   v.home = v.camera.position.clone();
 
@@ -998,8 +1052,10 @@ function openDetail(id) {
       send("explore-destination", { destination: hw.destination, hardwareId: hw.id });
     });
   }
-  const body = (item.bodies || [])[0];
-  if (body) actionButton("Show in Solar System", "small-button", function () { send("show-in-solar", { body: item.spacecraft || body }); });
+  // "Show in Solar System" only for spacecraft that are drawn there (Voyager 1 and 2, Parker Solar Probe).
+  // For everything else it could only open the planet, not the equipment (landers and rovers are shown
+  // on their world's globe instead: "View site on the ... globe").
+  if (item.spacecraft) actionButton("Show in Solar System", "small-button", function () { send("show-in-solar", { body: item.spacecraft }); });
 
   // Key facts
   const group = groupOfItem(item.id);

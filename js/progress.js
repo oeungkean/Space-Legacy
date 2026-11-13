@@ -186,6 +186,9 @@ const hudList = document.getElementById("hud-objectives");
 const hudDiscoveries = document.getElementById("hud-discoveries");
 const hudToggle = document.getElementById("hud-toggle");
 const hudFlash = document.getElementById("hud-flash");
+const hudNextLabel = document.getElementById("hud-next-label");
+const hudProgressBar = document.getElementById("hud-progress-bar");
+const hudProgressText = document.getElementById("hud-progress-text");
 
 let hudVisible = false;
 
@@ -199,24 +202,41 @@ export function renderHud() {
   hud.classList.toggle("hidden", !show);
   if (!mission) return;
   hudTitle.textContent = mission.title || "Custom mission";
-  hudMode.textContent = mission.mode === "sandbox" ? "Sandbox · fictional" : "Historical mode";
+  hudMode.textContent = mission.mode === "sandbox" ? "Free Build · fictional" : "Real mission";
   hudMode.className = "hud-mode " + (mission.mode === "sandbox" ? "fictional" : "historical");
   hudStage.textContent = mission.stage;
   hudStatus.textContent = mission.status;
   const current = currentObjective();
-  hudCurrent.textContent = current ? current.text : "All objectives complete";
+  hudCurrent.textContent = current
+    ? current.text + (current.failed ? " (last try failed, try again)" : "")
+    : "All objectives complete";
+  hud.classList.toggle("now-failed", Boolean(current && current.failed));
   hudDistance.textContent = mission.distance || "";
   hudDistance.classList.toggle("hidden", !mission.distance);
+  // A short checklist: only the next two objectives after the current one; finished ones become a count
+  const remaining = mission.objectives.filter(function (o) { return !o.done && o !== current; });
+  const next = remaining.slice(0, 2);
   hudList.innerHTML = "";
-  mission.objectives.forEach(function (o) {
+  next.forEach(function (o) {
     const li = document.createElement("li");
-    li.className = o.done ? "done" : (o.failed ? "failed" : "") + (o === current ? " current" : "");
-    li.textContent = o.text + (o.failed && !o.done ? " (last attempt failed, try again)" : "");
+    li.className = o.failed ? "failed" : "";
+    li.textContent = o.text;
     hudList.appendChild(li);
   });
+  if (remaining.length > next.length) {
+    const more = document.createElement("li");
+    more.className = "hud-more";
+    more.textContent = "+ " + (remaining.length - next.length) + " more";
+    hudList.appendChild(more);
+  }
+  if (hudNextLabel) hudNextLabel.classList.toggle("hidden", next.length === 0);
+  const doneCount = mission.objectives.filter(function (o) { return o.done; }).length;
+  if (hudProgressBar) hudProgressBar.style.width = Math.round(doneCount / Math.max(1, mission.objectives.length) * 100) + "%";
+  if (hudProgressText) hudProgressText.textContent = doneCount + " of " + mission.objectives.length + " objectives done";
   hudDiscoveries.textContent = mission.discoveries.length
     ? mission.discoveries.length + " discovered: " + mission.discoveries.join(", ")
-    : "No discoveries yet";
+    : "";
+  hudDiscoveries.classList.toggle("hidden", !mission.discoveries.length);
 }
 
 function flashHud(text) {
@@ -226,9 +246,11 @@ function flashHud(text) {
   flashHud.timer = setTimeout(function () { hudFlash.classList.add("hidden"); }, 3200);
 }
 
+// The "Mission" tab slides the panel out to the right edge and back (like the Solar System list)
 hudToggle.addEventListener("click", function () {
-  hud.classList.toggle("collapsed");
-  hudToggle.textContent = hud.classList.contains("collapsed") ? "Show" : "Hide";
+  const collapsed = hud.classList.toggle("collapsed");
+  hudToggle.setAttribute("aria-expanded", String(!collapsed));
+  hudToggle.title = collapsed ? "Show the mission panel" : "Hide the mission panel";
 });
 
 // ----- Information cards (used by the exploration scene and My Collection) -----

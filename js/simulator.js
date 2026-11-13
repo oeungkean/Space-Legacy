@@ -427,6 +427,8 @@ bayNext.addEventListener("click", function () {
 
 // The build sheet at the top of the bay: what you have chosen so far
 function renderBuildSheet() {
+  // The row of choices above the 3D bay was removed (the step tabs below already show them)
+  if (!buildSheet) return;
   // The sheet is rebuilt on every change, so remember which slot had keyboard focus and restore it
   const focused = document.activeElement && buildSheet.contains && buildSheet.contains(document.activeElement)
     ? document.activeElement.getAttribute("data-slot") : null;
@@ -565,9 +567,25 @@ function render() {
     button.classList.toggle("active", on);
     if (button.setAttribute) button.setAttribute("aria-checked", on ? "true" : "false");
   });
-  modeNote.textContent = state.mode === "historical"
+  if (modeNote) modeNote.textContent = state.mode === "historical"
     ? "Only rockets, spacecraft and destinations that really flew together, as they flew."
     : "Combine any rocket, spacecraft and destination. Anything that never flew is labelled Fictional.";
+  // Make the mode visible in the builder itself: a banner under the title, and a gold console in Free Build
+  const simScreen = el("simulator-screen");
+  if (simScreen) simScreen.classList.toggle("sim-free", state.mode === "sandbox");
+  const banner = el("sim-mode-banner");
+  if (banner) {
+    const flyable = SIM_ROCKETS.filter(rocketAllowed).length;
+    banner.innerHTML = "";
+    const name = document.createElement("b");
+    name.textContent = state.mode === "historical" ? "Real Missions" : "Free Build";
+    const text = document.createElement("span");
+    text.textContent = state.mode === "historical"
+      ? "Only parts that really flew together. " + flyable + " of " + SIM_ROCKETS.length + " rockets can fly here."
+      : "Mix anything. All " + SIM_ROCKETS.length + " rockets can fly; mixes that never flew are marked fictional.";
+    banner.appendChild(name);
+    banner.appendChild(text);
+  }
   if (state.mode === "historical" && state.rocket && !rocketAllowed(state.rocket)) state.rocket = null;
   renderRockets();
   renderSpacecraft();

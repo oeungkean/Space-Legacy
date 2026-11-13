@@ -41,7 +41,9 @@ const promptName = document.getElementById("explore-prompt-name");
 const promptKeys = document.getElementById("explore-prompt-keys");
 const hintBox = document.getElementById("explore-hint");
 const gauges = document.getElementById("explore-gauges");
-const messageBox = document.getElementById("explore-message");
+// (its own id: "explore-message" is also used by the Solar System's planet panel, which comes first in
+// the page, so every exploration message used to be written into that hidden panel instead)
+const messageBox = document.getElementById("explore-toast");
 const inventoryBar = document.getElementById("inventory-slots");
 const inventoryInfo = document.getElementById("inventory-info");
 const cockpitPanel = document.getElementById("cockpit-panel");
@@ -436,13 +438,14 @@ function buildInterior() {
 }
 
 // ----- Modes -----
+// Short control lines (the arrow keys work like W A S D everywhere)
 const HINTS = {
-  lm: "W / S throttle · Arrow keys: side thrusters · Land below 3 m/s (game limit) · L auto-land",
-  foot: "WASD move · Shift run · Space jump · T auto walk / run · G go to nearest · click the map to travel · E examine or board · F record · C camera",
-  lrv: "W gas · S brake / reverse · A / D steer (both axles) · Shift boost · Space handbrake · B recharge (stopped) · T cruise · G auto-drive · click the map · E get out · F record",
-  rover: "W / S drive · A / D turn in place · Shift boost · B recharge (stopped) · T cruise · G auto-drive · click the map · V mast camera · R robotic arm · F record · Q use",
-  eva: "WASD thrust · R / V up / down · X stop drifting (SAFER) · P photograph · F record · E examine",
-  cockpit: "Use the switches on the panel · C toggles window and outside views"
+  lm: "Autopilot lands for you · Take control: ↑ / W more thrust, ↓ / S less, ← → or A D steer · L switches",
+  foot: "Move: W A S D or arrows · Shift run · Space jump · E examine or get in · F record · Q use item",
+  lrv: "Drive: W A S D or arrows · Space brake · Shift boost · E get out · F record",
+  rover: "Drive: W A S D or arrows · E get out · V mast camera (arrows aim it) · R robotic arm · F record · Q use",
+  eva: "Fly: W A S D or arrows · R up · V down · X stop drifting · F record · E examine",
+  cockpit: "Use the switches on the panel · C changes the view"
 };
 
 function enterMode(next) {
@@ -453,6 +456,7 @@ function enterMode(next) {
     eva: "Spacewalk (zero gravity)", cockpit: "Inside the spacecraft"
   }[next];
   hintBox.textContent = HINTS[next];
+  if (typeof updateLmPanel === "function") updateLmPanel();
   cockpitPanel.classList.toggle("hidden", next !== "cockpit");
   gauges.classList.toggle("hidden", next !== "lm" && next !== "lrv" && next !== "rover" && next !== "eva");
   if (astronaut) astronaut.visible = true;
@@ -490,6 +494,7 @@ function enterMode(next) {
     astronaut.position.set(-0.32, 0.55, -0.1);
     astronaut.rotation.set(0, 0, 0);
     astronaut.scale.setScalar(1 / vehicle.model.scale.x);
+    astronaut.visible = false; // while driving, only the vehicle is shown
     camDistance = 9;
   } else if (next === "rover") {
     camDistance = 8;
@@ -510,16 +515,51 @@ function enterMode(next) {
 function startLmLanding() {
   const mission = getMission();
   const extraFuel = mission && mission.mode === "sandbox" && mission.upgrades ? (mission.upgrades.efficiency || 0) * 25 : 0; // fictional upgrade
-  lm = { alt: 70, vy: -3, vx: 0.8, vz: -0.6, x: -14, z: 10, fuel: 100 + extraFuel, throttle: 0.45, done: false };
+  // The autopilot lands by default. "Take control" (or L) hands the controls to you, with a short guide.
+  lm = { alt: 70, vy: -3, vx: 0.8, vz: -0.6, x: -14, z: 10, fuel: 100 + extraFuel, throttle: 0.45, done: false, auto: true };
   if (astronaut) astronaut.visible = false;
   enterMode("lm");
   if (astronaut) astronaut.visible = false;
-  setMessage("Simplified landing: keep the descent slow and level. Real Lunar Module landings were flown by the commander with computer help.", 6);
+  updateLmPanel();
+  setMessage("The autopilot is landing the Lunar Module. Press “Take control” to fly it yourself.", 5);
 }
+
+// The landing panel: who is flying (autopilot or you), a button to switch, and a 3-line guide when you fly
+const lmPanel = document.getElementById("lm-panel");
+const lmState = document.getElementById("lm-state");
+const lmTake = document.getElementById("lm-take");
+const lmHelp = document.getElementById("lm-help");
+function updateLmPanel() {
+  if (!lmPanel) return;
+  const flying = mode === "lm" && lm && !lm.done;
+  lmPanel.classList.toggle("hidden", !flying);
+  if (!flying) return;
+  lmPanel.classList.toggle("manual", !lm.auto);
+  lmState.textContent = lm.auto ? "Autopilot is landing" : "You are flying";
+  lmTake.textContent = lm.auto ? "Take control" : "Autopilot";
+  lmTake.title = lm.auto ? "Fly the landing yourself (L)" : "Let the autopilot land (L)";
+  lmHelp.classList.toggle("hidden", lm.auto);
+}
+function toggleLmAuto() {
+  if (mode !== "lm" || !lm || lm.done) return;
+  lm.auto = !lm.auto;
+  play(lm.auto ? "toggleOn" : "toggleOff");
+  updateLmPanel();
+}
+if (lmTake) lmTake.addEventListener("click", function () { toggleLmAuto(); if (lmTake.blur) lmTake.blur(); });
 
 // ----- Input -----
 function keyName(event) {
   return event.key.length === 1 ? event.key.toLowerCase() : event.key;
+}
+
+// The arrow keys work like W A S D everywhere (walk, drive, spacewalk, Lunar Module).
+// Only the rover's mast camera keeps the arrows for itself (they aim the camera).
+const ARROW_LETTER = { ArrowUp: "w", ArrowDown: "s", ArrowLeft: "a", ArrowRight: "d" };
+const LETTER_ARROW = { w: "ArrowUp", s: "ArrowDown", a: "ArrowLeft", d: "ArrowRight" };
+const held = {}; // the physical keys being held, so letting go of ↑ does not stop W (and the other way round)
+function arrowsDrive() {
+  return !(mode === "rover" && cameraMode === 1);
 }
 
 function onKeyDown(event) {
@@ -528,13 +568,25 @@ function onKeyDown(event) {
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
   const k = keyName(event);
   if ([" ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].indexOf(k) !== -1 && event.preventDefault) event.preventDefault();
+  held[k] = true;
   if (keys[k]) return;
   keys[k] = true;
+  const letter = ARROW_LETTER[k];
+  if (letter && arrowsDrive()) {
+    if (!keys[letter]) { keys[letter] = true; pressed(letter); }
+    return;
+  }
   pressed(k);
 }
 
 function onKeyUp(event) {
-  keys[keyName(event)] = false;
+  const k = keyName(event);
+  held[k] = false;
+  keys[k] = false;
+  const letter = ARROW_LETTER[k];
+  if (letter) keys[letter] = Boolean(held[letter]);
+  const arrow = LETTER_ARROW[k];
+  if (arrow && held[arrow] && arrowsDrive()) keys[k] = true;
 }
 
 let jumpQueued = false;
@@ -556,7 +608,7 @@ function pressed(k) {
   else if (k >= "1" && k <= "9" && Number(k) <= inventory.length) selectSlot(Number(k) - 1);
   else if (k === "r" && mode === "rover") toggleArm();
   else if (k === "v" && mode === "rover" && !keys.Shift) { cameraMode = cameraMode === 1 ? 0 : 1; mastYaw = 0; mastPitch = 0; play("click"); }
-  else if (k === "l" && mode === "lm" && lm && !lm.done) { lm.auto = true; play("toggleOn"); }
+  else if (k === "l" && mode === "lm" && lm && !lm.done) toggleLmAuto();
   else if (k === "x" && mode === "eva") { player.vel.multiplyScalar(0); play("separation"); }
 }
 
@@ -569,7 +621,7 @@ function cycleCamera() {
   }
   play("click");
 }
-cameraButton.addEventListener("click", cycleCamera);
+if (cameraButton) cameraButton.addEventListener("click", cycleCamera); // (the button was removed; C still works)
 
 // Mouse drag turns the camera; the wheel zooms
 let dragging = false;
@@ -678,10 +730,9 @@ function interact() {
     return;
   }
   if (mode === "foot" && vehicle && vehicle.kind === "lrv" && player.pos.distanceTo(vehicle.pos) < 3.2) {
-    // Walk to the seat side, turn and sit down, then drive
-    const side = new THREE.Vector3(Math.cos(vehicle.yaw) * -1.2, 0, -Math.sin(vehicle.yaw) * -1.2).add(vehicle.pos);
-    action = { type: "board", t: 0, from: player.pos.clone(), to: side };
-    play("open");
+    // Like a driving game: E and you are driving straight away; E again and you get out
+    enterMode("lrv");
+    play("ignition");
     return;
   }
   const near = nearest(mode === "eva" ? 25 : 6);
@@ -954,15 +1005,15 @@ function updateLm(dt, g) {
     } else if (lm.climb > 1.5) enterMode("foot");
     return;
   }
+  // Flying it yourself: W / ↑ more thrust, S / ↓ less, A / D or ← / → sideways.
+  // Forward and back drift is held steady for you, so there are only two things to watch.
   let throttle = lm.throttle;
   if (keys.w) throttle += dt * 0.6;
   if (keys.s) throttle -= dt * 0.6;
   let ax = 0;
-  let az = 0;
-  if (keys.ArrowLeft) ax -= 0.8;
-  if (keys.ArrowRight) ax += 0.8;
-  if (keys.ArrowUp) az -= 0.8;
-  if (keys.ArrowDown) az += 0.8;
+  if (keys.a) ax -= 0.8;
+  if (keys.d) ax += 0.8;
+  let az = -lm.vz * 0.8 - lm.z * 0.05;
   if (lm.auto) {
     // A simple autopilot: aim for -1.5 m/s and no sideways drift
     const wanted = lm.alt > 25 ? -6 : lm.alt > 8 ? -2.5 : -1.2;
@@ -998,12 +1049,14 @@ function updateLm(dt, g) {
       relocateLanding(lm.x, lm.z);
       play("thud", 0.4);
       completeObjective("land");
+      updateLmPanel();
       setMessage("Contact! A soft landing. Now step down the ladder.", 4);
     } else {
       play("boom");
       failObjective("land");
-      setMessage("Too fast (" + (-lm.vy).toFixed(1) + " m/s down, " + side.toFixed(1) + " m/s sideways). Try again, or press L for auto-land.", 6);
-      lm.alt = 70; lm.vy = -3; lm.vx = 0.8; lm.vz = -0.6; lm.fuel = 100; lm.throttle = 0.45; lm.auto = false;
+      setMessage("Too fast (" + (-lm.vy).toFixed(1) + " m/s down, " + side.toFixed(1) + " m/s sideways). Try again, or press “Autopilot”.", 6);
+      lm.alt = 70; lm.vy = -3; lm.vx = 0.8; lm.vz = -0.6; lm.fuel = 100; lm.throttle = 0.45;
+      updateLmPanel();
     }
   }
   // Camera behind and above the descending lander
@@ -1258,7 +1311,7 @@ function followCamera(target, height, dt) {
     if (astronaut) astronaut.visible = false;
     return;
   }
-  if (astronaut && mode !== "rover") astronaut.visible = true;
+  if (astronaut && mode !== "rover" && mode !== "lrv") astronaut.visible = true; // driving shows only the vehicle
   const distance = cameraMode === 2 ? camDistance * 3 : camDistance;
   const goal = new THREE.Vector3(
     target.x + Math.sin(camYaw) * Math.cos(camPitch) * distance,
@@ -2050,8 +2103,13 @@ function updateLabels() {
     promptKeys.textContent = (recorded ? "Recorded ✓ · " : "[F] Record in My Collection · ") + "[E] Examine";
   } else if (mode === "foot" && vehicle && player.pos.distanceTo(vehicle.pos) < (vehicle.kind === "lrv" ? 3.2 : 3.5)) {
     promptBox.classList.remove("hidden");
-    promptName.textContent = vehicle.kind === "lrv" ? "Lunar Roving Vehicle" : "Rover (sandbox: fictional)";
-    promptKeys.textContent = vehicle.kind === "lrv" ? "[E] Get in and drive" : "[E] Take remote control";
+    promptName.textContent = vehicle.kind === "lrv" ? "Lunar Roving Vehicle" : "Rover (Free Build: fictional)";
+    promptKeys.textContent = vehicle.kind === "lrv" ? "[E] Drive" : "[E] Take remote control";
+  } else if (mode === "lrv" || (mode === "rover" && astronaut)) {
+    // While driving: how to stop driving
+    promptBox.classList.remove("hidden");
+    promptName.textContent = mode === "lrv" ? "Driving the Lunar Roving Vehicle" : "Driving the rover";
+    promptKeys.textContent = "[E] Get out";
   } else {
     promptBox.classList.add("hidden");
   }
@@ -2110,6 +2168,7 @@ export function startExploration(id, options) {
 export function stopExploration() {
   running = false;
   Object.keys(keys).forEach(function (k) { keys[k] = false; });
+  Object.keys(held).forEach(function (k) { held[k] = false; });
   setLoop("engine", 0);
   setLoop("wind", 0);
   if (animationId !== null) {

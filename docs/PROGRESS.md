@@ -1,5 +1,62 @@
 # Progress
 
+## Completed (2026-11-13): Kampu Space Master Doc, part 2
+- **Solar System list:** collapsing it now leaves a slim strip of icons (68px: each world's dot, its name on hover, dividers between groups), like a social app's side menu. The panel button at the top switches between full and slim. The ☰ in the top bar is gone on wide screens (phones keep the slide-in menu).
+- **Controls:** the "Controls" button is centred under the five view buttons, wherever they are (813px with the full list, 717px with the strip, at 1366px wide).
+- **Missions filters:** each is a box with its label, the current choice and a "Show / Hide" pill. Choosing an option keeps the box open; a box only closes when its own header is clicked, and the two boxes open independently.
+- **3D viewer (hardware page):** frames the model's whole bounding sphere and uses the narrower view angle (width on phones). Checked 9 models while turning: every point stays inside, 62–86% of the way to the edge, on desktop and phone. Card pictures use the same framing.
+- **"Show in Solar System":** kept only for Voyager 1, Voyager 2 and Parker Solar Probe, which are drawn there (tested: it opens them). For the other 61 items it could only open their planet, not the equipment, so it was removed. Landers and rovers keep "View site on the … globe", which shows the equipment.
+- **Mission Builder modes:** new icons and cards. Real Missions has a mission patch on a starfield ("History"); Free Build has a pencil blueprint on a gold grid ("Your design"). The difference shows in the builder too: a banner under the title names the mode and what it allows ("18 of 19 rockets can fly here" / "All 19 rockets can fly…"), and Free Build turns the console gold (border, title label, name plate, step tab, progress bar).
+- Tested on the Live Server at 1366×768 and 375px: no console errors and no sideways scrolling.
+
+## Completed (2026-11-13): Kampu Space Master Doc (team feedback, 10 pages)
+**Welcome**
+- The hint line sits lower (30px under the button).
+- The top strip (brand, clock, sound, settings) is bigger.
+- Leaving Welcome is a slower, calmer transition (1.9s instead of 1.1s): the title lifts away first, then the Solar System dissolves in. Other screen changes are unchanged.
+
+**Solar System**
+- The Sun's light stays on the Sun. Its position used the camera from the previous frame, so it trailed on fast drags. The mirrored "lens ghost" rings, which slid across the screen as the view moved, were removed.
+- The left list can be hidden on wider screens (the "‹" in its header) and brought back with ☰. While it's hidden, the 5 view controls move to the middle. On phones it's still the slide-in menu.
+- Closing a planet panel (× or Esc) resets the view to the whole Solar System.
+- The mission panel no longer shows on the Solar System; it only appears while exploring.
+
+**Missions**
+- "Where they went" and "What it is" are dropdowns. Only one is open at a time and only one filter is used at a time: picking a destination resets the hardware type, and the other way round. Closed, each shows its current choice, and only one row is highlighted.
+
+**Mission player**
+- The scene title ("Still at work") has more room and a larger font.
+- End card: the mission name, a "✓ Mission complete" badge, more space, "← Go Back" (was "Continue") and a replay icon (was "Watch again"). The caption bar no longer repeats the same text behind the card.
+- 1× / 2× / 4×: measured working in all three engines (launch 3.5× faster at 4×; space shots and landing in proportion). The scene label now shows "· 4× speed" so the change is visible.
+- The round voice-preview ▶ button was removed.
+
+**Mission Builder**
+- Mode cards: Real Missions has a flag on a blue tile; Free Build has a wrench on a gold tile (the "fictional" colour). The selected Free Build card turns gold. The note and legend under the cards were removed; Free Build's line says "marked fictional".
+- The row of Rocket / Spacecraft / Suit / Destination above the bay was removed (the step tabs show them).
+
+**Exploration**
+- Site card: more spacing. The Camera and All sites buttons were removed (C still changes the view). It now has End mission and How to play.
+- Lunar Module landing: the autopilot lands by default. "Take control" (or L) hands it to you with a 3-line guide: ↑/W more thrust, ↓/S less, ← → or A D sideways (forward drift is held for you). "Autopilot" hands it back.
+- Arrow keys work like W A S D everywhere: walk, drive, spacewalk, landing. The exception is the rover's mast camera, where the arrows aim it.
+- Vehicles: E drives straight away (no walk-to-seat animation), only the vehicle is shown, and the prompt says "[E] Get out". E again gets out.
+- **Bug fixed: messages never showed while exploring.** The page had two elements with the id "explore-message"; the first was in the Solar System's planet panel, so every exploration message (Q results, photos, samples, radio, battery, crash) went there. That's why "Q does not work". The exploration message now has its own id.
+- Mission panel: a slim side panel on the right, below the mini map, with a "Mission" tab to slide it away. It shows a one-line stage and status, "Now" (the current objective), the next 2 (+ "N more") and a progress bar.
+- Auto walk / Auto run / Go to nearest / Stop are one even row.
+- "Return to Earth" on the results only shows during a mission (it showed after visiting a site directly).
+
+**Help**
+- Rewritten as a quick guide: 4 numbered steps, 9 key controls, and "More keys" folded away. 144 words (was several hundred).
+
+**Tested** on the Live Server (127.0.0.1:5500) at 1366×768 and 375px:
+- Every main screen.
+- An Apollo 11 mission: Real Missions → launch → journey → autopilot landing → on foot (↑ cancels auto walk, Q logs a sample with a visible message).
+- The rover at the Free Build Moon site (E to drive, ↑ to move, E to get out).
+- The skip route from the Destination step → End mission → results → Collection.
+- The player end card (Go Back, replay icon).
+- All 12 replays.
+- No console errors, no failed requests, no sideways scrolling.
+- Not tested on a real GPU; screenshots were taken in a hidden pane with a timer standing in for animation frames (testing only).
+
 ## Completed (2026-11-10, follow-up from the team's review)
 - **Opening screen, compact:** the bigger version covered the 3D planet. The title group is now smaller and sits higher, so the planet gets the lower half.
   - Logo 52–68px, title up to 3.4rem, smaller button.
