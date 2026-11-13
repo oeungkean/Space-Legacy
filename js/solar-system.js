@@ -10,7 +10,8 @@ import { spacecraftInfo } from "../data/spacecraft.js";
 import { hardwareList } from "../data/hardware.js";
 import { hardwareReplays, replayVisuals } from "../data/hardware-replays.js";
 import { missions, STAGES, STAGE_TAGS, EVENT_ACTIONS } from "../data/missions.js";
-import { catalog, itemsForBody, CATEGORIES } from "../data/catalog.js";
+import { catalog, itemsForBody, CATEGORIES, launchYear } from "../data/catalog.js";
+import { modelIcon } from "./explorer.js";
 import { createModel, createLauncher, UPRIGHT_MODELS } from "./models.js";
 import { createParticleSystem } from "./particles.js";
 import { createGlow } from "./glow.js";
@@ -992,23 +993,26 @@ function showRelatedHardware(body) {
 
   const missionsTab = paneTabs.find(function (t) { return t.dataset.pane === "missions"; });
   if (missionsTab) missionsTab.textContent = "Missions" + (items.length ? " \u00B7 " + items.length : "");
-  items.slice(0, 10).forEach(function (item) {
-    const chip = document.createElement("button");
-    chip.className = "related-chip";
-    chip.textContent = item.name;
+  // A picture grid instead of a pile of names: each tile has a small 3D picture of the hardware, its
+  // name and its year, oldest first (the history of the place at a glance); it scrolls when long
+  const sorted = items.slice().sort(function (a, b) { return (launchYear(a) || 0) - (launchYear(b) || 0); });
+  sorted.forEach(function (item) {
+    const tile = document.createElement("button");
+    tile.className = "related-tile";
     const category = CATEGORIES.find(function (c) { return c.id === item.category; });
-    chip.title = (category ? category.name + " \u00B7 " : "") + (item.launchDate || "");
-    chip.addEventListener("click", function () {
+    tile.title = item.name + (category ? " \u00B7 " + category.name : "") + (item.launchDate ? " \u00B7 " + item.launchDate : "");
+    tile.innerHTML = '<span class="rt-pic"><img alt="" decoding="async"></span><b class="rt-name"></b><span class="rt-year"></span>';
+    if (tile.querySelector) {
+      tile.querySelector(".rt-name").textContent = item.name;
+      tile.querySelector(".rt-year").textContent = launchYear(item) || "";
+      if (item.model) modelIcon(item.model, tile.querySelector("img"));
+      else tile.querySelector(".rt-pic").classList.add("empty");
+    }
+    tile.addEventListener("click", function () {
       document.dispatchEvent(new CustomEvent("open-explorer", { detail: { itemId: item.id } }));
     });
-    relatedList.appendChild(chip);
+    relatedList.appendChild(tile);
   });
-  if (items.length > 10) {
-    const more = document.createElement("span");
-    more.className = "related-more";
-    more.textContent = "+" + (items.length - 10) + " more in Missions";
-    relatedList.appendChild(more);
-  }
 }
 
 explorerLink.addEventListener("click", function () {
@@ -2472,6 +2476,11 @@ canvas.addEventListener("pointerup", function (event) {
 
   const body = getBodyAtPointer(event);
   if (body) selectBody(body);
+  else if (selectedBody && !entry) {
+    // a click on empty space goes back to the whole Solar System (the same smooth glide as the panel's ×)
+    play("close");
+    resetView();
+  }
 });
 
 canvas.addEventListener("pointermove", function (event) {

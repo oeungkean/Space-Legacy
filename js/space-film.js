@@ -408,7 +408,7 @@ function orbitShot(o) {
   const craft = makeCraft(o.craft, 2.2);
   const r = R * 1.12;
   const burn = Boolean(o.burn);
-  const far = V(-0.35, 0.78, 0.92).normalize().multiplyScalar(R * 3.1);
+  const far = V(-0.35, 0.78, 0.92).normalize().multiplyScalar(R * 2.6); // where the launch scene ended
   return {
     duration: o.duration || 14,
     start: function () { setSun(V(0.66, 0.62, 0.42)); snapCamera(far, V(0, 0, 0)); }, // daylight on both the opening view and the orbit
@@ -427,7 +427,7 @@ function orbitShot(o) {
       const chase = craft.position.clone().addScaledVector(dir, -12 - extra * 6).addScaledVector(outward, 7 + extra * 4);
       const look = craft.position.clone().addScaledVector(dir, 6).addScaledVector(outward, -1.5);
       // the first three seconds fly in from the whole-Earth view
-      const arrive = ease(smooth(0, 0.22, u));
+      const arrive = ease(smooth(0, 0.36, u)); // about five seconds: no rushed zoom
       // "up" on screen turns to point away from Earth: Earth below, its horizon ahead, space above
       camera.up.copy(V(0, 1, 0).lerp(outward, arrive)).normalize();
       glide(lerpV(far, chase, arrive), lerpV(V(0, 0, 0), look, arrive), dt, 3, earth, R);
@@ -656,7 +656,7 @@ function deployShot(o) {
 // The descent opens on the whole world with the real landing site marked (a red dot, a ring and a
 // label with the name and coordinates), then the camera flies in toward it and the descent begins.
 // The world is turned so the marked spot is right where the spacecraft comes down.
-const SITE_INTRO = 5.5;
+const SITE_INTRO = 7;
 function siteDirection(lat, lon) {
   // the same mapping as the planet maps on a three.js sphere (longitude -180 at the texture's left edge)
   const phi = (lon + 180) / 360 * Math.PI * 2;

@@ -260,10 +260,11 @@ function buildEnvironment() {
   ground.receiveShadow = true;
   padGroup.add(ground);
 
-  const padMaterial = new THREE.MeshStandardMaterial({ color: 0xb8b8b4, roughness: 0.9 });
+  const padMaterial = new THREE.MeshStandardMaterial({ color: 0x8e8c87, roughness: 0.92 }); // weathered concrete, not white
   const padMesh = new THREE.Mesh(new THREE.CylinderGeometry(24, 26, PAD_Y, 64), padMaterial);
   padMesh.position.y = PAD_Y / 2;
   padMesh.receiveShadow = true;
+  padMesh.userData.lc39 = true;
   padGroup.add(padMesh);
 
   const trench = new THREE.Mesh(
@@ -271,6 +272,7 @@ function buildEnvironment() {
     new THREE.MeshStandardMaterial({ color: 0x2a2a2c, roughness: 1 })
   );
   trench.position.y = PAD_Y / 2;
+  trench.userData.lc39 = true;
   padGroup.add(trench);
 
   const walkway = new THREE.Mesh(
@@ -307,11 +309,13 @@ function buildEnvironment() {
   [[-70, -40], [60, 70], [-25, 100]].forEach(function (p) {
     const pole = new THREE.Mesh(new THREE.BoxGeometry(0.6, 90, 0.6), poleMaterial);
     pole.position.set(p[0], 45, p[1]);
+    pole.userData.lc39 = true;
     padGroup.add(pole);
 
     const light = new THREE.Sprite(redLight);
     light.scale.set(4, 4, 1);
     light.position.set(p[0], 91, p[1]);
+    light.userData.lc39 = true;
     padGroup.add(light);
   });
 
@@ -466,16 +470,20 @@ function buildCoast() {
     coastGroup.add(lane);
   });
   doors.userData.rollout = true;
+  // Launch Complex 39 (Kennedy): its own group, so other launch sites can look different
+  const lc39 = new THREE.Group();
+  coastGroup.add(lc39);
+  coastGroup.userData.padStyles = { lc39: lc39 };
   // Water tower for the sound suppression system
   const steel = new THREE.MeshStandardMaterial({ color: 0xc9ccd0, roughness: 0.5, metalness: 0.5 });
   for (let i = 0; i < 4; i++) {
     const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 70, 6), steel);
     leg.position.set(170 + (i % 2) * 14 - 7, 35, -230 + Math.floor(i / 2) * 14 - 7);
-    coastGroup.add(leg);
+    lc39.add(leg);
   }
   const tank = new THREE.Mesh(new THREE.SphereGeometry(14, 20, 14), steel);
   tank.position.set(170, 80, -230);
-  coastGroup.add(tank);
+  lc39.add(tank);
   buildPadComplex();
   buildRoadsAndBuildings();
   buildVegetation();
@@ -542,22 +550,23 @@ function waveNormalTexture() {
 // The pad itself: a wide concrete hardstand, the flame trench running out to one side, a perimeter
 // road and fence, and the two big spherical propellant tanks (liquid oxygen and fuel) with pipes to the pad
 function buildPadComplex() {
-  const concrete = new THREE.MeshStandardMaterial({ color: 0xaeaaa2, roughness: 0.95 });
+  const pad = coastGroup.userData.padStyles.lc39;
+  const concrete = new THREE.MeshStandardMaterial({ color: 0x86837d, roughness: 0.95 });
   const apron = new THREE.Mesh(new THREE.CylinderGeometry(78, 82, 0.4, 8), concrete);
   apron.rotation.y = Math.PI / 8;
   apron.position.y = 0.05;
   apron.receiveShadow = true;
-  coastGroup.add(apron);
+  pad.add(apron);
   const trench = new THREE.Mesh(new THREE.PlaneGeometry(16, 120), new THREE.MeshStandardMaterial({ color: 0x4a4740, roughness: 1 }));
   trench.rotation.x = -Math.PI / 2;
   trench.position.set(0, 0.28, -60);
-  coastGroup.add(trench);
+  pad.add(trench);
   const road = new THREE.MeshStandardMaterial({ color: 0x3b3d40, roughness: 0.9 });
   const ring = new THREE.Mesh(new THREE.RingGeometry(118, 126, 64), road);
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.06;
   ring.receiveShadow = true;
-  coastGroup.add(ring);
+  pad.add(ring);
   // fence posts around the pad (a dashed silver ring)
   const fenceMat = new THREE.MeshStandardMaterial({ color: 0xb8bcc2, roughness: 0.6, metalness: 0.6 });
   const fence = new THREE.InstancedMesh(new THREE.BoxGeometry(0.25, 2.4, 0.25), fenceMat, 120);
@@ -567,7 +576,7 @@ function buildPadComplex() {
     m.makeTranslation(Math.cos(a) * 140, 1.2, Math.sin(a) * 140);
     fence.setMatrixAt(i, m);
   }
-  coastGroup.add(fence);
+  pad.add(fence);
   // propellant spheres on short legs, white with a dark band, and pipes running to the pad
   const white = new THREE.MeshStandardMaterial({ color: 0xeef0f2, roughness: 0.5, metalness: 0.2 });
   const pipe = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.5, metalness: 0.6 });
@@ -575,16 +584,16 @@ function buildPadComplex() {
     const ball = new THREE.Mesh(new THREE.SphereGeometry(t[2], 28, 18), white);
     ball.position.set(t[0], t[2] + 3, t[1]);
     ball.castShadow = true;
-    coastGroup.add(ball);
+    pad.add(ball);
     const band = new THREE.Mesh(new THREE.TorusGeometry(t[2] * 1.0, 0.5, 6, 40), pipe);
     band.rotation.x = Math.PI / 2;
     band.position.copy(ball.position);
-    coastGroup.add(band);
+    pad.add(band);
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
       const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, t[2] + 3, 6), pipe);
       leg.position.set(t[0] + Math.cos(a) * t[2] * 0.8, (t[2] + 3) / 2, t[1] + Math.sin(a) * t[2] * 0.8);
-      coastGroup.add(leg);
+      pad.add(leg);
     }
     const length = Math.hypot(t[0], t[1]) - 26;
     const run = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, length, 8), pipe);
@@ -592,7 +601,7 @@ function buildPadComplex() {
     run.rotation.y = -Math.atan2(t[1], t[0]);
     const mid = new THREE.Vector3(t[0], 0, t[1]).normalize().multiplyScalar(26 + length / 2);
     run.position.set(mid.x, 1.2, mid.z);
-    coastGroup.add(run);
+    pad.add(run);
   });
 }
 
@@ -720,6 +729,188 @@ function buildVegetation() {
 }
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 
+// ----- Launch pads: each rocket's real kind of pad -----
+// lc39: Kennedy Launch Complex 39 (octagonal pad, propellant spheres, water tower)
+// slc41: Cape Canaveral Space Launch Complex 41, a "clean pad": the rocket arrives on its platform from
+//        a tall integration building nearby, with lightning towers around the pad and no tower at the rocket
+// mst: pads with a mobile service tower that rolls back before launch (Delta II, Delta IV, Atlas-Centaur)
+// erector: the Titan II Gemini pad, where the erector tower was lowered away from the rocket
+// ela3: Kourou, a launch table between concrete exhaust walls, with lightning towers
+// baikonur: a launch stand over a deep flame pit; the service tower is moved away
+const PAD_STYLE = {
+  "saturn-v": "lc39", "saturn-v-skylab": "lc39", sls: "lc39", shuttle: "lc39", "shuttle-sts31": "lc39", "shuttle-sts88": "lc39", "falcon-9": "lc39",
+  "atlas-v-401": "slc41", "atlas-v-411": "slc41", "atlas-v-541": "slc41", "atlas-v-551": "slc41", "titan-3e": "slc41", "titan-4b": "slc41",
+  "delta-2": "mst", "delta-2-heavy": "mst", "delta-4-heavy": "mst", "atlas-centaur": "mst",
+  "titan-2": "erector", "ariane-5": "ela3", proton: "baikonur"
+};
+// What the countdown says about the pad (the first caption), in each style
+const PAD_CAPTION = {
+  slc41: "T-10 seconds. The rocket stands on its mobile platform on a clean pad, rolled out from its integration building. Lightning towers surround it.",
+  mst: "T-10 seconds. The mobile service tower has rolled back on its rails; the rocket stands beside its umbilical tower.",
+  erector: "T-10 seconds. The erector that held the rocket has been lowered away. Only the umbilicals still connect it to the pad.",
+  ela3: "T-10 seconds. The rocket stands on its launch table between the concrete exhaust walls, surrounded by lightning towers.",
+  baikonur: "T-10 seconds. The rocket stands over a deep flame pit. Its service tower has been moved away along its rails."
+};
+let padStyle = "lc39";
+let padProps = {};
+
+function concrete(color) {
+  return new THREE.MeshStandardMaterial({ color: color || 0x86837d, roughness: 0.95 });
+}
+function lightningTower(height) {
+  const g = new THREE.Group();
+  const steel = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.6, metalness: 0.6 });
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.35, height, 0.35), steel);
+    leg.position.set(c[0] * 1.4, height / 2, c[1] * 1.4);
+    g.add(leg);
+  });
+  for (let y = 6; y < height; y += 8) {
+    const ring = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.25, 3.1), steel);
+    ring.position.y = y;
+    g.add(ring);
+  }
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.3, height * 0.25, 6), steel);
+  mast.position.y = height * 1.12;
+  g.add(mast);
+  return g;
+}
+function rails(group, fromZ, toZ, x) {
+  const steel = new THREE.MeshStandardMaterial({ color: 0x5e6268, roughness: 0.5, metalness: 0.7 });
+  [-3, 3].forEach(function (dx) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, Math.abs(toZ - fromZ)), steel);
+    rail.position.set((x || 0) + dx, 0.15, (fromZ + toZ) / 2);
+    group.add(rail);
+  });
+}
+
+function buildPadStyle(style) {
+  const styles = coastGroup.userData.padStyles;
+  if (styles[style]) return styles[style];
+  const g = new THREE.Group();
+  const white = new THREE.MeshStandardMaterial({ color: 0xdfe2e5, roughness: 0.6, metalness: 0.15 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0x8c9199, roughness: 0.6, metalness: 0.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2a2c2f, roughness: 1 });
+  if (style === "slc41") {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(70, PAD_Y, 50), concrete());
+    slab.position.y = PAD_Y / 2;
+    g.add(slab);
+    [[-45, -35], [45, -35], [-45, 35], [45, 35]].forEach(function (c) {
+      const tower = lightningTower(85);
+      tower.position.set(c[0], 0, c[1]);
+      g.add(tower);
+    });
+    rails(g, -560, -10);
+    // the Vertical Integration Facility up the rails (simplified: a tall plain building)
+    const vif = new THREE.Mesh(new THREE.BoxGeometry(40, 90, 36), white);
+    vif.position.set(0, 45, -580);
+    g.add(vif);
+    const door = new THREE.Mesh(new THREE.PlaneGeometry(18, 80), dark);
+    door.position.set(0, 40, -561.9);
+    g.add(door);
+  } else if (style === "mst") {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(60, PAD_Y, 60), concrete());
+    slab.position.y = PAD_Y / 2;
+    g.add(slab);
+    rails(g, 0, 0, 0);
+    const track = new THREE.Group();
+    [-6, 6].forEach(function (dz) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(220, 0.3, 0.4), steel);
+      rail.position.set(-110, 0.15, dz);
+      track.add(rail);
+    });
+    g.add(track);
+    // the mobile service tower: a tall boxy structure that rolls back along its rails
+    const mst = new THREE.Group();
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(22, 80, 22), new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.6, metalness: 0.3 }));
+    frame.position.y = 40;
+    mst.add(frame);
+    for (let y = 8; y < 80; y += 10) {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(22.4, 0.6, 22.4), steel);
+      band.position.y = y;
+      mst.add(band);
+    }
+    g.add(mst);
+    g.userData.mst = mst;
+  } else if (style === "erector") {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(50, PAD_Y, 40), concrete());
+    slab.position.y = PAD_Y / 2;
+    g.add(slab);
+    // the erector: a lattice frame hinged at its base that is lowered away from the rocket
+    const hinge = new THREE.Group();
+    hinge.position.set(-6, PAD_Y, 0);
+    const frame = buildTower(42);
+    frame.scale.set(0.6, 1, 0.6);
+    frame.position.set(-2, 0, 0);
+    hinge.add(frame);
+    g.add(hinge);
+    g.userData.erector = hinge;
+    // the blockhouse: a domed concrete bunker for the launch crew
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(16, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), concrete(0xa4a19a));
+    dome.position.set(-160, 0, 140);
+    g.add(dome);
+  } else if (style === "ela3") {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(40, PAD_Y, 40), concrete());
+    slab.position.y = PAD_Y / 2;
+    g.add(slab);
+    // concrete walls on both sides where the exhaust ducts come out
+    [-1, 1].forEach(function (side) {
+      const shape = new THREE.Shape();
+      shape.moveTo(0, 0); shape.lineTo(70, 0); shape.lineTo(0, 22); shape.lineTo(0, 0);
+      const wall = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 30, bevelEnabled: false }), concrete(0x9b988f));
+      wall.position.set(side * 26, 0, -15);
+      wall.scale.x = side;
+      g.add(wall);
+    });
+    [[-55, -45], [55, -45], [-55, 45], [55, 45]].forEach(function (c) {
+      const tower = lightningTower(75);
+      tower.position.set(c[0], 0, c[1]);
+      g.add(tower);
+    });
+    rails(g, -900, -10);
+  } else if (style === "baikonur") {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(60, PAD_Y, 50), concrete(0x8a8579));
+    slab.position.y = PAD_Y / 2;
+    g.add(slab);
+    // the flame pit: a deep opening in front of the launch stand
+    const pit = new THREE.Mesh(new THREE.PlaneGeometry(26, 60), dark);
+    pit.rotation.x = -Math.PI / 2;
+    pit.position.set(0, PAD_Y + 0.02, -30);
+    g.add(pit);
+    rails(g, -800, -10, 40);
+    // the service tower, moved away along its rails
+    const tower = buildTower(60);
+    tower.position.set(40, 0, -200);
+    g.add(tower);
+    g.userData.serviceTower = tower;
+  }
+  g.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  coastGroup.add(g);
+  styles[style] = g;
+  return g;
+}
+
+function applyPadStyle(style) {
+  padStyle = style;
+  padProps = {};
+  const styles = coastGroup.userData.padStyles;
+  if (style !== "lc39") buildPadStyle(style);
+  Object.keys(styles).forEach(function (key) { styles[key].visible = key === style; });
+  padProps = styles[style].userData || {}; // the moving parts of this pad (service tower, erector)
+  padGroup.children.forEach(function (child) { if (child.userData.lc39) child.visible = style === "lc39"; });
+  // the fixed tower with the crew arm: at Kennedy (39) and at the pads with an umbilical tower
+  const tower = style === "lc39" || style === "mst" || style === "erector";
+  if (towerGroup) towerGroup.visible = tower;
+  if (armPivot) armPivot.visible = style === "lc39";
+}
+
+// The pad's own steps during the countdown (sped up): the service tower rolls back, the erector lowers
+function updatePadProcess(t) {
+  const k = smoothstep(0.2, 2.0, t); // done before the caption says so (it appears at 2 s)
+  if (padProps.mst) padProps.mst.position.x = -30 - 130 * k;
+  if (padProps.erector) padProps.erector.rotation.z = (Math.PI / 2) * k;
+}
+
 // ----- Rollout rigs -----
 let rollout = null;
 
@@ -798,12 +989,14 @@ function buildRollout(style) {
     deck = 4;
   }
   group.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  group.visible = false; // shown (and moved to the building) only during the rollout scene
   scene.add(group);
   rollout = { group: group, style: style, deck: deck, height: heightMeters, radius: radiusMeters };
 }
 
 function endRollout() {
   if (rollout) rollout.group.visible = false;
+  if (!rocketRoot) return;
   // the rocket stands on its pad mount again, lit by the pad's sun
   rocketRoot.position.set(0, restY, 0);
   rocketRoot.rotation.set(0, 0, 0);
@@ -935,7 +1128,8 @@ function setLaunchSite(coast) {
   skyMaterial.uniforms.uZenith.value.set(coast ? 0x2c64c4 : 0x14214f);
   scene.fog = coast ? new THREE.Fog(0xcfe0f2, 400, 5200) : new THREE.Fog(0xf0b98a, 120, 2600);
   sunLight.color.set(coast ? 0xfff6e8 : 0xffc48a);
-  sunLight.intensity = coast ? 3.0 : 2.4;
+  sunLight.intensity = coast ? 2.2 : 2.4; // natural daylight (3.0 washed the pad out to white)
+  if (renderer) renderer.toneMappingExposure = coast ? 0.95 : 1.2;
   sunLight.position.set(coast ? -200 : -300, coast ? 320 : 70, coast ? 400 : 500);
   sunSprite.visible = !coast;
 }
@@ -1341,6 +1535,10 @@ function blink() {
 function enterScene(index) {
   currentScene = index;
   const id = activeScenes[index].id;
+  // Every scene after the rollout puts the rocket back on its pad and hides the crawler, before the
+  // scene sets itself up. (Jumping straight to the climb skipped the countdown, so the crawler and
+  // its tower stayed beside the rocket and flew up into space with it.)
+  if (id !== "rollout") endRollout();
 
   captionBox.textContent =
     id === "liftoff" && captionOverride ? captionOverride : activeScenes[index].caption;
@@ -1352,8 +1550,8 @@ function enterScene(index) {
   if (id === "launch") {
     ignitionPlayed = false;
     countdownBox.classList.remove("hidden");
-    endRollout();
   }
+
   if (id === "rollout" && rollout) {
     captionBox.textContent = ROLLOUT_CAPTION[rollout.style];
     countdownBox.textContent = "ROLLOUT";
@@ -1608,6 +1806,7 @@ function emitDeluge(power, dt) {
 }
 
 function updateMissionLaunch(t, dt) {
+  updatePadProcess(t);
   const waves = coastGroup && coastGroup.userData.waves;
   if (waves) { waves.offset.x += dt * 0.012; waves.offset.y += dt * 0.005; }
   if (coastGroup && coastGroup.userData.surf) coastGroup.userData.surf.material.opacity = 0.6 + 0.25 * Math.sin(t * 1.3);
@@ -1738,7 +1937,7 @@ function updateMissionLaunch(t, dt) {
     launchStep = step;
     captionBox.textContent = [
       captionOverride || "Final countdown.",
-      "T-10 seconds. The water deluge floods the pad to absorb the sound and heat of the engines.",
+      PAD_CAPTION[padStyle] || "T-10 seconds. The water deluge floods the pad to absorb the sound and heat of the engines.",
       "Ignition sequence start. The engines build up to full thrust while the hold-down arms keep the rocket on the pad.",
       "Liftoff! The hold-down arms release. A heavy rocket rises slowly at first.",
       "The rocket has cleared the tower. The roll and pitch program turns it toward its path to orbit."
@@ -2138,9 +2337,9 @@ function updateAscent(t, dt) {
 
   // The end of the climb: a long, smooth pull-back to the whole Earth (the same Earth as the Solar
   // System), with the path flown traced on it and a glow on the rocket
-  const away = smoothstep(18, 24.5, t);
+  const away = smoothstep(16.5, 25, t); // slow and steady (team feedback: no fast zooms)
   const earthCenter = earthBall.position;
-  const farPos = earthCenter.clone().add(new THREE.Vector3(-0.35, 0.78, 0.92).normalize().multiplyScalar(EARTH_R * 3.1));
+  const farPos = earthCenter.clone().add(new THREE.Vector3(-0.35, 0.78, 0.92).normalize().multiplyScalar(EARTH_R * 2.6));
   const farTarget = earthCenter.clone().lerp(new THREE.Vector3(0, 0, 0), 0.4);
   if (away > 0) {
     const nearDir = offset.clone().normalize();
@@ -2156,9 +2355,9 @@ function updateAscent(t, dt) {
   } else {
     camera.position.copy(offset);
   }
-  if (ascentTrail) ascentTrail.material.opacity = 0.85 * smoothstep(17.5, 20, t);
+  if (ascentTrail) ascentTrail.material.opacity = 0.85 * smoothstep(16.5, 19.5, t);
   if (ascentMarker) {
-    ascentMarker.material.opacity = smoothstep(19, 21, t);
+    ascentMarker.material.opacity = smoothstep(18, 20.5, t);
     ascentMarker.position.set(0, size * 0.5, 0);
     const d = camera.position.distanceTo(ascentMarker.position);
     ascentMarker.scale.setScalar(d * 0.028); // about the same size on screen however far the camera is
@@ -2277,11 +2476,13 @@ export function startCinematic(onFinish, options) {
     earthBall.visible = false;
     sunLight.castShadow = true; // switched off during the climb to orbit
     setLaunchSite(Boolean(options.mission));
+    if (!options.mission && coastGroup.userData.padStyles) applyPadStyle("lc39");
     missionSeed = seedFrom((options.caption || "") + "|" + (rocketKey || ""));
     missionSun = null;
     shotPlan = null;
     if (options.mission) {
       applySiteLook(SITE_LOOKS[ROCKET_SITE[rocketKey]] || SITE_LOOKS.florida);
+      applyPadStyle(PAD_STYLE[rocketKey] || "lc39");
       // the sun's height and direction differ from mission to mission (morning, midday, afternoon)
       const sunAngle = -0.6 + seedFrom(missionSeed + "sun") * 1.4;
       const sunHeight = 220 + seedFrom(missionSeed + "high") * 260;

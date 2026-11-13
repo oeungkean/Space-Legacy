@@ -24,7 +24,7 @@ const TOUR = [
 export const HOME_PLANETS = TOUR.map(function (stop) { return { name: stop.name }; });
 
 const ORBIT = 220;          // distance of every planet from the Sun in this scene
-const SEGMENT_SECONDS = 15; // time from one planet to the next (slow near planets, faster in between)
+const SEGMENT_SECONDS = 24; // time from one planet to the next: slow and calm (it was 15, which felt rushed)
 
 // ----- Renderer, scene and camera -----
 const canvas = document.getElementById("space-canvas");
@@ -137,7 +137,7 @@ export function setLaunching(value) {
 // ----- The tour -----
 // Within each segment the speed is slow at the planets and faster in between, and it never stops,
 // so there is never a jolt: progress = f - k*sin(2*pi*f)/(2*pi).
-const SLOW = 0.86;
+const SLOW = 0.95; // close to 1: the camera almost pauses at each planet
 function easeSegment(f) {
   return f - SLOW * Math.sin(2 * Math.PI * f) / (2 * Math.PI);
 }
@@ -161,7 +161,7 @@ function place(time) {
   const u = (((segment % total) + easeSegment(f)) / total) % 1;
   camPos.copy(viewCurve.getPoint(u));
   // Keep the planet we are leaving in view, then turn smoothly toward the next one (the turn has no jolt)
-  const k = Math.max(0, Math.min(1, (f - 0.3) / 0.42));
+  const k = Math.max(0, Math.min(1, (f - 0.18) / 0.64)); // a long, gentle turn: the planet behind stays in view longer
   const w = k * k * (3 - 2 * k);
   dirA.copy(from.target).sub(camPos).normalize();
   dirB.copy(to.target).sub(camPos).normalize();

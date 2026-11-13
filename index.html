@@ -902,6 +902,7 @@
             <table class="credit-table">
               <thead><tr><th scope="col">Source</th><th scope="col">Used for</th><th scope="col">License / attribution</th></tr></thead>
               <tbody>
+              <tr><th scope="row"><a href="https://science.nasa.gov/3d-resources/" target="_blank" rel="noopener">NASA 3D Resources</a></th><td>Official 3D models (Saturn V, Apollo Lunar Module, Gemini, Galileo, Parker Solar Probe, Pioneer 10, Viking Lander, Perseverance), loaded from NASA in the Missions 3D viewer and the landing scenes.</td><td>NASA Images and Media Usage Guidelines (free to use; no endorsement implied)</td></tr>
               <tr><th scope="row"><a href="https://threejs.org" target="_blank" rel="noopener">three.js r160</a></th><td>3D rendering, cameras, controls and the RoomEnvironment lighting in the Engineering Bay.</td><td>MIT License</td></tr>
               <tr><th scope="row"><a href="https://www.jsdelivr.com/" target="_blank" rel="noopener">jsDelivr CDN</a></th><td>Delivers three.js and the Earth/Moon textures.</td><td>Free public CDN</td></tr>
               <tr><th scope="row"><a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API" target="_blank" rel="noopener">Web Audio API and Web Speech API</a></th><td>All sounds are generated live in the browser; narration uses your browser’s own voices.</td><td>Built into the browser</td></tr>
@@ -990,19 +991,25 @@
       <div id="mp-map" class="mp-map hidden" aria-hidden="true"></div>
       <button id="mp-exit" class="small-button mp-exit" data-silent title="Exit the replay (Esc)">Exit replay &times;</button>
     </div>
-    <!-- Mission briefing (js/briefing.js): from, to, journey time, possible or not, and why -->
+    <!-- Mission briefing (js/briefing.js): a glass card on the left, from -> to, journey time and whether the
+         mission is possible. The tab slides it away and back; it stays until the landing begins. -->
     <aside id="mp-brief" class="mp-brief hidden" aria-label="Mission briefing">
-      <button id="mp-brief-close" class="mp-brief-close" data-silent aria-label="Close the briefing">&times;</button>
-      <p class="mp-brief-kicker">Mission briefing</p>
-      <h4 id="mp-brief-title"></h4>
-      <dl class="mp-brief-rows">
-        <dt>From</dt><dd><b id="mp-brief-from"></b><span id="mp-brief-from-coords"></span></dd>
-        <dt>To</dt><dd><b id="mp-brief-to"></b><span id="mp-brief-to-coords"></span></dd>
-        <dt>Journey</dt><dd><b id="mp-brief-time"></b></dd>
-      </dl>
-      <p id="mp-brief-verdict" class="mp-brief-verdict"><i aria-hidden="true"></i><b></b><span></span></p>
-      <button id="mp-brief-more" class="mp-brief-more" data-silent aria-expanded="false" aria-controls="mp-brief-reasons">Show more</button>
-      <ul id="mp-brief-reasons" class="mp-brief-reasons hidden"></ul>
+      <button id="mp-brief-tab" class="mb-tab" data-silent aria-expanded="true" aria-controls="mp-brief-body" title="Hide the briefing">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>Briefing</span>
+      </button>
+      <div id="mp-brief-body" class="mb-body">
+        <p class="mb-kicker">Mission briefing</p>
+        <h4 id="mp-brief-title"></h4>
+        <div class="mb-route" aria-label="Route">
+          <div class="mb-end"><i class="mb-dot from" aria-hidden="true"></i><b id="mp-brief-from"></b><span id="mp-brief-from-coords"></span></div>
+          <div class="mb-line" aria-hidden="true"><span id="mp-brief-time-pill"></span></div>
+          <div class="mb-end"><i class="mb-dot to" aria-hidden="true"></i><b id="mp-brief-to"></b><span id="mp-brief-to-coords"></span></div>
+        </div>
+        <p class="mb-time"><span>Journey</span> <b id="mp-brief-time"></b></p>
+        <p id="mp-brief-verdict" class="mb-verdict"><i aria-hidden="true"></i><b></b><span></span></p>
+        <button id="mp-brief-more" class="mb-more" data-silent aria-expanded="false" aria-controls="mp-brief-reasons">Show more</button>
+        <ul id="mp-brief-reasons" class="mb-reasons hidden"></ul>
+      </div>
     </aside>
     <div class="mp-bottom">
       <p id="mp-caption" class="mp-caption" aria-live="polite"></p>

@@ -22,6 +22,7 @@ import { createSuitedAstronaut } from "./astronaut.js";
 import { makePlanet } from "./planet-look.js";
 import { createGlow } from "./glow.js";
 import { play } from "./sounds.js";
+import { hasNasaModel, nasaModelInfo, upgradeToNasaModel } from "./nasa-models.js";
 import { onThemeChange, accentNumber } from "./theme.js";
 
 // ----- Page elements -----
@@ -876,6 +877,26 @@ function showViewerModel(item) {
   v.controls.maxDistance = Math.max(radius * 8, v.camera.position.length() * 1.5); // never closer than the whole-model view
   v.controls.update();
   v.home = v.camera.position.clone();
+
+  // The official NASA 3D model, when NASA's 3D Resources has one: it replaces the project's model in
+  // this viewer as soon as it has loaded, and the note under the picture says so
+  detailModelNote.textContent = MODEL_NOTE;
+  const nasaKey = item.model.key;
+  if (hasNasaModel(nasaKey) && !model.userData.setDeploy) {
+    upgradeToNasaModel(model, nasaKey).then(function (shown) {
+      if (!shown || v.model !== model) return;
+      const info = nasaModelInfo(nasaKey);
+      detailModelNote.innerHTML = "";
+      detailModelNote.append("Official NASA 3D model: " + info.name + ", from ");
+      const link = document.createElement("a");
+      link.href = info.page;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = "NASA 3D Resources";
+      detailModelNote.append(link);
+      detailModelNote.append(". Loaded from NASA when online.");
+    });
+  }
 
   const canDeploy = Boolean(model.userData.setDeploy);
   v.deploy = 1;

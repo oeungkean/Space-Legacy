@@ -198,6 +198,7 @@ function startChapter(i, natural) {
   paused = false;
   playButton.textContent = "Pause";
   setText(c);
+  briefOnChapter(c);
   card.classList.add("hidden");
   if (options.onChapter) options.onChapter(c, i);
 
@@ -209,7 +210,7 @@ function startChapter(i, natural) {
     if (!held) fade.classList.add("on");
     // When the story moves on by itself, a short bridge comes first: the last picture stays (dimmed)
     // while a card says what happens next and when, so each scene follows from the one before
-    const bridgeTime = natural ? 1800 / Math.max(1, getPlaybackSpeed()) : 0;
+    const bridgeTime = natural ? 3200 / Math.max(1, getPlaybackSpeed()) : 0; // long enough to read
     if (bridgeTime > 0) showBridge(c, i, held);
     setTimeout(function () {
       if (my !== token) return;
@@ -329,26 +330,31 @@ function shortPlace(text) {
   return first.length > 34 ? first.slice(0, 33) + "…" : first;
 }
 
-// ----- The mission briefing at the start: from, to, journey time, possible or not (Show more: why) -----
+// ----- The mission briefing: a glass card on the left (from -> to, journey time, possible or not; Show
+// more: why). It stays until the landing begins, then slides away; its tab brings it back any time. -----
 const brief = el("mp-brief");
-let briefTimer = null;
+const briefTab = el("mp-brief-tab");
+function setBriefOpen(open) {
+  if (!brief) return;
+  brief.classList.toggle("collapsed", !open);
+  briefTab.setAttribute("aria-expanded", String(open));
+  briefTab.title = open ? "Hide the briefing" : "Show the briefing";
+}
 function showBriefing(b) {
-  clearTimeout(briefTimer);
   if (!brief) return;
   brief.classList.add("hidden");
-  brief.classList.remove("on");
   if (!b) return;
   el("mp-brief-title").textContent = b.title;
   el("mp-brief-from").textContent = b.from.name;
-  el("mp-brief-from-coords").textContent = b.from.coords;
+  el("mp-brief-from-coords").textContent = b.from.coords.replace(/^About /, "~ ");
   el("mp-brief-to").textContent = b.to.name;
   el("mp-brief-to-coords").textContent = b.to.coords || "";
   el("mp-brief-time").textContent = b.journey || "Unknown";
   const verdict = el("mp-brief-verdict");
-  verdict.className = "mp-brief-verdict " + (b.verdict ? b.verdict.kind : "");
-  verdict.querySelector("i").textContent = !b.verdict ? "" : b.verdict.kind === "possible" ? "✓" : b.verdict.kind === "unlikely" ? "✕" : "?";
+  verdict.className = "mb-verdict " + (b.verdict ? b.verdict.kind : "");
+  verdict.querySelector("i").textContent = !b.verdict ? "" : b.verdict.kind === "possible" ? "\u2713" : b.verdict.kind === "unlikely" ? "\u2715" : "?";
   verdict.querySelector("b").textContent = b.verdict ? b.verdict.label : "";
-  verdict.querySelector("span").textContent = b.verdict ? b.verdict.short : "";
+  verdict.querySelector("span").textContent = b.verdict ? (b.verdict.tagline || b.verdict.short) : "";
   const list = el("mp-brief-reasons");
   list.innerHTML = "";
   (b.verdict ? b.verdict.reasons : []).forEach(function (text) {
@@ -361,25 +367,21 @@ function showBriefing(b) {
   more.textContent = "Show more";
   more.setAttribute("aria-expanded", "false");
   brief.classList.remove("hidden");
-  requestAnimationFrame(function () { brief.classList.add("on"); });
-  // it tucks itself away after a while (unless the reasons are open)
-  briefTimer = setTimeout(hideBriefing, 16000);
+  setBriefOpen(true);
 }
-function hideBriefing() {
-  if (!brief) return;
-  brief.classList.remove("on");
-  setTimeout(function () { if (!brief.classList.contains("on")) brief.classList.add("hidden"); }, 600);
+// The landing has begun: the briefing slides out of the way (its tab stays)
+function briefOnChapter(c) {
+  if (!brief || brief.classList.contains("hidden")) return;
+  if (c && (c.engine === "landing" || c.pre)) setBriefOpen(false);
 }
 if (brief) {
-  el("mp-brief-close").addEventListener("click", function () { play("click"); clearTimeout(briefTimer); hideBriefing(); });
+  briefTab.addEventListener("click", function () { play("click"); setBriefOpen(brief.classList.contains("collapsed")); });
   el("mp-brief-more").addEventListener("click", function () {
     const list = el("mp-brief-reasons");
     const open = list.classList.toggle("hidden") === false;
     this.textContent = open ? "Show less" : "Show more";
     this.setAttribute("aria-expanded", String(open));
     play("click");
-    clearTimeout(briefTimer);
-    if (!open) briefTimer = setTimeout(hideBriefing, 10000); // stays while you read the reasons
   });
 }
 
@@ -569,8 +571,7 @@ export function togglePause() {
 
 function close(callExit) {
   active = false;
-  clearTimeout(briefTimer);
-  if (brief) { brief.classList.remove("on"); brief.classList.add("hidden"); }
+  if (brief) brief.classList.add("hidden");
   setPlaybackSpeed(1); // nothing else in the app plays fast
   token++;
   clearTimeout(waitTimer);

@@ -102,6 +102,7 @@ export function missionBriefing(config) {
     brief.verdict = {
       kind: "possible",
       label: "Possible: it really flew",
+      tagline: "Flew for real: " + t.name + ", " + t.year + ".",
       short: t.name + " (" + t.year + ") used this exact rocket, spacecraft and destination.",
       reasons: [
         rocketName + " launched " + craftName + " to " + destName + " on the real " + t.name + " mission in " + t.year + ".",
@@ -116,6 +117,7 @@ export function missionBriefing(config) {
   const reasons = [];
   let kind = "unproven";
   let label = "Not proven: this mix never flew";
+  let tagline = "Every part is real, but they never flew together.";
   const rank = DIFFICULTY[config.destination] || 0;
   const record = farthest(config.rocket);
   const recordRank = record ? DIFFICULTY[record.destination] || 0 : -1;
@@ -124,6 +126,7 @@ export function missionBriefing(config) {
   if (craft && craft.type === "crewed" && rank >= 2) {
     kind = "unlikely";
     label = "Not possible as built";
+    tagline = "No crew has ever gone beyond the Moon.";
     reasons.push("No crewed spacecraft has ever gone farther than the Moon. " + craftName + " was built for " +
       (craftTrips.length ? craftTrips.map(function (t) { return place(t.destination); }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(" and ") : "shorter trips") +
       ", not a journey of " + (dest ? lowerFirst(dest.travel) : "many months") + ".");
@@ -131,10 +134,15 @@ export function missionBriefing(config) {
   if (craft && (craft.type === "rover" || craft.type === "lander") && NO_SURFACE[config.destination]) {
     kind = "unlikely";
     label = "Does not fit the destination";
+    tagline = "A " + craft.type + " needs a surface to land on.";
     reasons.push(craftName + " is a " + craft.type + ": it is built to land on a surface, and " + destName + " has none to land on.");
   }
   if (record && recordRank < rank) {
-    if (kind === "unproven") { kind = "unlikely"; label = "Unlikely with this rocket"; }
+    if (kind === "unproven") {
+      kind = "unlikely";
+      label = "Unlikely with this rocket";
+      tagline = "It never sent anything past " + place(record.destination) + ".";
+    }
     reasons.push("In real missions, " + rocketName + " never sent a spacecraft farther than " + place(record.destination) +
       " (" + record.name + "). Reaching " + destName + " needs more energy (simplified ranking: Earth orbit, then the Moon, then the planets, then the Sun).");
   } else if (record) {
@@ -149,6 +157,7 @@ export function missionBriefing(config) {
   brief.verdict = {
     kind: kind,
     label: label,
+    tagline: tagline,
     short: kind === "unproven" ? "Each part is real, but they never flew together: this mission is fictional." : reasons[0],
     reasons: reasons
   };

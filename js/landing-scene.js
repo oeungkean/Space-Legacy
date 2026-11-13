@@ -19,6 +19,7 @@ import { buildTerrainShape, buildGround as buildRealGround, heightAt as realHeig
 import { getPlaybackSpeed } from "./playback.js";
 import { planetMaterial as lookMaterial, cloudMaterial } from "./planet-look.js";
 import { createGlow } from "./glow.js";
+import { hasNasaModel, upgradeToNasaModel } from "./nasa-models.js";
 
 // The real exploration terrain is used for these landings (same craters, rilles and dunes as when you explore)
 const LANDING_SITE = { apollo11: "tranquility", apollo15: "hadley", apollo17: "taurus-littrow", curiosity: "gale", perseverance: "jezero" };
@@ -708,6 +709,8 @@ function makeModel(name, scale) {
   const model = createModel(name);
   model.scale.setScalar(scale || 1);
   addFlames(model);
+  // the official NASA 3D model, when there is one (loaded from NASA; the project's model until then)
+  if (hasNasaModel(name)) upgradeToNasaModel(model, name);
   return addActor(model);
 }
 
@@ -737,6 +740,7 @@ function addFlames(model) {
   const engines = model.userData.engines || [];
   model.userData.flames = engines.map(function (point) {
     const holder = new THREE.Group();
+    holder.userData.keepWithNasa = true; // the flames stay when the official NASA model is shown
     holder.position.copy(point);
     const cone = new THREE.Mesh(new THREE.ConeGeometry(0.14, 1.1, 14, 1, true), flameMaterial);
     cone.rotation.x = Math.PI;

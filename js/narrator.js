@@ -65,7 +65,18 @@ if (speechSupported) {
   if (window.speechSynthesis.addEventListener) window.speechSynthesis.addEventListener("voiceschanged", refreshVoices);
   refreshVoices();
 }
-onSettingChange(function (key) { if (key === "narratorVoice") pickVoice(); });
+onSettingChange(function (key) {
+  if (key !== "narratorVoice") return;
+  pickVoice();
+  // A new voice is heard straight away: the sentence being spoken starts again in the new voice and the
+  // rest follows (before, the new voice only started with the next scene)
+  if (live && live.token === token && live.index < live.list.length) {
+    const resume = live;
+    stopSpeaking();
+    speakList(resume.list, resume.index, resume.onDone);
+  }
+});
+let live = null; // what is being spoken now: { list, index, onDone, token }
 
 // ----- Make the text sound spoken -----
 const WORDS = [
@@ -115,11 +126,15 @@ export function speak(text, onDone) {
     if (onDone) onDone();
     return;
   }
+  speakList(sentences(humanize(text)), 0, onDone);
+}
+
+function speakList(list, start, onDone) {
   if (!chosen) refreshVoices();
   const myToken = token;
-  const list = sentences(humanize(text));
   const baseRate = Math.max(0.6, Math.min(1.4, getSetting("narratorRate") || 1));
-  let index = 0;
+  let index = start || 0;
+  live = { list: list, index: index, onDone: onDone, token: myToken };
 
   function finish() {
     if (myToken === token && onDone) onDone();
@@ -147,6 +162,7 @@ export function speak(text, onDone) {
     utterance.volume = 1;
     utterance.onend = function () {
       index++;
+      if (live && live.token === myToken) live.index = index;
       if (myToken !== token) return;
       // A breath between sentences: longer after a long sentence or a full stop, shorter after a comma-like break
       const pause = sentence.length > 120 ? 420 : /[.!?]$/.test(sentence) ? 300 : 180;

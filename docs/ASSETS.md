@@ -25,12 +25,19 @@ Download the 2K versions (8K also works, but loads slower). Rename them to these
 
 Earth's day map, normal map, specular (ocean-shine) map and clouds load from the three.js examples on jsDelivr. You do not need to add them.
 
-## Optional: official 3D models
+## Official NASA 3D models (loaded from NASA, not stored here)
 
-The hardware models are built in code (`js/models.js`, `js/rockets.js`). To use official NASA glTF models instead:
+`js/nasa-models.js` loads official models from NASA 3D Resources (https://science.nasa.gov/3d-resources/) straight from NASA's asset server (`assets.science.nasa.gov`, which allows this cross-origin), using `GLTFLoader` through the import map. NASA states the assets are free to download and use; see the NASA Images and Media Usage Guidelines (no NASA endorsement is implied). Nothing is copied into this project.
 
-1. Download the `.glb` files from NASA's 3D resources (https://science.nasa.gov/3d-resources/) and check each file's terms.
-2. Put the files in `assets/models/`.
-3. Load them with `GLTFLoader` from `three/addons/loaders/GLTFLoader.js`. It works through the import map, so no build step is needed.
+| Project model | NASA model (GLB) | Size |
+|---|---|---|
+| `saturn-v` | Saturn V | 905 KB |
+| `lunar-module` | Apollo Lunar Module | 700 KB |
+| `gemini` | Gemini | 1.32 MB |
+| `galileo-orbiter` | Galileo | 243 KB |
+| `parker` | Parker Solar Probe | 433 KB |
+| `pioneer` | Pioneer 10 | 1.95 MB |
+| `viking-lander` | Viking Lander | 1.76 MB |
+| `perseverance` | Mars 2020 Perseverance Rover | 4.76 MB |
 
-This is not wired up yet, because the files are not part of the project.
+Where they are used: the Missions page's 3D viewer and the landers in the landing scenes. The project's own model shows first and stays if NASA's server cannot be reached (offline). The launch rockets keep the project's models, because their stage separations are built from those models' parts. To work fully offline, these files could be saved in `assets/models/` and the base URL changed (ask first: that is downloading files).

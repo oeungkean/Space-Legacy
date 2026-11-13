@@ -1,5 +1,64 @@
 # Progress
 
+## Completed (2026-11-14): Kampu Space Master Doc (6)
+**Fixes**
+- **"The thing from Earth follows the rocket" (after Replay):** jumping straight to the climb skipped the countdown scene, which was where the crawler and its tower were hidden. Every scene after the rollout now puts the rocket on its pad and hides the crawler first.
+- **Narrator voice:** changing it mid-scene now takes effect at once. The sentence being spoken restarts in the new voice and the rest follows.
+- **Too bright:** the launch pad was glaring white. Daylight is now 2.2 (was 3.0), exposure 0.95, and the concrete is a natural grey. The Mission Builder lights are softer too.
+- **Zooms:** slower and smaller.
+  - End of the climb: 8.5 s (was 6.5 s), stopping at 2.6 Earth radii (was 3.1).
+  - Orbit scene fly-in: about 5 s (was 3 s).
+  - Landing-site globe: 7 s.
+- **Scene bridge cards:** stay 3.2 s (were 1.8 s).
+
+**Solar System and welcome**
+- **Empty-space click:** clicking empty space glides back to the whole Solar System (no need for ×).
+- **Welcome tour:** calmer. 24 s per planet (was 15), an almost-pause at each planet, and a long, gentle turn, so there are no rushed or empty moments.
+- **Planet missions:** shown as a picture grid. Each tile has a small 3D picture, the name and the year, oldest first, scrolling when long.
+
+**Mission briefing (redesigned)**
+- **Look:** a see-through glass card on the left: the route drawn from the launch site to the destination with coordinates, the journey time, and a one-line verdict, e.g. "Flew for real: Apollo 11, 1969". "Show more" still lists the reasons.
+- **Tab:** a "Briefing" tab slides it away and back.
+- **How long it stays:** until the landing begins, then it tucks itself away (the tab stays).
+
+**Mission Builder: two different buildings**
+- **Real Missions:** a light-grey assembly hall with a spare rocket stage on its dolly, an engine on a stand, a tall scaffold tower, a glass-fronted control room on the gallery, gas cylinder racks and a mobile crane.
+- **Free Build:** a dark engineering lab with a cyan blueprint grid, glowing display walls showing rocket outlines, two big robot arms, a 3D-printer gantry and stage segments on jigs (fictional).
+
+**Launch pads that match each real site** (from public mission facts; simplified):
+- **KSC Launch Complex 39** (Saturn V, Shuttle, SLS, Falcon 9 from 39A): octagonal pad, propellant spheres, water tower.
+- **Cape Canaveral Space Launch Complex 41** (Atlas V, Titan IIIE/IVB): clean pad, lightning towers, rails to a tall integration building, no tower at the rocket.
+- **Mobile service tower** (Delta II, Delta IV Heavy, Atlas-Centaur): the tower rolls back during the countdown.
+- **Titan II Gemini:** the erector lowers away, and there's a domed blockhouse.
+- **Kourou** (Ariane 5): launch table between concrete exhaust walls, lightning towers.
+- **Baikonur** (Proton): flame pit, service tower moved away on rails.
+
+The first countdown caption describes each pad, and rockets that were stacked on the pad (Delta II, Titan II, Atlas-Centaur) have no rollout.
+
+**Official NASA 3D models** (new `js/nasa-models.js`):
+- **Source:** loaded straight from NASA 3D Resources (assets.science.nasa.gov allows this; nothing is copied into the project).
+- **Models:** Saturn V, Apollo Lunar Module, Gemini, Galileo, Parker Solar Probe, Pioneer 10, Viking Lander, Perseverance.
+- **Where:** they replace the project's models in the Missions 3D viewer (the note under it says "Official NASA 3D model" with a link) and the landers in the landing scenes (the engine flames stay).
+- **Fallback:** the project's own model shows first and stays when offline.
+- **Loading:** NASA's files are Draco-compressed, so the decoder comes from the same pinned three.js version on jsDelivr.
+- **Launch rockets:** keep the project's models, because the separations need their parts.
+- **Credits:** on the Credits page and in `docs/ASSETS.md`.
+
+**Tested** (local server, 1366×768):
+- All eight NASA models load (0.3–2.1 s each).
+- NASA Lunar Module in the Missions viewer.
+- Mars mission tiles (11, all with pictures).
+- Empty-space click closes the panel.
+- Both Mission Builder buildings.
+- Delta II, Titan II and Atlas V pads.
+- Glass briefing, its tab, and tucking away at the landing.
+- No console errors from the site (the only error came from my synthetic test clicks).
+
+**Not verified:**
+- The voice switch (speech can't be heard in the test pane).
+- Real GPU smoothness and the CSS fades.
+- The NASA models need internet access.
+
 ## Completed (2026-11-14): Kampu Space Master Doc (5)
 **Exploring**
 - **Mini map never runs out:** it was one fixed picture of the 460 m around the landing site, black beyond it. It now follows you: when you're 100 m from its centre, a new 640 m picture is drawn around you in the background, 10 rows at a time, and swapped in.
