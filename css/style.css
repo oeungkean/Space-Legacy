@@ -9084,3 +9084,234 @@ body.player-on .landing-site {
   .mp-swap { animation: none; }
 }
 body.reduce-motion .mp-swap { animation: none; }
+
+/* =========================================================================================
+   Kampu Space Master Doc (5), 2026-11-14
+   ========================================================================================= */
+
+/* ---- Mission briefing: from, to, journey time, possible or not; "Show more" lists the reasons ---- */
+.mp-brief {
+  position: absolute;
+  left: 22px;
+  top: 150px;
+  z-index: 4;
+  width: min(360px, calc(100% - 44px));
+  max-height: calc(100% - 410px); /* stays clear of the caption box below (scrolls if the reasons are long) */
+  overflow-y: auto;
+  padding: 16px 18px 14px;
+  background: rgba(6, 10, 20, 0.88);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: translateX(-12px);
+  transition: opacity 0.6s var(--ease-journey), transform 0.6s var(--ease-journey);
+}
+.mp-brief.on {
+  opacity: 1;
+  transform: none;
+}
+.mp-brief-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+.mp-brief-close:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.mp-brief-kicker {
+  margin: 0 0 4px;
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.mp-brief h4 {
+  margin: 0 0 12px;
+  padding-right: 24px;
+  font-family: var(--display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.mp-brief-rows {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 8px 10px;
+  margin: 0 0 12px;
+}
+.mp-brief-rows dt {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding-top: 2px;
+}
+.mp-brief-rows dd {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+}
+.mp-brief-rows dd b {
+  font-weight: 500;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--text);
+}
+.mp-brief-rows dd span {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  color: var(--accent);
+}
+.mp-brief-verdict {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 2px 8px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: rgba(255, 255, 255, 0.03);
+}
+.mp-brief-verdict i {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #071018;
+  background: var(--st-pending);
+}
+.mp-brief-verdict b {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.mp-brief-verdict span {
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.mp-brief-verdict.possible {
+  border-color: rgba(92, 200, 160, 0.45);
+  background: rgba(92, 200, 160, 0.08);
+}
+.mp-brief-verdict.possible i {
+  background: var(--st-done);
+}
+.mp-brief-verdict.unproven {
+  border-color: rgba(232, 195, 90, 0.45);
+  background: rgba(232, 195, 90, 0.07);
+}
+.mp-brief-verdict.unproven i {
+  background: #e8c35a;
+}
+.mp-brief-verdict.unlikely {
+  border-color: rgba(239, 123, 107, 0.5);
+  background: rgba(239, 123, 107, 0.08);
+}
+.mp-brief-verdict.unlikely i {
+  background: var(--st-failed);
+}
+.mp-brief-more {
+  padding: 6px 12px;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: rgba(122, 184, 255, 0.08);
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.mp-brief-more:hover {
+  background: rgba(122, 184, 255, 0.16);
+}
+.mp-brief-reasons {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.mp-brief-reasons li + li {
+  margin-top: 6px;
+}
+@media (max-width: 760px) {
+  .mp-brief {
+    left: 10px;
+    top: 120px;
+    width: calc(100% - 20px);
+    max-height: calc(100% - 300px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-brief { transition: none; }
+}
+
+/* ---- Between scenes: a short bridge card (what happens next, and when) over the last picture ---- */
+.mp-dissolve.dim {
+  filter: brightness(0.45) blur(2px);
+  transition: filter 0.8s ease;
+}
+.mp-bridge {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  z-index: 3;
+  width: min(620px, calc(100% - 40px));
+  transform: translate(-50%, -40%);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s var(--ease-journey), transform 0.8s var(--ease-journey);
+}
+.mp-bridge.on {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+.mp-bridge-step {
+  margin: 0 0 8px;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.mp-bridge-title {
+  margin: 0 0 10px;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(1.6rem, 3.4vw, 2.6rem);
+  line-height: 1.1;
+  color: #fff;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.6);
+}
+.mp-bridge-line {
+  margin: 0;
+  font-size: clamp(0.88rem, 1.3vw, 1rem);
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.7);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mp-bridge { transition: opacity 0.2s linear; }
+}

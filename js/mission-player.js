@@ -13,6 +13,7 @@ import { speak, stopSpeaking, speechSupported, getVoices, getChosenVoice, onVoic
 import { getSetting, setSetting } from "./settings.js";
 import { getPlaybackSpeed, setPlaybackSpeed } from "./playback.js";
 import { play, isSoundOn, isGroupOn, setGroupOn } from "./sounds.js";
+import { briefingForPlan } from "./briefing.js";
 
 const el = function (id) { return document.getElementById(id); };
 const root = el("mission-player");
@@ -184,7 +185,8 @@ function setText(c) {
   nextButton.textContent = index >= plan.chapters.length - 1 ? "Finish ⏭" : "Skip ⏭";
 }
 
-function startChapter(i) {
+// natural: the story moved on by itself (not a jump made with the buttons or the progress bar)
+function startChapter(i, natural) {
   clearTimeout(waitTimer);
   clearTimeout(advanceTimer);
   stopSpeaking();
@@ -205,8 +207,39 @@ function startChapter(i) {
   holdLastFrame(function (held) {
     if (my !== token) return;
     if (!held) fade.classList.add("on");
-    setTimeout(function () { if (my === token) beginChapter(my, c, held); }, held ? 0 : 320);
+    // When the story moves on by itself, a short bridge comes first: the last picture stays (dimmed)
+    // while a card says what happens next and when, so each scene follows from the one before
+    const bridgeTime = natural ? 1800 / Math.max(1, getPlaybackSpeed()) : 0;
+    if (bridgeTime > 0) showBridge(c, i, held);
+    setTimeout(function () {
+      if (my !== token) return;
+      hideBridge();
+      beginChapter(my, c, held);
+    }, held ? bridgeTime : 320 + bridgeTime);
   });
+}
+
+const bridge = document.createElement("div");
+bridge.className = "mp-bridge";
+bridge.setAttribute("aria-hidden", "true");
+bridge.innerHTML = '<p class="mp-bridge-step"></p><h3 class="mp-bridge-title"></h3><p class="mp-bridge-line"></p>';
+// (put in place on first use: the dissolve layer it sits above is created further down this file)
+function firstSentence(text) {
+  const m = String(text || "").match(/^[^.!?]*[.!?]/);
+  const sentence = m ? m[0] : String(text || "");
+  return sentence.length > 140 ? sentence.slice(0, 137) + "…" : sentence;
+}
+function showBridge(c, i, held) {
+  if (!bridge.parentNode && root.insertBefore) root.insertBefore(bridge, dissolve.nextSibling);
+  bridge.querySelector(".mp-bridge-step").textContent = "Scene " + (i + 1) + " of " + plan.chapters.length + (c.date ? " · " + c.date : "");
+  bridge.querySelector(".mp-bridge-title").textContent = c.title || c.label || "";
+  bridge.querySelector(".mp-bridge-line").textContent = firstSentence(c.caption);
+  dissolve.classList.toggle("dim", Boolean(held));
+  bridge.classList.add("on");
+}
+function hideBridge() {
+  bridge.classList.remove("on");
+  dissolve.classList.remove("dim");
 }
 
 // The cross-dissolve picture: drawn into a 2D canvas inside an animation frame, right after the 3D
@@ -296,6 +329,60 @@ function shortPlace(text) {
   return first.length > 34 ? first.slice(0, 33) + "…" : first;
 }
 
+// ----- The mission briefing at the start: from, to, journey time, possible or not (Show more: why) -----
+const brief = el("mp-brief");
+let briefTimer = null;
+function showBriefing(b) {
+  clearTimeout(briefTimer);
+  if (!brief) return;
+  brief.classList.add("hidden");
+  brief.classList.remove("on");
+  if (!b) return;
+  el("mp-brief-title").textContent = b.title;
+  el("mp-brief-from").textContent = b.from.name;
+  el("mp-brief-from-coords").textContent = b.from.coords;
+  el("mp-brief-to").textContent = b.to.name;
+  el("mp-brief-to-coords").textContent = b.to.coords || "";
+  el("mp-brief-time").textContent = b.journey || "Unknown";
+  const verdict = el("mp-brief-verdict");
+  verdict.className = "mp-brief-verdict " + (b.verdict ? b.verdict.kind : "");
+  verdict.querySelector("i").textContent = !b.verdict ? "" : b.verdict.kind === "possible" ? "✓" : b.verdict.kind === "unlikely" ? "✕" : "?";
+  verdict.querySelector("b").textContent = b.verdict ? b.verdict.label : "";
+  verdict.querySelector("span").textContent = b.verdict ? b.verdict.short : "";
+  const list = el("mp-brief-reasons");
+  list.innerHTML = "";
+  (b.verdict ? b.verdict.reasons : []).forEach(function (text) {
+    const li = document.createElement("li");
+    li.textContent = text;
+    list.appendChild(li);
+  });
+  list.classList.add("hidden");
+  const more = el("mp-brief-more");
+  more.textContent = "Show more";
+  more.setAttribute("aria-expanded", "false");
+  brief.classList.remove("hidden");
+  requestAnimationFrame(function () { brief.classList.add("on"); });
+  // it tucks itself away after a while (unless the reasons are open)
+  briefTimer = setTimeout(hideBriefing, 16000);
+}
+function hideBriefing() {
+  if (!brief) return;
+  brief.classList.remove("on");
+  setTimeout(function () { if (!brief.classList.contains("on")) brief.classList.add("hidden"); }, 600);
+}
+if (brief) {
+  el("mp-brief-close").addEventListener("click", function () { play("click"); clearTimeout(briefTimer); hideBriefing(); });
+  el("mp-brief-more").addEventListener("click", function () {
+    const list = el("mp-brief-reasons");
+    const open = list.classList.toggle("hidden") === false;
+    this.textContent = open ? "Show less" : "Show more";
+    this.setAttribute("aria-expanded", String(open));
+    play("click");
+    clearTimeout(briefTimer);
+    if (!open) briefTimer = setTimeout(hideBriefing, 10000); // stays while you read the reasons
+  });
+}
+
 function sayLine(my, text) {
   if (voiceOn() && text && getPlaybackSpeed() === 1) { // at 2x and 4x the captions tell the story
     voiceDone = false;
@@ -325,7 +412,7 @@ function tryAdvance(my, force) {
 function advance() {
   if (!plan) return;
   if (options.stopAfter !== undefined && index >= options.stopAfter) { finish(true); return; }
-  if (index < plan.chapters.length - 1) startChapter(index + 1);
+  if (index < plan.chapters.length - 1) startChapter(index + 1, true);
   else finish(false);
 }
 
@@ -482,6 +569,8 @@ export function togglePause() {
 
 function close(callExit) {
   active = false;
+  clearTimeout(briefTimer);
+  if (brief) { brief.classList.remove("on"); brief.classList.add("hidden"); }
   setPlaybackSpeed(1); // nothing else in the app plays fast
   token++;
   clearTimeout(waitTimer);
@@ -514,6 +603,7 @@ export function playPlan(p, opts) {
   setSpeed(1); // every replay starts at normal speed
   fillVoicePicker();
   buildTimeline();
+  showBriefing(options.brief || briefingForPlan(p));
   firstScene = true;
   startChapter(0);
   if (tickId === null) tick();

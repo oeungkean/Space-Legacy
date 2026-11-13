@@ -300,6 +300,7 @@ function groundColor(x, z, h, slope, out) {
 // is built (one tile per frame, so there is no stutter) and the row behind is removed.
 const CHUNK = 200;
 const CHUNK_SEGMENTS = 72;
+const TILE_REACH = 2; // a 5 x 5 block of tiles (1 km across) around you
 let ground = null;
 
 function buildChunk(cx, cz) {
@@ -369,14 +370,18 @@ export function updateGround(x, z) {
     ground.cx = cx;
     ground.cz = cz;
     ground.queue = [];
-    for (let dz = -1; dz <= 1; dz++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        if (!ground.chunks.has((cx + dx) + "," + (cz + dz))) ground.queue.push([cx + dx, cz + dz]);
+    // nearest tiles first
+    const wanted = [];
+    for (let dz = -TILE_REACH; dz <= TILE_REACH; dz++) {
+      for (let dx = -TILE_REACH; dx <= TILE_REACH; dx++) {
+        if (!ground.chunks.has((cx + dx) + "," + (cz + dz))) wanted.push([cx + dx, cz + dz, dx * dx + dz * dz]);
       }
     }
+    wanted.sort(function (a, b) { return a[2] - b[2]; });
+    ground.queue = wanted;
     ground.chunks.forEach(function (mesh, key) {
       const c = mesh.userData.chunk;
-      if (Math.abs(c[0] - cx) > 1 || Math.abs(c[1] - cz) > 1) {
+      if (Math.abs(c[0] - cx) > TILE_REACH || Math.abs(c[1] - cz) > TILE_REACH) {
         ground.group.remove(mesh);
         mesh.geometry.dispose();
         ground.chunks.delete(key);
@@ -390,8 +395,8 @@ export function updateGround(x, z) {
   // The distant ground moves along in big steps (a whole number of its own grid cells, so it never shifts)
   if (ground.far) {
     const cell = 6000 / 140;
-    const fx = Math.round(x / 1200) * 1200;
-    const fz = Math.round(z / 1200) * 1200;
+    const fx = Math.round(x / 400) * 400;
+    const fz = Math.round(z / 400) * 400;
     if (fx !== ground.farX || fz !== ground.farZ) {
       ground.farX = fx;
       ground.farZ = fz;
@@ -403,8 +408,14 @@ export function updateGround(x, z) {
 export function buildGround(group, world, keepClear) {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, map: detailTexture(world), roughness: 1, metalness: 0 });
   ground = { group: group, material: material, chunks: new Map(), cx: 0, cz: 0, queue: [], far: null, farX: 0, farZ: 0 };
+  // the nine nearest tiles now, the outer ring over the next frames
   for (let dz = -1; dz <= 1; dz++) {
     for (let dx = -1; dx <= 1; dx++) buildChunk(dx, dz);
+  }
+  for (let dz = -TILE_REACH; dz <= TILE_REACH; dz++) {
+    for (let dx = -TILE_REACH; dx <= TILE_REACH; dx++) {
+      if (Math.abs(dx) > 1 || Math.abs(dz) > 1) ground.queue.push([dx, dz]);
+    }
   }
 
   // Far terrain all the way to the horizon: rolling hills and crater rims with the same colors and texture,
@@ -512,7 +523,9 @@ function shapeFarTerrain(mesh, cx, cz) {
     const near = Math.max(Math.abs(x - cx), Math.abs(z - cz));
     const reach = Math.max(Math.abs(x), Math.abs(z));
     let h = farHills(x, z, reach) + fbm(x / 95, z / 95, 3, seed) * p.hills * 2;
-    h -= 2.5 * (1 - smooth(260, 340, near)); // under the detailed tiles
+    // well under the detailed tiles (they reach at least 400 m from you), so it can never show through
+    // them, even in deep craters or the rille; it rises to its full height beyond them
+    h -= 30 * (1 - smooth(560, 820, near)); // deeper than the deepest dip (Hadley Rille, 22 m)
     position.setXYZ(i, x, h, z);
     groundColor(x, z, Math.max(0, h), smooth(250, 900, reach) * 0.15, rgb);
     colors.setXYZ(i, rgb[0] * 0.96, rgb[1] * 0.96, rgb[2] * 0.96);
@@ -581,6 +594,45 @@ export function boulderAhead(x, z, dx, dz, range, width) {
 }
 
 // The mini map background: shaded relief of the area, drawn once per site
+// The same relief picture, centred anywhere and drawn a few rows at a time (so moving the mini map to
+// a new area never stutters). step(rows) draws the next rows; it returns true when the picture is done.
+export function reliefPainter(canvas, cx, cz, range) {
+  const ctx = canvas.getContext ? canvas.getContext("2d") : null;
+  if (!ctx || !ctx.createImageData) return { step: function () { return true; } };
+  const w = canvas.width;
+  const h = canvas.height;
+  const image = ctx.createImageData(w, h);
+  const rgb = [0, 0, 0];
+  const step = (range * 2) / w;
+  const rowHeights = function (py) {
+    const row = new Float32Array(w + 1);
+    for (let px = 0; px <= w; px++) row[px] = heightAt(cx - range + px * step, cz - range + py * step);
+    return row;
+  };
+  let y = 0;
+  let current = rowHeights(0);
+  return {
+    step: function (rows) {
+      for (let n = 0; n < rows && y < h; n++, y++) {
+        const next = rowHeights(y + 1);
+        for (let px = 0; px < w; px++) {
+          const hc = current[px];
+          const shade = Math.max(0.35, Math.min(1.25, 0.85 + ((hc - current[px + 1]) * 0.9 + (hc - next[px]) * 0.6) / step * 0.9));
+          groundColor(cx - range + px * step, cz - range + y * step, hc, 0, rgb);
+          const i = (y * w + px) * 4;
+          image.data[i] = Math.min(255, rgb[0] * 255 * shade);
+          image.data[i + 1] = Math.min(255, rgb[1] * 255 * shade);
+          image.data[i + 2] = Math.min(255, rgb[2] * 255 * shade);
+          image.data[i + 3] = 255;
+        }
+        current = next;
+      }
+      if (y >= h) { ctx.putImageData(image, 0, 0); return true; }
+      return false;
+    }
+  };
+}
+
 export function drawRelief(canvas, range) {
   const ctx = canvas.getContext ? canvas.getContext("2d") : null;
   if (!ctx || !ctx.createImageData) return;

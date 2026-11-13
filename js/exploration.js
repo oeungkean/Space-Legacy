@@ -20,7 +20,7 @@ import { createSuitedAstronaut } from "./astronaut.js";
 import { SITES, EQUIPMENT, GRAVITY, SUITS } from "../data/simulator.js";
 import {
   buildTerrainShape, heightAt as terrainHeight, terrainNormal, buildGround as buildTerrainGround,
-  collideBoulders, boulderAhead, drawRelief, getTerrain, updateGround
+  collideBoulders, boulderAhead, reliefPainter, getTerrain, updateGround
 } from "./terrain.js";
 import { planetMaterial as lookMaterial, cloudMaterial } from "./planet-look.js";
 import { uiIcon } from "./icons.js";
@@ -1905,16 +1905,44 @@ function updateDust(dt) {
 }
 
 // ----- Mini map -----
-const RELIEF_RANGE = 230;
-const relief = document.createElement("canvas");
-relief.width = 400;
-relief.height = 400;
+// The relief picture covers 640 m around a centre that follows you: when you get 100 m from its centre,
+// a new picture around you is drawn in the background (a few rows per frame) and swapped in, so the map
+// never runs out (it used to be one fixed picture of the landing area, black beyond it)
+const RELIEF_RANGE = 320;
+let relief = makeReliefCanvas();
+let reliefCenter = { x: 0, z: 0 };
+let reliefNext = null;
+function makeReliefCanvas() {
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 512;
+  return c;
+}
+function keepReliefAround(center) {
+  if (reliefNext) {
+    if (reliefNext.painter.step(10)) {
+      relief = reliefNext.canvas;
+      reliefCenter = { x: reliefNext.x, z: reliefNext.z };
+      reliefNext = null;
+    }
+    return;
+  }
+  if (Math.hypot(center.x - reliefCenter.x, center.z - reliefCenter.z) > 100) {
+    const x = Math.round(center.x / 20) * 20;
+    const z = Math.round(center.z / 20) * 20;
+    const canvas = makeReliefCanvas();
+    reliefNext = { canvas: canvas, x: x, z: z, painter: reliefPainter(canvas, x, z, RELIEF_RANGE) };
+  }
+}
 let mapRange = 70;     // meters from the center to the edge
 let mapDrawn = 0;
 
 function buildMap() {
   if (!mapCanvas || site.world === "orbit") return;
-  drawRelief(relief, RELIEF_RANGE);
+  relief = makeReliefCanvas();
+  reliefCenter = { x: 0, z: 0 };
+  reliefNext = null;
+  reliefPainter(relief, 0, 0, RELIEF_RANGE).step(relief.height);
   mapDrawn = 0;
 }
 
@@ -1945,6 +1973,7 @@ function drawMap(force) {
   if (!ctx || !ctx.drawImage) return;
   const size = mapCanvas.width;
   const center = focusPosition();
+  keepReliefAround(center);
   const scale = size / (mapRange * 2);
   const toX = function (x) { return size / 2 + (x - center.x) * scale; };
   const toY = function (z) { return size / 2 + (z - center.z) * scale; };
@@ -1958,7 +1987,7 @@ function drawMap(force) {
   // Relief picture: the part around you
   const k = relief.width / (RELIEF_RANGE * 2);
   ctx.globalAlpha = 0.95;
-  ctx.drawImage(relief, (center.x - mapRange + RELIEF_RANGE) * k, (center.z - mapRange + RELIEF_RANGE) * k, mapRange * 2 * k, mapRange * 2 * k, 0, 0, size, size);
+  ctx.drawImage(relief, (center.x - reliefCenter.x - mapRange + RELIEF_RANGE) * k, (center.z - reliefCenter.z - mapRange + RELIEF_RANGE) * k, mapRange * 2 * k, mapRange * 2 * k, 0, 0, size, size);
   ctx.globalAlpha = 1;
   // Boulders
   ctx.fillStyle = "rgba(15,15,18,0.65)";

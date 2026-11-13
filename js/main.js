@@ -41,6 +41,7 @@ import {
 import { startCinematic, stopCinematic, skipCinematic, isCinematicRunning } from "./launch-cinematic.js";
 import { startLanding, stopLanding, hasLanding } from "./landing-scene.js";
 import { hardwareList } from "../data/hardware.js";
+import { missionBriefing } from "./briefing.js";
 
 // Find the elements on the page
 const welcomeScreen = document.getElementById("welcome-screen");
@@ -499,6 +500,15 @@ function planForSim(config) {
 
 let missionReturn = null; // the trip home, played after exploring
 
+// The mission briefing (where from, where to, how long, possible or not) for a Mission Builder mission
+function briefOf(config) {
+  try {
+    return missionBriefing({ rocket: config.rocket, spacecraft: config.spacecraft, destination: config.destination, siteId: config.siteId, title: config.title });
+  } catch (error) {
+    return null; // the mission still plays without its briefing
+  }
+}
+
 document.addEventListener("sim-launch", function (event) {
   const config = event.detail;
   startMission(config);
@@ -515,12 +525,14 @@ document.addEventListener("sim-launch", function (event) {
     missionReturn = parts.ret.some(function (c) { return c.engine === "landing"; }) ? { title: plan.title, chapters: parts.ret }
       : capsule ? { title: plan.title, chapters: genericReturn(plan.title, craft, capsule, site.world === "orbit" ? "earth" : site.world) } : null;
     playReplay({ title: plan.title, chapters: parts.outbound }, {
+      brief: briefOf(config),
       stopAfter: parts.outbound.length - 1,
       onFinish: function () { goToMissionSite(getMission()); }
     });
   } else {
     missionReturn = null;
     playReplay(plan, {
+      brief: briefOf(config),
       endTitle: "Mission complete",
       onFinish: function () {
         completeObjective("reach");

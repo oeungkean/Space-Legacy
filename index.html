@@ -990,6 +990,20 @@
       <div id="mp-map" class="mp-map hidden" aria-hidden="true"></div>
       <button id="mp-exit" class="small-button mp-exit" data-silent title="Exit the replay (Esc)">Exit replay &times;</button>
     </div>
+    <!-- Mission briefing (js/briefing.js): from, to, journey time, possible or not, and why -->
+    <aside id="mp-brief" class="mp-brief hidden" aria-label="Mission briefing">
+      <button id="mp-brief-close" class="mp-brief-close" data-silent aria-label="Close the briefing">&times;</button>
+      <p class="mp-brief-kicker">Mission briefing</p>
+      <h4 id="mp-brief-title"></h4>
+      <dl class="mp-brief-rows">
+        <dt>From</dt><dd><b id="mp-brief-from"></b><span id="mp-brief-from-coords"></span></dd>
+        <dt>To</dt><dd><b id="mp-brief-to"></b><span id="mp-brief-to-coords"></span></dd>
+        <dt>Journey</dt><dd><b id="mp-brief-time"></b></dd>
+      </dl>
+      <p id="mp-brief-verdict" class="mp-brief-verdict"><i aria-hidden="true"></i><b></b><span></span></p>
+      <button id="mp-brief-more" class="mp-brief-more" data-silent aria-expanded="false" aria-controls="mp-brief-reasons">Show more</button>
+      <ul id="mp-brief-reasons" class="mp-brief-reasons hidden"></ul>
+    </aside>
     <div class="mp-bottom">
       <p id="mp-caption" class="mp-caption" aria-live="polite"></p>
       <p id="mp-voice-note" class="mp-voice-note hidden"></p>

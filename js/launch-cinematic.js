@@ -12,7 +12,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { createLauncher, createAstronaut, strut } from "./models.js";
 import { createRocket } from "./rockets.js";
 import { createParticleSystem } from "./particles.js";
-import { planetMaterial, cloudMaterial } from "./planet-look.js";
+import { planetMaterial, cloudMaterial, addSurfaceDetail } from "./planet-look.js";
 import { createGlow } from "./glow.js";
 import { play, isSoundOn, setSoundOn, onSoundChange, isGroupOn } from "./sounds.js";
 import { wantsReducedMotion } from "./settings.js";
@@ -166,6 +166,7 @@ let earthBall = null;
 let ascent = null;            // state of the climb to orbit
 let ascentTrail = null;       // the path flown, drawn on Earth
 let ascentMarker = null;      // a glow on the rocket for the pull-back
+let cloudDeck = null;         // clouds the rocket climbs through
 let totalTime = 0;
 let captionOverride = null;  // the mission name and date, in liftoff-only mode
 
@@ -331,6 +332,26 @@ function buildEnvironment() {
 // Flat scrubland, a crawlerway, an assembly building in the distance, a water tower and the ocean beside the pad.
 let coastGroup = null;
 
+// Dry steppe grass (Baikonur): tan and straw, with darker patches
+function steppeTexture() {
+  const drawing = document.createElement("canvas");
+  drawing.width = 512;
+  drawing.height = 512;
+  const ctx = drawing.getContext("2d");
+  ctx.fillStyle = "#a8956a";
+  ctx.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 9000; i++) {
+    const g = Math.floor(random(120, 180));
+    ctx.fillStyle = Math.random() < 0.3 ? "rgba(" + (g - 40) + "," + (g - 50) + "," + (g - 80) + ",0.35)" : "rgba(" + (g + 20) + "," + (g + 5) + "," + (g - 40) + ",0.3)";
+    ctx.fillRect(Math.random() * 512, Math.random() * 512, random(1, 4), random(1, 4));
+  }
+  const texture = new THREE.CanvasTexture(drawing);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(160, 160);
+  return texture;
+}
+
 function coastTexture() {
   const drawing = document.createElement("canvas");
   drawing.width = 512;
@@ -381,6 +402,7 @@ function buildCoast() {
   land.position.y = -0.05;
   land.receiveShadow = true;
   coastGroup.add(land);
+  coastGroup.userData.land = land;
   // The Atlantic Ocean, just east of the pad: small waves (a moving ripple map) that catch the sun,
   // turquoise shallows and a line of surf along the beach
   const waves = waveNormalTexture();
@@ -391,6 +413,7 @@ function buildCoast() {
   ocean.position.set(4500 + 520, 0.02, 0);
   ocean.receiveShadow = true;
   coastGroup.add(ocean);
+  coastGroup.userData.sea = [ocean];
   coastGroup.userData.waves = waves;
   const shallows = new THREE.Mesh(new THREE.PlaneGeometry(70, 9000), new THREE.MeshStandardMaterial({
     color: 0x4fa6a6, roughness: 0.3, metalness: 0.1, transparent: true, opacity: 0.75, normalMap: waves, normalScale: new THREE.Vector2(0.3, 0.3)
@@ -398,6 +421,7 @@ function buildCoast() {
   shallows.rotation.x = -Math.PI / 2;
   shallows.position.set(555, 0.03, 0);
   coastGroup.add(shallows);
+  coastGroup.userData.sea.push(shallows);
   const surf = new THREE.Mesh(new THREE.PlaneGeometry(5, 9000), new THREE.MeshBasicMaterial({ color: 0xf2f6f8, transparent: true, opacity: 0.8 }));
   surf.rotation.x = -Math.PI / 2;
   surf.position.set(523, 0.04, 0);
@@ -407,6 +431,7 @@ function buildCoast() {
   beach.rotation.x = -Math.PI / 2;
   beach.position.set(500, 0.01, 0);
   coastGroup.add(beach);
+  coastGroup.userData.sea.push(beach, surf);
   // Crawlerway: two gravel lanes leading to the assembly building
   const gravel = new THREE.MeshStandardMaterial({ color: 0xbab3a4, roughness: 1 });
   [-9, 9].forEach(function (offset) {
@@ -477,6 +502,7 @@ function buildCoast() {
     const angle = random(0, Math.PI * 2);
     cloud.position.set(Math.cos(angle) * random(2400, 3400), random(380, 650), Math.sin(angle) * random(2400, 3400));
     coastGroup.add(cloud);
+    (coastGroup.userData.clouds = coastGroup.userData.clouds || []).push(cloud);
   }
 }
 
@@ -684,6 +710,7 @@ function buildVegetation() {
     }
   }
   pines.count = k;
+  coastGroup.userData.plants = [shrubs, pines];
   [shrubs, pines].forEach(function (mesh) {
     mesh.castShadow = false;
     mesh.receiveShadow = true;
@@ -781,7 +808,7 @@ function endRollout() {
   rocketRoot.position.set(0, restY, 0);
   rocketRoot.rotation.set(0, 0, 0);
   const heightMeters = rocketModel.userData.height * ROCKET_SCALE;
-  sunLight.position.set(-200, 320, 400);
+  sunLight.position.copy(missionSun || new THREE.Vector3(-200, 320, 400));
   sunLight.target.position.set(0, heightMeters * 0.35, 0);
   sunLight.target.updateMatrixWorld();
 }
@@ -807,7 +834,8 @@ function updateRollout(t, dt) {
     rocketRoot.position.set(BUILDING.x, rollout.deck + lift, z);
   }
   // the sun's shadows follow the rig
-  sunLight.position.set(BUILDING.x - 200, 320, z + 400);
+  const sunAt = missionSun || new THREE.Vector3(-200, 320, 400);
+  sunLight.position.set(BUILDING.x + sunAt.x, sunAt.y, z + sunAt.z);
   sunLight.target.position.set(BUILDING.x, rollout.height * 0.35, z);
   sunLight.target.updateMatrixWorld();
   // dust from the tracks
@@ -833,6 +861,69 @@ function updateRollout(t, dt) {
   camera.updateProjectionMatrix();
   camera.lookAt(target);
   setRumble(0.08, 200);
+}
+
+// Where each rocket really launched from, and how the place looks
+const SITE_LOOKS = {
+  florida: {
+    name: "Florida", lat: 28.6, lon: -80.6, land: 0xffffff, sea: true, plants: [1, 1], plantTint: null, cloudy: 0,
+    horizon: 0xd6e7f6, mid: 0x86b6ea, zenith: 0x2c64c4, fog: 0xcfe0f2
+  },
+  // Guiana Space Centre: tropical rainforest close to the Atlantic, often under big cumulus clouds
+  kourou: {
+    name: "Kourou", lat: 5.2, lon: -52.8, land: 0x8fbf7a, sea: true, plants: [1.25, 1.6], plantTint: 0x2f6a2c, cloudy: 1,
+    horizon: 0xc9d4de, mid: 0x8fa8c2, zenith: 0x3d5f8e, fog: 0xc4ced8
+  },
+  // Baikonur: flat, dry steppe far from any sea
+  baikonur: {
+    name: "Baikonur", lat: 45.9, lon: 63.3, ground: "steppe", land: 0xffffff, sea: false, plants: [0.35, 0], plantTint: 0x9a8d5c, cloudy: 0,
+    horizon: 0xe4e6e2, mid: 0xa9c4e2, zenith: 0x4677bb, fog: 0xe0e2dc
+  }
+};
+const ROCKET_SITE = { "ariane-5": "kourou", proton: "baikonur" };
+let siteLook = SITE_LOOKS.florida;
+
+function applySiteLook(look) {
+  siteLook = look;
+  const u = coastGroup.userData;
+  if (u.land) {
+    if (!u.landMaps) u.landMaps = { grass: u.land.material.map, steppe: null };
+    if (look.ground === "steppe" && !u.landMaps.steppe) u.landMaps.steppe = steppeTexture();
+    u.land.material.map = look.ground === "steppe" ? u.landMaps.steppe : u.landMaps.grass;
+    u.land.material.color.set(look.land);
+    u.land.material.needsUpdate = true;
+  }
+  (u.sea || []).forEach(function (mesh) { mesh.visible = look.sea; });
+  (u.plants || []).forEach(function (mesh, i) {
+    mesh.visible = look.plants[i] > 0;
+    mesh.scale.set(1, look.plants[i] || 1, 1);
+    if (mesh.material) mesh.material.color.set(look.plantTint || 0xffffff);
+  });
+  (u.clouds || []).forEach(function (cloud, i) {
+    // more and lower clouds at Kourou; a few high ones elsewhere
+    cloud.visible = look.cloudy > 0 || i % 2 === 0;
+    cloud.scale.setScalar(look.cloudy ? 1.3 : 1);
+    if (cloud.userData.baseY === undefined) cloud.userData.baseY = cloud.position.y;
+    cloud.position.y = cloud.userData.baseY * (look.cloudy ? 0.85 : 1);
+  });
+  skyMaterial.uniforms.uHorizon.value.set(look.horizon);
+  skyMaterial.uniforms.uMid.value.set(look.mid);
+  skyMaterial.uniforms.uZenith.value.set(look.zenith);
+  scene.fog = new THREE.Fog(look.fog, look.cloudy ? 380 : 400, look.cloudy ? 4600 : 5200);
+  // the Earth of the climb turns so this site is under the rocket
+  if (earthBall && earthBall.children[0]) earthBall.children[0].quaternion.copy(siteOnTop(look.lat, look.lon));
+}
+
+// A number made from the mission's name and rocket: picks this mission's own camera shots, sun angle
+// and weather, so two missions never look the same (but the same mission always plays the same way)
+let missionSeed = 0;
+function seedFrom(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0) / 4294967295;
+}
+function pick(list, salt) {
+  return list[Math.floor(seedFrom(String(missionSeed) + salt) * list.length) % list.length];
 }
 
 // Day or sunset: the intro uses the sunset hills, mission launches the coastal site in daylight
@@ -878,12 +969,15 @@ function buildEarthBall() {
   globe.quaternion.copy(siteOnTop(LAUNCH_SITE.lat, LAUNCH_SITE.lon));
   earthBall.add(globe);
   const surface = planetMaterial("Earth", null, { hd: true }); // the 4096 px day map: much sharper this close
+  // fine grain on the ground for the close views early in the climb (fades out with distance)
+  addSurfaceDetail(surface, { repeat: 900, near: 400, far: 3500, strength: 0.28, bump: 0.25 });
   surface.fog = false;
   const ball = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 192, 128), surface);
   globe.add(ball);
   const cloudLayer = cloudMaterial();
   cloudLayer.fog = false;
   cloudLayer.opacity = 0.55; // thin, so the coast and the ocean show through
+  addSurfaceDetail(cloudLayer, { repeat: 700, near: 400, far: 3500, strength: 0.35, bump: 0.6 }); // puffy texture up close
   const clouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.002, 192, 128), cloudLayer);
   globe.add(clouds);
   // The air: the same soft glow as the Solar System's Earth (bright, thin blue haze at the horizon that
@@ -901,6 +995,20 @@ function buildEarthBall() {
   ascentTrail = new THREE.Line(trailGeometry, new THREE.LineBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0, depthWrite: false, fog: false }));
   ascentTrail.frustumCulled = false;
   earthBall.add(ascentTrail);
+  // a deck of clouds a little above the ground, which the rocket climbs up through early in the climb
+  cloudDeck = new THREE.Group();
+  const deckMap = cloudPuffTexture();
+  for (let i = 0; i < 70; i++) {
+    const puff = new THREE.Sprite(new THREE.SpriteMaterial({ map: deckMap, color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, fog: false }));
+    const a = random(0, Math.PI * 2);
+    const d = Math.pow(Math.random(), 0.6) * 900;
+    puff.position.set(Math.cos(a) * d, random(-6, 6), Math.sin(a) * d);
+    const size = random(90, 220);
+    puff.scale.set(size * 1.6, size * 0.6, 1);
+    cloudDeck.add(puff);
+  }
+  cloudDeck.visible = false;
+  scene.add(cloudDeck);
   ascentMarker = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeSunTexture(), color: 0xfff1d6, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false }));
   scene.add(ascentMarker);
 }
@@ -1379,6 +1487,18 @@ function emitSmoke(base, rocketY, power, t, dt) {
     }
   }
 
+  // Exhaust deflected down the flame trench comes out to both sides in big rolling clouds
+  if (power > 0.3 && rocketY < 220) {
+    carry.trench = (carry.trench || 0) + 24 * power * dt;
+    while (carry.trench >= 1) {
+      carry.trench -= 1;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const position = new THREE.Vector3(side * random(35, 55), PAD_Y + random(1, 4), random(-6, 6));
+      const velocity = new THREE.Vector3(side * random(14, 26), random(2, 7), random(-3, 3));
+      particles.emit(false, position, velocity, random(10, 16), random(36, 64), random(4.5, 6.5), random(0.45, 0.65), 0xf3f1ec, 0.4);
+    }
+  }
+
   // A trail left behind the rising vehicle
   if (rocketY > 6 && rocketY < 700) {
     carry.trail += 60 * dt;
@@ -1516,36 +1636,88 @@ function updateMissionLaunch(t, dt) {
   padLight.intensity = 320 * ignition * flicker * (1 - smoothstep(10, 140, rocketY));
   padLight.position.set(0, base.y + 4, 0);
 
-  // Camera shots
+  // Camera shots: four moments (venting, ignition, liftoff, climb), each filmed with one of several
+  // shots chosen for this mission (see shotPlan), so every mission's launch looks different
   const s = frameScale;
   let shake = 0;
   let target;
+  const plan = shotPlan || { venting: "water", ignition: "engines", liftoff: "tower", climb: "tracking" };
+  const lift = Math.max(0, rocketY - restY);
   if (t < LAUNCH_IGNITION - 0.5) {
-    // 1. Long lens across the water: the rocket on the pad, steam venting
-    camera.fov = 16;
-    camera.position.set(620 * s, 12, 820 * s);
-    target = new THREE.Vector3(0, 32 * s, 0);
+    if (plan.venting === "front") {
+      // straight down the approach road: the pad, the rocket and its tower in the middle
+      camera.fov = 30;
+      camera.position.set(0, 6, 360 * s - t * 6);
+      target = new THREE.Vector3(0, 40 * s, 0);
+    } else if (plan.venting === "drone") {
+      // a slow drone circle high above the pad
+      const a = 0.6 + t * 0.05;
+      camera.fov = 40;
+      camera.position.set(Math.cos(a) * 160 * s, 150 * s, Math.sin(a) * 160 * s);
+      target = new THREE.Vector3(0, 20 * s, 0);
+    } else {
+      // long lens across the water (or the plain), steam venting
+      camera.fov = 16;
+      camera.position.set(620 * s, 12, 820 * s);
+      target = new THREE.Vector3(0, 32 * s, 0);
+    }
     for (let v = perSecond("vent", 18, dt); v > 0; v--) particles.emit(false, new THREE.Vector3(random(-2, 2), random(20, 50) * s, random(-2, 2)), new THREE.Vector3(random(1, 3), random(-0.5, 0.5), 0), random(1.5, 3), random(6, 10), 2.5, 0.4, 0xffffff, 0.5); // venting
   } else if (t < LAUNCH_LIFTOFF + 1.2) {
-    // 2. Close on the engines: ignition, flames into the flame trench
-    // aimed low, so the engines and their fire sit in the middle of the picture (above the captions)
-    camera.fov = 38;
-    camera.position.set(-34 * s, 4, 46 * s);
-    target = new THREE.Vector3(0, 3.5 * s + Math.max(0, rocketY - restY) * 0.6, 0);
-    shake = 0.05 + 0.25 * ignition;
+    if (plan.ignition === "under") {
+      // a camera beside the flame trench, looking up past the engines at the whole rocket
+      camera.fov = 70;
+      camera.position.set(-9 * s, 1.2, 9 * s);
+      target = new THREE.Vector3(0, 30 * s + lift, 0);
+      shake = 0.1 + 0.35 * ignition;
+    } else {
+      // close on the engines, from in front of the pad: the trench smoke rolls out to both sides
+      camera.fov = 38;
+      camera.position.set(10 * s, 4, 58 * s);
+      target = new THREE.Vector3(0, 3.5 * s + lift * 0.6, 0);
+      shake = 0.05 + 0.25 * ignition;
+    }
   } else if (t < LAUNCH_LIFTOFF + 4.2) {
-    // 3. From the base of the tower looking up as the rocket clears it
-    camera.fov = 55;
-    camera.position.set(22 * s, 3, 18 * s);
-    target = new THREE.Vector3(0, rocketY + 30 * s, 0);
-    shake = 0.35;
+    if (plan.liftoff === "front") {
+      // head-on from the approach road: smoke rolling out to both sides, the rocket rising in the middle
+      camera.fov = 34;
+      camera.position.set(0, 5, 300 * s);
+      target = new THREE.Vector3(0, 35 * s + lift * 0.8, 0);
+      shake = 0.15;
+    } else if (plan.liftoff === "drone") {
+      // looking straight down from above: the rocket climbs toward the camera out of its own smoke
+      camera.fov = 50;
+      camera.position.set(6 * s, rocketY + 140 * s - (t - LAUNCH_LIFTOFF) * 6 * s, 30 * s);
+      target = new THREE.Vector3(0, 0, 0);
+      shake = 0.05;
+    } else {
+      // from the base of the tower looking up as the rocket clears it
+      camera.fov = 55;
+      camera.position.set(22 * s, 3, 18 * s);
+      target = new THREE.Vector3(0, rocketY + 30 * s, 0);
+      shake = 0.35;
+    }
   } else {
-    // 4. A tracking camera far away follows the rocket up into the sky
-    camera.fov = 24;
-    camera.position.set(-520 * s, 20, 760 * s);
-    target = new THREE.Vector3(0, rocketY + 20 * s, 0);
-    shake = 0.04;
+    if (plan.climb === "clouds") {
+      // closer, from the side, as it climbs toward the clouds
+      camera.fov = 30;
+      camera.position.set(-260 * s, rocketY * 0.7 + 40, 380 * s);
+      target = new THREE.Vector3(0, rocketY + 10 * s, 0);
+      shake = 0.03;
+    } else if (plan.climb === "below") {
+      // from near the pad, looking almost straight up at the rising flame
+      camera.fov = 45;
+      camera.position.set(60 * s, 4, 90 * s);
+      target = new THREE.Vector3(0, rocketY + 10 * s, 0);
+      shake = 0.08;
+    } else {
+      // a tracking camera far away follows the rocket up into the sky
+      camera.fov = 24;
+      camera.position.set(-520 * s, 20, 760 * s);
+      target = new THREE.Vector3(0, rocketY + 20 * s, 0);
+      shake = 0.04;
+    }
   }
+  if (camera.position.distanceTo(target) < 1) target.x += 1; // (never look from a point at itself)
   camera.updateProjectionMatrix();
   shakeCamera(shake, target);
   camera.lookAt(target);
@@ -1575,6 +1747,8 @@ function updateMissionLaunch(t, dt) {
   }
 }
 let launchStep = -1;
+let shotPlan = null;
+let missionSun = null; // this mission's sun position at the pad
 
 // ----- Scene 4: the climb to orbit -----
 function hasAscent() {
@@ -1608,6 +1782,7 @@ function beginAscent() {
   sunLight.intensity = 2.8;
   sunLight.castShadow = false; // nothing below the rocket to receive a shadow up here
   sunSprite.visible = false;
+  if (cloudDeck) cloudDeck.visible = true;
   detached.forEach(function (part) { scene.remove(part); });
   detached = [];
   rocketRoot.position.set(0, 0, 0);
@@ -1919,6 +2094,17 @@ function updateAscent(t, dt) {
   earthBall.rotation.z = ascent.downrange;
   skyMaterial.uniforms.uSpace.value = smoothstep(15, 160, altitude);
   stars.material.opacity = smoothstep(120, 420, altitude);
+  // the cloud layer sits about 30 units above the ground: the rocket passes up through it, and it drops away
+  if (cloudDeck) {
+    cloudDeck.visible = altitude < 400;
+    cloudDeck.position.set(0, earthBall.position.y + EARTH_R + 30, 0);
+    const fade = 1 - smoothstep(200, 400, altitude);
+    cloudDeck.children.forEach(function (puff) { puff.material.opacity = 0.85 * fade * (siteLook.cloudy ? 1 : 0.7); });
+  }
+  // above the air the Sun shines in a black sky
+  sunSprite.visible = altitude > 150;
+  sunSprite.position.copy(sunLight.position).normalize().multiplyScalar(2600).add(camera.position);
+  sunSprite.scale.setScalar(700);
   updateAscentTrail(dt);
 
   // Parts that have separated fall behind (in the rocket's frame they drift back and down)
@@ -1961,8 +2147,12 @@ function updateAscent(t, dt) {
     const farDir = farPos.clone().normalize();
     const k = away * away * (3 - 2 * away);
     const distance = Math.exp(Math.log(offset.length()) * (1 - k) + Math.log(farPos.length()) * k);
-    camera.position.copy(nearDir.lerp(farDir, k).normalize().multiplyScalar(distance));
-    target.lerp(farTarget, k);
+    // first straight out and up, away from Earth (never down close to the ground), keeping the rocket
+    // in the middle; the look only turns to the whole planet near the end
+    const up = new THREE.Vector3(0, 1, 0);
+    const dir = nearDir.lerp(farDir, k).add(up.multiplyScalar(Math.sin(Math.PI * k) * 0.8)).normalize();
+    camera.position.copy(dir.multiplyScalar(distance));
+    target.lerp(farTarget, Math.pow(k, 2.5));
   } else {
     camera.position.copy(offset);
   }
@@ -2087,6 +2277,23 @@ export function startCinematic(onFinish, options) {
     earthBall.visible = false;
     sunLight.castShadow = true; // switched off during the climb to orbit
     setLaunchSite(Boolean(options.mission));
+    missionSeed = seedFrom((options.caption || "") + "|" + (rocketKey || ""));
+    missionSun = null;
+    shotPlan = null;
+    if (options.mission) {
+      applySiteLook(SITE_LOOKS[ROCKET_SITE[rocketKey]] || SITE_LOOKS.florida);
+      // the sun's height and direction differ from mission to mission (morning, midday, afternoon)
+      const sunAngle = -0.6 + seedFrom(missionSeed + "sun") * 1.4;
+      const sunHeight = 220 + seedFrom(missionSeed + "high") * 260;
+      sunLight.position.set(Math.sin(sunAngle) * 450, sunHeight, Math.cos(sunAngle) * 450);
+      missionSun = sunLight.position.clone();
+      shotPlan = {
+        venting: pick(["water", "front", "drone"], "a"),
+        ignition: pick(["engines", "under"], "b"),
+        liftoff: pick(["tower", "front", "drone"], "c"),
+        climb: pick(["tracking", "clouds", "below"], "d")
+      };
+    }
     buildRollout(rollStyle);
     ascent = null;
     pausedAt = null;

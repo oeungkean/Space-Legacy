@@ -1,5 +1,54 @@
 # Progress
 
+## Completed (2026-11-14): Kampu Space Master Doc (5)
+**Exploring**
+- **Mini map never runs out:** it was one fixed picture of the 460 m around the landing site, black beyond it. It now follows you: when you're 100 m from its centre, a new 640 m picture is drawn around you in the background, 10 rows at a time, and swapped in.
+- **"Rover underground" fixed:** the distant backdrop is a coarse version of the ground without craters or the rille. It was only sunk under the detailed tiles near its old centre (re-centred every 1,200 m), so further out it showed through, over the rover. Now:
+  - The tiles are a 5×5 block (1 km).
+  - The backdrop re-centres every 400 m and sits 30 m below the tiles wherever they are (deeper than Hadley Rille).
+  - Measured 420 m out in the rille: 0 of 272 backdrop points above the ground.
+
+**Mission briefing** (new `js/briefing.js`, a card in the player at the start; it tucks away after 16 s or with ×):
+- **Card:** from (launch site, approximate coordinates), to (real landing coordinates, or a description), journey time, and a verdict.
+- **Verdicts:**
+  - ✓ "Possible: it really flew" when the exact rocket, spacecraft and destination match a real mission.
+  - ? "Not proven" for Free Build mixes.
+  - ✕ "Unlikely" or "Not possible as built" when facts in the data argue against it: no crewed spacecraft has gone beyond the Moon; the rocket never sent anything that far in real missions; a lander or rover sent somewhere with no surface.
+- **Show more:** lists the reasons and says plainly that this is a simplified guide, not a performance calculation. The project has no verified payload numbers, so none are invented.
+
+**Every mission's launch is different**
+- **Launch sites:**
+  - Ariane 5 at Kourou: rainforest green, bigger cumulus clouds, greyer sky.
+  - Proton at Baikonur: dry tan steppe, no sea, no pines.
+  - Everything else at Florida.
+  - The climb's Earth turns so that site is under the rocket.
+- **Per-mission film:** a seed from the mission name picks the camera shot for each moment, plus the sun's angle. Shots include a head-on view down the approach road, a drone circle or top-down view, a camera under the engines looking up, the tower base, a side view toward the clouds and one from below.
+- **Smoke:** rolls out of the flame trench to both sides, as in the ESA animation.
+- **Climb:** the rocket climbs up through a cloud deck, and above the air the Sun shows in the black sky.
+
+**Earth during the climb:**
+- **Surface:** fine grain on the ground and clouds for the close views.
+- **Pull-back path:** goes straight out and up, keeping the rocket centred, so the frame in the middle shows the coast clearly, not blurred ground.
+
+**Scenes connect like a story:** when a scene ends by itself, its last picture stays dimmed for about 1.8 s with a card saying what comes next, e.g. "Scene 2 of 10 · July 16, 1969 · Parking orbit and departure burn", plus the first line of its caption. Then the next scene dissolves in. It's shorter at 2× or 4×, and jumps made with the buttons or the bar skip it.
+
+**Tested** at 1366×768:
+- Briefing logic for a real mission and three Free Build mixes.
+- Briefing card and Show more on the Apollo 11 replay.
+- The bridge between scenes 1 and 2.
+- Kourou, Baikonur and Florida launches (venting, ignition, liftoff).
+- The cloud deck and the pull-back.
+- Hadley 420 m out (backdrop check, mini-map).
+- No console errors.
+
+**Found and fixed during testing:**
+- The bridge card was created before the layer it sits next to, which stopped the player module from loading.
+- The trench smoke whited out the ignition shot.
+
+**Not verified:** real GPU smoothness, and the CSS fades (the hidden test pane doesn't run them).
+
+**Next step to consider:** sharper close-up Earth would need a higher-resolution day map and cloud map stored in `assets/` (for example NASA's Blue Marble, which is public domain). That means downloading files, so it needs your OK.
+
 ## Completed (2026-11-13): Kampu Space Master Doc (4)
 - **Player controls are at the bottom again.** The previous round gave their container `position: relative` for the drag thumb, which overrode its bottom placement. The draggable bar still works.
 - **Climb to orbit:**
