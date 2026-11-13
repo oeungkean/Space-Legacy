@@ -170,6 +170,8 @@ function setGroupOpen(group, open) {
   group.root.classList.toggle("open", open);
   group.toggle.setAttribute("aria-expanded", String(open));
   group.body.hidden = !open;
+  const action = group.toggle.querySelector ? group.toggle.querySelector(".dd-action-label") : null;
+  if (action) action.textContent = open ? "Hide" : "Show";
 }
 
 function sidebarRow(label, meta, dot, onClick, data) {
@@ -186,7 +188,7 @@ function sidebarRow(label, meta, dot, onClick, data) {
   row.addEventListener("click", function () {
     onClick();
     sidebar.classList.remove("open");
-    if (group) setGroupOpen(group, false); // a dropdown closes once you choose
+    // the dropdown stays open after choosing; it only closes when its header is clicked
     play("tick");
     render();
   });
@@ -199,8 +201,10 @@ function sidebarHeading(text) {
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.className = "dd-toggle";
-  toggle.innerHTML = '<span class="dd-title"></span><span class="dd-value"></span>' +
-    '<svg class="dd-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+  // A box: the label, the current choice below it, and a "Show / Hide" pill that says what a click does
+  toggle.innerHTML = '<span class="dd-text"><span class="dd-title"></span><span class="dd-value"></span></span>' +
+    '<span class="dd-action"><span class="dd-action-label">Show</span>' +
+    '<svg class="dd-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span>';
   const body = document.createElement("div");
   body.className = "dd-body";
   body.id = "explorer-dd-" + filterGroups.length;
@@ -211,10 +215,9 @@ function sidebarHeading(text) {
   categoryList.appendChild(root);
   const group = { root: root, toggle: toggle, body: body };
   setGroupOpen(group, false);
+  // Each box opens and closes only when its own header is clicked
   toggle.addEventListener("click", function () {
-    const open = !root.classList.contains("open");
-    filterGroups.forEach(function (other) { if (other !== group) setGroupOpen(other, false); });
-    setGroupOpen(group, open);
+    setGroupOpen(group, !root.classList.contains("open"));
   });
   filterGroups.push(group);
   currentGroup = group;
@@ -682,13 +685,19 @@ function centerModel(model) {
   box.getCenter(center);
   model.position.sub(center);
   holder.userData.radius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
+  // The sphere that holds the whole model, whichever way it turns (half the box's diagonal)
+  holder.userData.fitRadius = size.length() * 0.5 || holder.userData.radius;
   holder.userData.height = size.y;
   return holder;
 }
 
+// Frame the whole model: its bounding sphere must fit the narrower of the two view angles (on a wide
+// panel the height, on a narrow phone the width), with a margin for the buttons over the picture
 function cameraFor(camera, holder, item) {
-  const radius = holder.userData.radius;
-  const distance = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.05;
+  const radius = holder.userData.fitRadius || holder.userData.radius;
+  const halfV = THREE.MathUtils.degToRad(camera.fov / 2);
+  const halfH = Math.atan(Math.tan(halfV) * (camera.aspect || 1));
+  const distance = radius / Math.sin(Math.min(halfV, halfH)) * 1.12;
   const tall = item.model && item.model.type === "rocket";
   const direction = tall ? new THREE.Vector3(0.85, 0.12, 1) : new THREE.Vector3(1, 0.55, 1.2);
   camera.position.copy(direction.normalize().multiplyScalar(distance));
@@ -864,7 +873,7 @@ function showViewerModel(item) {
   cameraFor(v.camera, holder, item);
   v.controls.target.set(0, 0, 0);
   v.controls.minDistance = radius * 0.6;
-  v.controls.maxDistance = radius * 8;
+  v.controls.maxDistance = Math.max(radius * 8, v.camera.position.length() * 1.5); // never closer than the whole-model view
   v.controls.update();
   v.home = v.camera.position.clone();
 
@@ -1043,8 +1052,10 @@ function openDetail(id) {
       send("explore-destination", { destination: hw.destination, hardwareId: hw.id });
     });
   }
-  const body = (item.bodies || [])[0];
-  if (body) actionButton("Show in Solar System", "small-button", function () { send("show-in-solar", { body: item.spacecraft || body }); });
+  // "Show in Solar System" only for spacecraft that are drawn there (Voyager 1 and 2, Parker Solar Probe).
+  // For everything else it could only open the planet, not the equipment (landers and rovers are shown
+  // on their world's globe instead: "View site on the ... globe").
+  if (item.spacecraft) actionButton("Show in Solar System", "small-button", function () { send("show-in-solar", { body: item.spacecraft }); });
 
   // Key facts
   const group = groupOfItem(item.id);

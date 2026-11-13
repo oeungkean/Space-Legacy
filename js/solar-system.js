@@ -781,6 +781,7 @@ function buildSidebar() {
         const row = document.createElement("button");
         row.className = "sidebar-item" + (body.kind === "Spacecraft" ? " sb-craft" : "");
         row.setAttribute("aria-label", body.name + ", " + body.kind);
+        row.title = body.name; // the name on hover, when the list is collapsed to icons
         row.innerHTML = '<span class="sb-dot"></span><span class="sb-name"></span><span class="sb-meta"></span>';
         if (row.querySelector) {
           row.querySelector(".sb-name").textContent = body.name;

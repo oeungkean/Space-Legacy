@@ -180,7 +180,7 @@
       <div class="sidebar-head">
         <p class="sidebar-sub">Navigate</p>
         <p class="sidebar-title">Solar System</p>
-        <button class="sidebar-close panel-close sidebar-hide" data-sidebar="planet-sidebar" aria-label="Hide the list" title="Hide the list"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <button class="sidebar-close panel-close sidebar-hide" data-sidebar="planet-sidebar" aria-label="Collapse the list" title="Collapse the list"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9 4.5v15"/></svg></button>
       </div>
       <div id="sidebar-list" class="sidebar-list"></div>
       <p class="sidebar-foot">Simulation &middot; not to scale</p>
@@ -549,21 +549,33 @@
       </div>
       <p class="sidebar-heading">Choose a mode</p>
       <div class="sim-mode" role="radiogroup" aria-label="Mode">
+        <!-- Each mode is a card with a picture strip: a starfield with a mission patch (history),
+             or a gold blueprint grid with a pencil (your own design) -->
         <button class="sim-mode-btn mode-card mode-real" data-sim-mode="historical" role="radio" aria-checked="false">
-          <span class="mode-icon" aria-hidden="true">
-            <!-- a flag planted on the ground: missions that really happened -->
-            <svg viewBox="0 0 24 24"><path d="M6 21V3"/><path d="M6 4.5c2.5-1.6 4.8-.6 7 .5s4.4 1.4 6-.2v7.4c-1.6 1.6-3.8 1.3-6 .2s-4.5-2.1-7-.5"/><path d="M3 21h6"/></svg>
+          <span class="mode-art" aria-hidden="true">
+            <span class="mode-icon">
+              <!-- a round mission patch: a rocket inside a badge, with stars -->
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 5.8c1.7 1.4 2.5 3.5 2.5 5.8v2.8h-5v-2.8c0-2.3.8-4.4 2.5-5.8z"/><path d="M9.5 12.6l-1.6 2v1.6l1.6-.6M14.5 12.6l1.6 2v1.6l-1.6-.6M11 16.2l1 2 1-2"/><path d="M6.2 8.6h.01M17.8 8.2h.01M7 16.4h.01"/></svg>
+            </span>
+            <span class="mode-art-tag">History</span>
           </span>
-          <span class="mode-text"><b>Real Missions</b><span>Rebuild missions that really flew</span></span>
-          <span class="mode-radio" aria-hidden="true"></span>
+          <span class="mode-row">
+            <span class="mode-text"><b>Real Missions</b><span>Rebuild missions that really flew</span></span>
+            <span class="mode-radio" aria-hidden="true"></span>
+          </span>
         </button>
         <button class="sim-mode-btn mode-card mode-free" data-sim-mode="sandbox" role="radio" aria-checked="false">
-          <span class="mode-icon" aria-hidden="true">
-            <!-- a wrench: build your own -->
-            <svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.3 5.1l-5.6 5.6a1.9 1.9 0 0 0 2.7 2.7l5.6-5.6a4 4 0 0 0 5.1-5.3l-2.6 2.6-2.3-.6-.6-2.3z"/></svg>
+          <span class="mode-art" aria-hidden="true">
+            <span class="mode-icon">
+              <!-- a blueprint: a pencil drawing inside a dashed frame -->
+              <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2" stroke-dasharray="2.2 2.2"/><path d="M8 16.5l.9-3.3 6.4-6.4 2.4 2.4-6.4 6.4z"/><path d="M14 8.1l2.4 2.4"/></svg>
+            </span>
+            <span class="mode-art-tag">Your design</span>
           </span>
-          <span class="mode-text"><b>Free Build</b><span>Mix any parts (marked fictional)</span></span>
-          <span class="mode-radio" aria-hidden="true"></span>
+          <span class="mode-row">
+            <span class="mode-text"><b>Free Build</b><span>Mix any parts (marked fictional)</span></span>
+            <span class="mode-radio" aria-hidden="true"></span>
+          </span>
         </button>
       </div>
     </nav>
@@ -575,6 +587,8 @@
           <div>
             <p class="eyebrow">Mission Builder</p><h2>Build your mission</h2>
             <p class="sim-mode-note">Rocket, spacecraft, suit and destination in one place, then launch.</p>
+            <!-- Which mode is on, what it means, and how many rockets it allows (changes with the mode) -->
+            <p id="sim-mode-banner" class="sim-mode-banner" aria-live="polite"></p>
           </div>
         </div>
         <div class="garage-floor">

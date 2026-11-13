@@ -617,7 +617,8 @@ function goToMissionSite(mission) {
 // After exploring: crews fly home (the trip home and the splashdown), then the mission is complete
 const resultsReturn = document.getElementById("results-return");
 document.addEventListener("exploration-ended", function () {
-  resultsReturn.classList.toggle("hidden", !missionReturn);
+  // only for a mission that is still running (not for a site opened directly, after an earlier mission)
+  resultsReturn.classList.toggle("hidden", !missionReturn || !getMission());
 });
 resultsReturn.addEventListener("click", function () {
   document.getElementById("explore-results").classList.add("hidden");
@@ -1071,6 +1072,9 @@ setInterval(updateClocks, 1000);
     const phone = window.innerWidth <= 760;
     if (!phone && screen && screen.classList.contains("can-hide-sidebar")) {
       const hidden = screen.classList.toggle("sidebar-collapsed");
+      // the button names what the next click does
+      button.setAttribute("aria-label", hidden ? "Expand the list" : "Collapse the list");
+      button.title = hidden ? "Expand the list" : "Collapse the list";
       play(hidden ? "close" : "open");
       window.dispatchEvent(new Event("resize")); // the 3D view and its overlays refit the new width
       return;

@@ -8350,3 +8350,317 @@ body:has(.explore-map.big:not(.hidden)) .mission-hud {
 }.hud-body {
   max-height: calc(100vh - var(--topbar-h) - 290px - 90px);
 }
+/* =========================================================================================
+   Kampu Space Master Doc, part 2 (2026-11-13)
+   ========================================================================================= */
+
+/* ---- Missions filters as boxes: label, the current choice, and a Show / Hide pill ---- */
+#explorer-categories .dd-group {
+  margin: 10px 12px 0;
+  background: linear-gradient(180deg, rgba(16, 24, 44, 0.75), rgba(8, 12, 24, 0.75));
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+#explorer-categories .dd-group + .dd-group {
+  border-top: 1px solid var(--line-strong);
+}
+#explorer-categories .dd-group:hover {
+  border-color: var(--accent-line);
+}
+#explorer-categories .dd-group.open {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px rgba(122, 184, 255, 0.08);
+}
+#explorer-categories .dd-toggle {
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 12px 12px 12px 14px;
+}
+.dd-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+#explorer-categories .dd-title {
+  font-size: 0.56rem;
+  letter-spacing: 0.18em;
+  color: var(--faint);
+}
+#explorer-categories .dd-value {
+  justify-self: start;
+  font-family: var(--display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--text);
+}
+#explorer-categories .dd-group.in-use .dd-value {
+  color: var(--accent);
+}
+.dd-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px 5px 10px;
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(122, 184, 255, 0.06);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+}
+#explorer-categories .dd-group.open .dd-action,
+#explorer-categories .dd-toggle:hover .dd-action {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+#explorer-categories .dd-body {
+  padding: 2px 0 8px;
+  border-top: 1px solid var(--line);
+}
+#explorer-categories .dd-body .sidebar-item {
+  margin: 1px 6px;
+  width: calc(100% - 12px);
+}
+
+/* ---- "Controls" sits in the middle of the five view buttons (the dock), wherever the dock is ---- */
+#solar-system-screen .hint-toggle {
+  left: calc(50% + var(--sidebar-w) / 2);
+  transition: left 0.35s var(--ease-journey);
+}
+/* ---- Solar System list: collapses to a slim strip of icons (like a social app's side menu)
+   instead of disappearing. The panel button at the top switches between full and slim. ---- */
+@media (min-width: 761px) {
+  #solar-system-screen .sidebar {
+    transition: width 0.3s var(--ease-journey);
+  }
+  #solar-system-screen .sidebar-hide {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    border: 1px solid var(--line-strong);
+    background: rgba(122, 184, 255, 0.05);
+    color: var(--muted);
+  }
+  #solar-system-screen .sidebar-hide:hover {
+    color: var(--text);
+    border-color: var(--accent-line);
+  }
+  #solar-system-screen .sidebar-hide svg {
+    width: 18px;
+    height: 18px;
+  }
+  #solar-system-screen.sidebar-collapsed {
+    --sidebar-w: 68px;
+  }
+  #solar-system-screen.sidebar-collapsed .sidebar {
+    width: 68px;
+    transform: none;
+    pointer-events: auto;
+  }
+  /* the top-bar menu button is not needed on wide screens: the strip has its own button */
+  #solar-system-screen .sidebar-toggle,
+  #solar-system-screen.sidebar-collapsed .sidebar-toggle {
+    display: none;
+  }
+  #solar-system-screen.sidebar-collapsed .sidebar-head {
+    display: flex;
+    justify-content: center;
+    padding: 14px 0 10px;
+  }
+  #solar-system-screen.sidebar-collapsed .sidebar-head p,
+  #solar-system-screen.sidebar-collapsed .sidebar-foot {
+    display: none;
+  }
+  #solar-system-screen.sidebar-collapsed .sidebar-hide {
+    position: static;
+    color: var(--accent);
+    border-color: var(--accent-line);
+  }
+  /* group names become thin dividers */
+  #solar-system-screen.sidebar-collapsed .sidebar-heading {
+    height: 1px;
+    margin: 8px 14px;
+    padding: 0;
+    font-size: 0;
+    background: var(--line-strong);
+  }
+  #solar-system-screen.sidebar-collapsed .sidebar-heading::after {
+    display: none;
+  }
+  #solar-system-screen.sidebar-collapsed .sidebar-item {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    width: 48px;
+    height: 40px;
+    margin: 2px auto;
+    padding: 0;
+    border-radius: 10px;
+  }
+  #solar-system-screen.sidebar-collapsed .sb-name,
+  #solar-system-screen.sidebar-collapsed .sb-meta {
+    display: none;
+  }
+  #solar-system-screen.sidebar-collapsed .sb-dot {
+    width: 18px;
+    height: 18px;
+  }
+  #solar-system-screen.sidebar-collapsed .sidebar-item.active::before {
+    left: -10px;
+  }
+  #solar-system-screen.sidebar-collapsed .sidebar-list {
+    scrollbar-width: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #solar-system-screen .sidebar {
+    transition: none;
+  }
+}
+/* ---- Mode cards: a picture strip on top (starfield + mission patch for Real Missions,
+   gold blueprint grid + pencil for Free Build), then the name, one line and the radio dot ---- */
+.sim-mode .sim-mode-btn.mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 14px;
+}
+.mode-art {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 64px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.mode-real .mode-art {
+  background:
+    radial-gradient(circle at 78% 30%, rgba(255, 255, 255, 0.9) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 62% 70%, rgba(255, 255, 255, 0.7) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 90% 75%, rgba(255, 255, 255, 0.6) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 48% 22%, rgba(255, 255, 255, 0.5) 0 1px, transparent 1.5px),
+    radial-gradient(ellipse at 20% 50%, rgba(122, 184, 255, 0.35), transparent 70%),
+    linear-gradient(135deg, #0d1a36, #060b18);
+}
+.mode-free .mode-art {
+  background:
+    repeating-linear-gradient(0deg, rgba(232, 195, 90, 0.16) 0 1px, transparent 1px 12px),
+    repeating-linear-gradient(90deg, rgba(232, 195, 90, 0.16) 0 1px, transparent 1px 12px),
+    radial-gradient(ellipse at 20% 50%, rgba(232, 195, 90, 0.25), transparent 70%),
+    linear-gradient(135deg, #1d1806, #0b0a05);
+}
+.mode-art .mode-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+}
+.mode-art .mode-icon svg {
+  width: 26px;
+  height: 26px;
+}
+.mode-art-tag {
+  margin-left: auto;
+  padding: 3px 9px;
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border-radius: 999px;
+}
+.mode-real .mode-art-tag {
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+  background: rgba(6, 12, 26, 0.7);
+}
+.mode-free .mode-art-tag {
+  color: #e8c35a;
+  border: 1px solid rgba(232, 195, 90, 0.55);
+  background: rgba(20, 16, 4, 0.7);
+}
+.mode-row {
+  display: grid;
+  grid-template-columns: 1fr 18px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+/* the card that is not chosen is quieter */
+.sim-mode .sim-mode-btn.mode-card:not(.active) .mode-art {
+  filter: saturate(0.6) brightness(0.8);
+}
+.sim-mode .sim-mode-btn.mode-card:not(.active):hover .mode-art {
+  filter: none;
+}
+
+/* ---- The chosen mode, shown in the builder itself ---- */
+.sim-mode-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  font-size: 0.86rem;
+  color: var(--muted);
+  border-radius: 10px;
+  border: 1px solid var(--accent-line);
+  background: linear-gradient(90deg, rgba(122, 184, 255, 0.14), rgba(122, 184, 255, 0.02));
+}
+.sim-mode-banner:empty {
+  display: none;
+}
+.sim-mode-banner b {
+  padding: 3px 10px;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #06101c;
+  background: var(--accent);
+  border-radius: 999px;
+}
+.sim-free .sim-mode-banner {
+  border-color: rgba(232, 195, 90, 0.55);
+  background: linear-gradient(90deg, rgba(232, 195, 90, 0.16), rgba(232, 195, 90, 0.02));
+}
+.sim-free .sim-mode-banner b {
+  color: #1a1404;
+  background: #e8c35a;
+}
+
+/* ---- Free Build turns the planning console gold (Real Missions keeps the blue) ---- */
+.sim-free .garage {
+  border-color: rgba(232, 195, 90, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 0 1px rgba(232, 195, 90, 0.12), 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+.sim-free .garage-head .eyebrow {
+  color: #e8c35a;
+}
+.sim-free .lab-plate {
+  border-left-color: #e8c35a;
+}
+.sim-free .lab-plate em,
+.sim-free .lab-stats::before {
+  color: #e8c35a;
+}
+.sim-free .station-tab.active,
+.sim-free .station-tab[aria-selected="true"] {
+  background: linear-gradient(0deg, rgba(232, 195, 90, 0.14), transparent);
+  box-shadow: inset 0 -2px 0 #e8c35a;
+}
+.sim-free .station-tab.active .station-icon {
+  color: #e8c35a;
+}
+.sim-free .bay-progress span {
+  background: linear-gradient(90deg, #c9a13b, #e8c35a);
+  box-shadow: 0 0 8px rgba(232, 195, 90, 0.45);
+}
