@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "space-legacy",
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-m", "http.server", "8000", "--protocol", "HTTP/1.1"],
+      "port": 8000
+    }
+  ]
+}
