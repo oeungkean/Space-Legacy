@@ -993,7 +993,8 @@ exploreButton.addEventListener("click", function () {
   );
 });
 
-panelClose.addEventListener("click", deselectBody);
+// Closing a world's panel also resets the view to the whole Solar System (like Reset)
+panelClose.addEventListener("click", resetView);
 resetButton.addEventListener("click", resetView);
 
 // ----- Voice narration (the browser's built-in text-to-speech) -----
@@ -2653,7 +2654,7 @@ document.addEventListener("keydown", function (event) {
     else if (replay) stopReplay(true);
     else if (selectedBody) {
       play("close");
-      deselectBody();
+      resetView(); // same as the panel's ×: deselect and show the whole Solar System again
     }
   }
 });
@@ -2810,12 +2811,10 @@ function flareTexture(inner, outer, ring) {
   return new THREE.CanvasTexture(c);
 }
 const flare = new THREE.Group();
+// Only the soft white glow centred on the Sun. The mirrored "lens ghost" rings that slid across the
+// screen as the view moved were removed (team feedback: the light should stay on the Sun).
 [
-  [0.0, 0.22, flareTexture("rgba(255,244,220,0.5)", "rgba(255,200,140,0)")],
-  [0.45, 0.05, flareTexture("rgba(140,190,255,0.35)", "rgba(140,190,255,0)")],
-  [0.8, 0.09, flareTexture("rgba(180,220,255,0.28)", "rgba(0,0,0,0)", true)],
-  [1.25, 0.035, flareTexture("rgba(255,210,170,0.3)", "rgba(255,210,170,0)")],
-  [1.6, 0.12, flareTexture("rgba(150,200,255,0.16)", "rgba(0,0,0,0)", true)]
+  [0.0, 0.22, flareTexture("rgba(255,244,220,0.5)", "rgba(255,200,140,0)")]
 ].forEach(function (spec) {
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: spec[2], transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending }));
   sprite.userData.along = spec[0];
@@ -2829,6 +2828,10 @@ const sunScreen = new THREE.Vector3();
 function updateFlare() {
   sunScreen.set(0, 0, 0);
   if (!sunScreen.project) { flare.visible = false; return; }
+  // The camera has just moved (drag, follow or entry), but three.js only refreshes its matrices
+  // inside renderer.render(). Refresh them now, or the glow is placed from last frame's view and
+  // trails behind the Sun when the view is dragged quickly.
+  camera.updateMatrixWorld();
   sunScreen.project(camera);
   const onScreen = sunScreen.z < 1 && Math.abs(sunScreen.x) < 1.15 && Math.abs(sunScreen.y) < 1.15;
   flare.visible = onScreen && shadowsOn;

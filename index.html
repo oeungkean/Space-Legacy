@@ -134,12 +134,12 @@
   </section>
 
   <!-- SCREEN 3: Interactive solar system -->
-  <section id="solar-system-screen" class="screen hidden">
+  <section id="solar-system-screen" class="screen hidden can-hide-sidebar">
     <canvas id="solar-canvas"></canvas>
 
     <!-- Top bar: navigation, search, breadcrumb, help -->
     <header class="top-bar">
-      <button class="sidebar-toggle small-button icon-btn" data-sidebar="planet-sidebar" aria-label="Show the list of planets" aria-controls="planet-sidebar">&#9776;</button>
+      <button class="sidebar-toggle small-button icon-btn" data-sidebar="planet-sidebar" aria-label="Show the list of planets" aria-controls="planet-sidebar" title="Show the list">&#9776;</button>
       <a class="brand" href="#" data-home aria-label="Space Legacy home">
         <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-24 12 12)"/></svg>
         <span>Space Legacy</span>
@@ -180,7 +180,7 @@
       <div class="sidebar-head">
         <p class="sidebar-sub">Navigate</p>
         <p class="sidebar-title">Solar System</p>
-        <button class="sidebar-close panel-close" data-sidebar="planet-sidebar" aria-label="Close the list">&times;</button>
+        <button class="sidebar-close panel-close sidebar-hide" data-sidebar="planet-sidebar" aria-label="Hide the list" title="Hide the list"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
       </div>
       <div id="sidebar-list" class="sidebar-list"></div>
       <p class="sidebar-foot">Simulation &middot; not to scale</p>
@@ -549,25 +549,23 @@
       </div>
       <p class="sidebar-heading">Choose a mode</p>
       <div class="sim-mode" role="radiogroup" aria-label="Mode">
-        <button class="sim-mode-btn mode-card" data-sim-mode="historical" role="radio" aria-checked="false">
+        <button class="sim-mode-btn mode-card mode-real" data-sim-mode="historical" role="radio" aria-checked="false">
           <span class="mode-icon" aria-hidden="true">
-            <!-- a shield with a check: real, verified history -->
-            <svg viewBox="0 0 24 24"><path d="M12 3l7 3v5.5c0 4.3-2.9 7.9-7 9.5-4.1-1.6-7-5.2-7-9.5V6z"/><path d="M8.6 12.2l2.4 2.4 4.6-4.8"/></svg>
+            <!-- a flag planted on the ground: missions that really happened -->
+            <svg viewBox="0 0 24 24"><path d="M6 21V3"/><path d="M6 4.5c2.5-1.6 4.8-.6 7 .5s4.4 1.4 6-.2v7.4c-1.6 1.6-3.8 1.3-6 .2s-4.5-2.1-7-.5"/><path d="M3 21h6"/></svg>
           </span>
-          <span class="mode-text"><b>Real Missions</b><span>Fly history as it happened</span></span>
+          <span class="mode-text"><b>Real Missions</b><span>Rebuild missions that really flew</span></span>
           <span class="mode-radio" aria-hidden="true"></span>
         </button>
-        <button class="sim-mode-btn mode-card" data-sim-mode="sandbox" role="radio" aria-checked="false">
+        <button class="sim-mode-btn mode-card mode-free" data-sim-mode="sandbox" role="radio" aria-checked="false">
           <span class="mode-icon" aria-hidden="true">
-            <!-- building blocks with a spark: build your own -->
-            <svg viewBox="0 0 24 24"><rect x="3.5" y="12.5" width="7" height="7" rx="1.2"/><rect x="12.5" y="12.5" width="7" height="7" rx="1.2"/><rect x="8" y="4.5" width="7" height="7" rx="1.2"/><path d="M19 3.5v3M17.5 5h3"/></svg>
+            <!-- a wrench: build your own -->
+            <svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.3 5.1l-5.6 5.6a1.9 1.9 0 0 0 2.7 2.7l5.6-5.6a4 4 0 0 0 5.1-5.3l-2.6 2.6-2.3-.6-.6-2.3z"/></svg>
           </span>
-          <span class="mode-text"><b>Free Build</b><span>Mix any parts you like</span></span>
+          <span class="mode-text"><b>Free Build</b><span>Mix any parts (marked fictional)</span></span>
           <span class="mode-radio" aria-hidden="true"></span>
         </button>
       </div>
-      <p id="sim-mode-note" class="sim-mode-note" aria-live="polite"></p>
-      <p class="sidebar-foot mode-legend"><span class="mode-tag">Fictional</span> marks a mix that never flew</p>
     </nav>
 
     <main class="sim-main">
@@ -578,7 +576,6 @@
             <p class="eyebrow">Mission Builder</p><h2>Build your mission</h2>
             <p class="sim-mode-note">Rocket, spacecraft, suit and destination in one place, then launch.</p>
           </div>
-          <ol id="build-sheet" class="build-sheet" aria-label="Your mission build"></ol>
         </div>
         <div class="garage-floor">
           <canvas id="lab-canvas" aria-label="The rocket and spacecraft on the garage pad, in 3D"></canvas>
@@ -719,13 +716,23 @@
       <h2 id="explore-title"></h2>
       <p id="explore-suit" class="explore-suit"></p>
       <p id="explore-fiction" class="explore-fiction hidden">Free Build · fictional mission</p>
+      <!-- The camera follows you automatically (C still changes the view); site switching was removed -->
       <div class="explore-head-buttons">
-        <button id="explore-camera" class="small-button" data-silent>Camera (C)</button>
-        <button id="explore-sites-button" class="small-button">All sites</button>
         <button id="explore-end" class="small-button accent">End mission</button>
+        <button class="small-button explore-help" data-open-help title="How to play (?)"><span aria-hidden="true">?</span> How to play</button>
       </div>
     </div>
     <div id="explore-gauges" class="explore-gauges hidden"></div>
+    <!-- Lunar Module landing: the autopilot lands by default; "Take control" shows a 3-line guide -->
+    <div id="lm-panel" class="lm-panel hidden" aria-live="polite">
+      <p class="lm-status"><span class="lm-dot" aria-hidden="true"></span><b id="lm-state">Autopilot is landing</b></p>
+      <button id="lm-take" class="small-button primary" data-silent>Take control</button>
+      <ol id="lm-help" class="lm-help hidden">
+        <li><kbd>&uarr;</kbd> or <kbd>W</kbd> more thrust: slows your fall. <kbd>&darr;</kbd> or <kbd>S</kbd> less.</li>
+        <li><kbd>&larr;</kbd> <kbd>&rarr;</kbd> or <kbd>A</kbd> <kbd>D</kbd> steer sideways.</li>
+        <li>Touch down slower than 3 m/s.</li>
+      </ol>
+    </div>
     <div id="explore-map" class="explore-map hidden" aria-label="Mini map">
       <canvas id="explore-map-canvas" width="360" height="360" title="Click the map to travel there. Scroll to zoom."></canvas>
       <span class="map-north" aria-hidden="true">N</span>
@@ -747,7 +754,7 @@
       </div>
     </div>
     <div id="explore-prompt" class="explore-prompt hidden"><b id="explore-prompt-name"></b><span id="explore-prompt-keys"></span></div>
-    <p id="explore-message" class="explore-message hidden" aria-live="polite"></p>
+    <p id="explore-toast" class="explore-message hidden" aria-live="polite"></p>
     <div id="explore-flash" class="explore-flash hidden"></div>
     <div id="cockpit-panel" class="cockpit-panel hidden" aria-label="Spacecraft controls">
       <p class="panel-label">Spacecraft controls</p>
@@ -991,36 +998,46 @@
             <span class="sr-only">Narrator voice</span>
             <select id="mp-voice-select" aria-label="Narrator voice"></select>
           </label>
-          <button id="mp-voice-test" class="small-button icon-btn" data-silent title="Hear this voice" aria-label="Preview the voice">&#9654;</button>
           <button id="mp-captions" class="small-button" data-silent>Captions: On</button>
         </div>
       </div>
     </div>
     <div id="mp-card" class="mp-card hidden" role="dialog" aria-label="Mission complete">
-      <p class="eyebrow">Replay finished</p>
+      <p id="mp-card-kind" class="eyebrow mp-card-kind">Replay finished</p>
       <h2 id="mp-card-title"></h2>
+      <p id="mp-card-outcome" class="mp-card-outcome"></p>
       <p id="mp-card-text"></p>
-      <div class="detail-actions">
-        <button id="mp-card-close" class="primary">Continue</button>
-        <button id="mp-card-again" class="small-button">Watch again</button>
+      <div class="mp-card-actions">
+        <button id="mp-card-close" class="primary">&larr; Go Back</button>
+        <button id="mp-card-again" class="small-button icon-btn mp-card-again" aria-label="Watch again" title="Watch again">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg>
+        </button>
       </div>
     </div>
     <div id="mp-fade" class="mp-fade"></div>
   </div>
 
   <!-- Mission progress panel (js/progress.js), shown during a Simulator mission -->
+  <!-- Mission panel: a slim side panel on the right (only while exploring). The "Mission" tab slides it in and out. -->
   <aside id="mission-hud" class="mission-hud hidden" aria-label="Mission progress">
-    <div class="hud-head">
+    <button id="hud-toggle" class="hud-tab" data-silent aria-expanded="true" aria-controls="hud-body" title="Hide the mission panel">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>Mission</span>
+    </button>
+    <div id="hud-body" class="hud-body">
       <p id="hud-mode" class="hud-mode"></p>
-      <button id="hud-toggle" class="small-button" data-silent>Hide</button>
+      <h4 id="hud-title"></h4>
+      <p class="hud-line"><b id="hud-stage"></b><span aria-hidden="true"> · </span><span id="hud-status"></span></p>
+      <div class="hud-now">
+        <em>Now</em>
+        <b id="hud-current"></b>
+      </div>
+      <p id="hud-distance" class="hud-distance hidden"></p>
+      <p class="hud-next-label" id="hud-next-label">Up next</p>
+      <ol id="hud-objectives" class="hud-objectives"></ol>
+      <div class="hud-progress" aria-hidden="true"><span id="hud-progress-bar"></span></div>
+      <p id="hud-progress-text" class="hud-progress-text"></p>
+      <p id="hud-discoveries" class="hud-discoveries"></p>
     </div>
-    <h4 id="hud-title"></h4>
-    <p class="hud-row"><em>Stage</em><b id="hud-stage"></b></p>
-    <p class="hud-row"><em>Status</em><b id="hud-status"></b></p>
-    <p class="hud-row"><em>Current objective</em><b id="hud-current"></b></p>
-    <p id="hud-distance" class="hud-distance hidden"></p>
-    <ol id="hud-objectives" class="hud-objectives"></ol>
-    <p id="hud-discoveries" class="hud-discoveries"></p>
   </aside>
   <p id="hud-flash" class="hud-flash hidden" aria-live="polite"></p>
 
@@ -1169,43 +1186,44 @@
   <div id="help-dialog" class="dialog hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="dialog-card">
       <button id="help-close" class="panel-close" aria-label="Close help">&times;</button>
-      <p class="dialog-sub">Field manual</p>
+      <p class="dialog-sub">Quick guide</p>
       <h3 id="help-title">How to use Space Legacy</h3>
 
-      <h4>Mouse and touch</h4>
-      <ul class="help-list">
-        <li><strong>Drag</strong> to rotate, <strong>scroll or pinch</strong> to zoom, <strong>right-drag</strong> to move.</li>
-        <li><strong>Click</strong> a planet, a moon, a spacecraft or a marker to open its profile, or pick it from the <strong>list on the left</strong>.</li>
-        <li><strong>Replay Mission</strong> shows how a spacecraft or rover got to where it is, starting with a launch on its real rocket.</li>
-        <li><strong>Watch the landing</strong>: drag with the <strong>left or right</strong> mouse button to look around. The camera keeps following the spacecraft. <strong>Auto camera</strong> hands control back.</li>
-        <li><strong>Missions</strong> (top tabs, or <kbd>X</kbd>): every mission with the hardware it used (rockets, spacecraft, telescopes, landers, rovers, instruments, stations and return capsules). Browse by destination or by type, replay a mission, or open any card to turn and zoom its 3D model. The models are representative, not official NASA models.</li>
-        <li><strong>Simulator</strong>: build your whole mission in one place, step by step: <strong>Rocket &rarr; Spacecraft &rarr; Suit &rarr; Destination &rarr; Launch</strong>. The Destination step also lets you go straight to a landing site. The optional Workshop has parts, comparisons, paint and upgrades. <strong>Real Missions</strong> only allows combinations that really flew; <strong>Free Build</strong> lets you mix anything and labels it fictional.</li>
-        <li><strong>Exploring</strong>: WASD move, Shift run, Space jump, E examine or board, F record in My Collection, Q use equipment (1-4 to choose), P photo, C camera. Each vehicle has its own controls, shown at the bottom.</li>
-        <li><strong>Driving</strong>: <kbd>Shift</kbd> boost, <kbd>Space</kbd> brake, <kbd>B</kbd> recharge the battery (stop first). Nothing can be driven or walked through: hit a rock, the lander or an experiment too fast and you crash. Boost and fast speeds are game features.</li>
-        <li><strong>Mission replays play like a film</strong>: the countdown and launch from a coastal pad, the climb to orbit, Earth orbit and the departure burn, the cruise, flybys, arrival, the landing on realistic terrain, time on the surface, the trip home and the descent from space to splashdown. Change the speed with <strong>1&times; / 2&times; / 4&times;</strong> (keys <kbd>1</kbd> <kbd>2</kbd> <kbd>4</kbd>; normal speed is the default), jump ahead with <strong>Skip</strong> (<kbd>&rarr;</kbd>), go back (<kbd>&larr;</kbd>), <strong>Pause</strong> (<kbd>Space</kbd>) or click any scene on the timeline. <kbd>Esc</kbd> exits.</li>
-        <li><strong>Controls</strong>: each screen keeps its instructions behind the small <strong>Controls</strong> button at the bottom. Credits and sources are on the <strong>Credits</strong> page.</li>
-        <li><strong>Game helpers</strong>: <kbd>T</kbd> auto walk (press again: auto run) or cruise control in a vehicle. <kbd>G</kbd> goes to the nearest object you have not recorded. <strong>Click the mini map</strong> to travel to any spot. <kbd>N</kbd> makes the map bigger. Press <kbd>W</kbd> or <kbd>S</kbd> to take back control.</li>
-        <li><strong>Mission stages</strong> in a replay: A Launch, B Journey, C Landing or Deployment, D Return to Earth, E Completion. A mission only shows the stages it really had.</li>
-      </ul>
+      <ol class="help-steps">
+        <li><b>Explore the Solar System</b><span>Drag to turn, scroll to zoom. Click a planet, or pick it from the list, to learn about it.</span></li>
+        <li><b>Watch a real mission</b><span>Open <strong>Missions</strong> and press <strong>Replay</strong>. Speed it up with 1&times; 2&times; 4&times;.</span></li>
+        <li><b>Build your own</b><span>In <strong>Simulator</strong>, pick a rocket, spacecraft, suit and destination, then <strong>Launch</strong>.</span></li>
+        <li><b>Explore the surface</b><span>Walk, drive and record what you find. It is saved in your <strong>Collection</strong>.</span></li>
+      </ol>
 
-      <h4>Keyboard shortcuts</h4>
-      <ul class="help-list keys">
-        <li><kbd>/</kbd> Search</li>
-        <li><kbd>L</kbd> Labels on or off</li>
-        <li><kbd>O</kbd> Orbit lines on or off</li>
-        <li><kbd>S</kbd> Planet shadows on or off</li>
-        <li><kbd>+</kbd> <kbd>&minus;</kbd> Zoom in or out</li>
-        <li><kbd>Space</kbd> Pause or resume motion (or a replay)</li>
-        <li><kbd>R</kbd> Reset the view</li>
-        <li><kbd>H</kbd> Home</li>
-        <li><kbd>X</kbd> Missions</li>
-        <li><kbd>M</kbd> Sound on or off</li>
-        <li><kbd>,</kbd> Settings</li>
-        <li><kbd>U</kbd> Hide or show the interface</li>
-        <li><kbd>&larr;</kbd> <kbd>&rarr;</kbd> Change the home screen planet</li>
-        <li><kbd>Esc</kbd> Close, go back, or skip the intro</li>
-        <li><kbd>?</kbd> This help</li>
-      </ul>
+      <h4>Controls</h4>
+      <dl class="help-keys">
+        <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows</dt><dd>Move or drive</dd>
+        <dt><kbd>Shift</kbd></dt><dd>Run or boost</dd>
+        <dt><kbd>Space</kbd></dt><dd>Jump, or brake while driving</dd>
+        <dt><kbd>E</kbd></dt><dd>Look at something, get in or out</dd>
+        <dt><kbd>F</kbd></dt><dd>Record an object</dd>
+        <dt><kbd>Q</kbd></dt><dd>Use your item (<kbd>1</kbd>&ndash;<kbd>4</kbd> to choose)</dd>
+        <dt><kbd>P</kbd></dt><dd>Take a photo</dd>
+        <dt><kbd>Esc</kbd></dt><dd>Close or go back</dd>
+        <dt><kbd>?</kbd></dt><dd>This guide</dd>
+      </dl>
+
+      <details class="help-more">
+        <summary>More keys</summary>
+        <dl class="help-keys">
+          <dt><kbd>/</kbd></dt><dd>Search (Solar System)</dd>
+          <dt><kbd>L</kbd> <kbd>O</kbd> <kbd>S</kbd></dt><dd>Labels, orbits, shadows (Solar System)</dd>
+          <dt><kbd>R</kbd></dt><dd>Reset the view</dd>
+          <dt><kbd>H</kbd> <kbd>X</kbd></dt><dd>Home, Missions</dd>
+          <dt><kbd>M</kbd> <kbd>,</kbd></dt><dd>Sound on or off, Settings</dd>
+          <dt><kbd>U</kbd></dt><dd>Hide or show the interface</dd>
+          <dt><kbd>T</kbd> <kbd>G</kbd></dt><dd>Auto walk or cruise, go to the nearest object</dd>
+          <dt><kbd>N</kbd> <kbd>B</kbd></dt><dd>Bigger map, recharge the battery (stopped)</dd>
+          <dt><kbd>L</kbd></dt><dd>Lunar Module: autopilot or fly it yourself</dd>
+          <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>4</kbd></dt><dd>Replay speed</dd>
+        </dl>
+      </details>
 
       <p class="source-note">
         Everything is a simplified educational simulation. Sizes, distances, paths and 3D models are illustrative.

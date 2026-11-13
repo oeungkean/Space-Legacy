@@ -34,6 +34,7 @@ const cardTitle = el("mp-card-title");
 const cardText = el("mp-card-text");
 const cardAgain = el("mp-card-again");
 const cardClose = el("mp-card-close");
+const cardOutcome = el("mp-card-outcome");
 const mapBox = el("mp-map");
 const speedButtons = root.querySelectorAll ? Array.from(root.querySelectorAll(".mp-speed-btn[data-speed]")) : [];
 
@@ -169,7 +170,7 @@ function setText(c) {
   dateText.textContent = c.date || "";
   captionText.textContent = c.caption || "";
   captionText.classList.toggle("hidden", !captionsOn || !c.caption);
-  timeText.textContent = c.label;
+  showSceneLabel();
   nextButton.textContent = index >= plan.chapters.length - 1 ? "Finish ⏭" : "Skip ⏭";
 }
 
@@ -269,7 +270,9 @@ function finish(cut) {
   }
   // The end card stays over the last scene
   const last = plan.chapters[plan.chapters.length - 1];
-  cardTitle.textContent = plan.title + " · " + (options.endTitle || "Mission complete");
+  // The mission's name is the title; the outcome ("Mission complete") is a short line under it
+  cardTitle.textContent = plan.title;
+  if (cardOutcome) cardOutcome.textContent = options.endTitle || "Mission complete";
   cardText.textContent = last.caption || "";
   card.classList.remove("hidden");
   play("success");
@@ -369,6 +372,16 @@ function setSpeed(value) {
   });
   if (speed > 1) { stopSpeaking(); voiceDone = true; tryAdvance(token, false); }
   timeText.title = speed === 1 ? "" : "Playing at " + speed + "x";
+  showSceneLabel();
+}
+
+// The scene name under the controls, with the speed when it is faster than normal ("Cruise · 4×"),
+// so a speed change is easy to see
+function showSceneLabel() {
+  const c = plan && plan.chapters[index];
+  const speed = getPlaybackSpeed();
+  timeText.textContent = (c ? c.label : "") + (speed > 1 ? " · " + speed + "× speed" : "");
+  timeText.classList.toggle("fast", speed > 1);
 }
 speedButtons.forEach(function (button) {
   button.addEventListener("click", function () { play("tick"); setSpeed(Number(button.dataset.speed)); });
@@ -378,9 +391,9 @@ export function playbackSpeed(value) {
   return getPlaybackSpeed();
 }
 
-// ----- Narrator voice: every English voice the browser offers, most natural first, with a preview -----
+// ----- Narrator voice: every English voice the browser offers, most natural first -----
+// (the round "preview" button next to the list was removed: team feedback, it was not needed)
 const voiceSelect = el("mp-voice-select");
-const voiceTest = el("mp-voice-test");
 const voiceNote = el("mp-voice-note");
 function fillVoicePicker() {
   voiceSelect.innerHTML = "";
@@ -400,7 +413,6 @@ function fillVoicePicker() {
   }
   voiceSelect.value = chosen ? chosen.name : "";
   voiceSelect.disabled = !list.length;
-  voiceTest.disabled = !list.length;
   const natural = list.filter(function (v) { return voiceQuality(v) === "Natural"; }).length;
   let note = "";
   if (!speechSupported) note = "This browser has no speech voices. Captions still tell the story.";
@@ -412,11 +424,6 @@ function fillVoicePicker() {
 voiceSelect.addEventListener("change", function () {
   setSetting("narratorVoice", voiceSelect.value); // remembered in this browser
   play("tick");
-});
-voiceTest.addEventListener("click", function () {
-  play("click");
-  stopSpeaking();
-  speak("This is your mission narrator. Liftoff, and the vehicle has cleared the tower.", function () {});
 });
 onVoicesChange(fillVoicePicker);
 fillVoicePicker();

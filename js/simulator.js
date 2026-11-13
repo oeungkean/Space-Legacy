@@ -427,6 +427,8 @@ bayNext.addEventListener("click", function () {
 
 // The build sheet at the top of the bay: what you have chosen so far
 function renderBuildSheet() {
+  // The row of choices above the 3D bay was removed (the step tabs below already show them)
+  if (!buildSheet) return;
   // The sheet is rebuilt on every change, so remember which slot had keyboard focus and restore it
   const focused = document.activeElement && buildSheet.contains && buildSheet.contains(document.activeElement)
     ? document.activeElement.getAttribute("data-slot") : null;
@@ -565,7 +567,7 @@ function render() {
     button.classList.toggle("active", on);
     if (button.setAttribute) button.setAttribute("aria-checked", on ? "true" : "false");
   });
-  modeNote.textContent = state.mode === "historical"
+  if (modeNote) modeNote.textContent = state.mode === "historical"
     ? "Only rockets, spacecraft and destinations that really flew together, as they flew."
     : "Combine any rocket, spacecraft and destination. Anything that never flew is labelled Fictional.";
   if (state.mode === "historical" && state.rocket && !rocketAllowed(state.rocket)) state.rocket = null;

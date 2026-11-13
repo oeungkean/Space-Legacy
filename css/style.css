@@ -7541,3 +7541,812 @@ body.reduce-motion .screen.entering * {
   border: 1px dashed rgba(232, 195, 90, 0.6);
   border-radius: 999px;
 }
+/* =========================================================================================
+   Kampu Space Master Doc (2026-11-13): small changes requested by the team
+   ========================================================================================= */
+
+/* ---- Welcome: the hint line sits a little lower, and the top strip is a little bigger ---- */
+.welcome-card .subtle,
+.hero-hint {
+  margin-top: 30px;
+}
+.welcome-strip {
+  padding: 20px 28px;
+  font-size: 0.8rem;
+}
+.welcome-strip-brand {
+  gap: 12px;
+}
+.welcome-strip .brand-mark {
+  width: 26px;
+  height: 26px;
+}
+.welcome-strip .mission-clock {
+  font-size: 0.8rem;
+}
+.welcome-strip .small-button.icon-btn {
+  width: 40px;
+  height: 40px;
+}
+.welcome-strip .small-button.icon-btn svg,
+.welcome-strip .small-button.icon-btn .vol-icon {
+  width: 20px;
+  height: 20px;
+}
+.welcome-strip .settings-btn {
+  font-size: 1.05rem;
+}
+
+/* ---- Welcome -> Solar System: a slower, calmer hand-over. The title group lifts away first,
+   then the Solar System dissolves in (1.9 s instead of 1.1 s; only when leaving Welcome) ---- */
+#welcome-screen.hidden.leaving {
+  animation: welcome-out 1.9s var(--ease-journey) both;
+}
+#welcome-screen.hidden.leaving .welcome-card,
+#welcome-screen.hidden.leaving .hero-now,
+#welcome-screen.hidden.leaving .welcome-strip {
+  animation: welcome-lift 0.9s var(--ease-journey) both;
+}
+.screen.entering.from-welcome {
+  animation-duration: 1.9s;
+  animation-delay: 0.35s;
+}
+@keyframes welcome-out {
+  0%, 30% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes welcome-lift {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-18px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #welcome-screen.hidden.leaving,
+  #welcome-screen.hidden.leaving *,
+  .screen.entering.from-welcome {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+  }
+}
+/* ---- Solar System: the left list can be hidden on wider screens (the "‹" in its header);
+   the ☰ in the top bar brings it back. Hidden, the screen uses the full width, so the view
+   controls (Labels, Orbits, Shadows, Pause, Speed) and hints move to the middle. ---- */
+.sidebar-close.sidebar-hide svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@media (min-width: 761px) {
+  #solar-system-screen .sidebar-close.sidebar-hide {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #solar-system-screen .sidebar {
+    transition: transform 0.35s var(--ease-journey);
+  }
+  #solar-system-screen .dock,
+  #solar-system-screen .hint,
+  #solar-system-screen .replay-bar {
+    transition: left 0.35s var(--ease-journey);
+  }
+  #solar-system-screen.sidebar-collapsed {
+    --sidebar-w: 0px;
+  }
+  #solar-system-screen.sidebar-collapsed .sidebar {
+    width: 260px;
+    transform: translateX(-102%);
+    pointer-events: none;
+  }
+  #solar-system-screen.sidebar-collapsed .sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #solar-system-screen .sidebar,
+  #solar-system-screen .dock {
+    transition: none;
+  }
+}
+/* ---- Mission panel (exploration only): a slim side panel on the right edge, below the mini map.
+   The "Mission" tab slides it out of the way and back, like the Solar System list. ---- */
+.mission-hud {
+  position: fixed;
+  top: calc(var(--topbar-h) + 290px);
+  right: 0;
+  left: auto;
+  bottom: auto;
+  width: 248px;
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: transform 0.3s var(--ease-journey);
+}
+.mission-hud.collapsed {
+  transform: translateX(100%);
+}
+.mission-hud.collapsed > .hud-body,
+.mission-hud.collapsed > .hud-tab {
+  display: block;
+}
+.mission-hud.collapsed > .hud-tab {
+  display: flex;
+}
+/* with the bigger map open, the panel moves below it */
+body:has(.explore-map.big:not(.hidden)) .mission-hud {
+  top: calc(var(--topbar-h) + min(420px, 46vw) + 80px);
+}
+.hud-body {
+  max-height: calc(100vh - var(--topbar-h) - 290px - 150px);
+  overflow-y: auto;
+  padding: 14px 16px 14px 16px;
+  background: rgba(6, 10, 20, 0.86);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line-strong);
+  border-right: 0;
+  border-radius: 12px 0 0 12px;
+  box-shadow: var(--shadow);
+  scrollbar-width: thin;
+}
+.hud-tab {
+  position: absolute;
+  top: 14px;
+  left: -34px;
+  width: 34px;
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: rgba(6, 10, 20, 0.92);
+  border: 1px solid var(--line-strong);
+  border-right: 0;
+  border-radius: 10px 0 0 10px;
+  cursor: pointer;
+}
+.hud-tab span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+.hud-tab svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.3s ease;
+}
+.mission-hud.collapsed .hud-tab svg {
+  transform: rotate(180deg);
+}
+.hud-tab:hover {
+  color: var(--accent);
+}
+.hud-tab:focus-visible {
+  outline: 2px solid var(--st-active);
+  outline-offset: 2px;
+}
+.mission-hud .hud-mode {
+  margin: 0 0 4px;
+  font-size: 0.56rem;
+}
+.mission-hud h4 {
+  margin: 0 0 4px;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+.hud-line {
+  margin: 0 0 12px;
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.hud-line b {
+  font-weight: 500;
+  color: var(--text);
+}
+.hud-now {
+  display: grid;
+  gap: 2px;
+  padding: 9px 11px;
+  margin-bottom: 10px;
+  background: var(--st-active-soft);
+  border: 1px solid rgba(122, 184, 255, 0.35);
+  border-radius: 9px;
+}
+.hud-now em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--st-active);
+}
+.hud-now b {
+  font-weight: 500;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: var(--text);
+}
+.mission-hud.now-failed .hud-now {
+  background: var(--st-failed-soft);
+  border-color: rgba(239, 123, 107, 0.45);
+}
+.mission-hud.now-failed .hud-now em {
+  color: var(--st-failed);
+}
+.hud-next-label {
+  margin: 0 0 4px;
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.mission-hud .hud-objectives {
+  margin: 0 0 10px;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+.hud-objectives li.hud-more {
+  color: var(--faint);
+  font-size: 0.7rem;
+}
+.hud-objectives li.hud-more::before {
+  display: none;
+}
+.hud-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--st-pending);
+  overflow: hidden;
+}
+.hud-progress span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--st-done);
+  transition: width 0.4s ease;
+}
+.hud-progress-text {
+  margin: 5px 0 0;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--muted);
+}
+.mission-hud .hud-discoveries {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  color: var(--st-done);
+}
+@media (max-width: 760px) {
+  .mission-hud {
+    top: calc(var(--topbar-h) + 230px);
+    bottom: auto;
+    right: 0;
+    width: min(220px, 62vw);
+    max-height: none;
+  }
+  .hud-body {
+    max-height: 34vh;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mission-hud,
+  .hud-tab svg {
+    transition: none;
+  }
+}
+/* ---- Missions: the two ways in are dropdowns (one open at a time, one filter at a time).
+   Closed, the heading shows the current choice. ---- */
+.dd-group + .dd-group {
+  border-top: 1px solid var(--line);
+}
+.dd-toggle {
+  display: grid;
+  grid-template-columns: auto 1fr 14px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 18px 12px;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--faint);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+}
+.dd-toggle:hover,
+.dd-group.open .dd-toggle {
+  color: var(--muted);
+  background: transparent;
+}
+.dd-toggle:focus-visible {
+  outline: 2px solid var(--st-active);
+  outline-offset: -2px;
+}
+.dd-value {
+  justify-self: end;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+/* the dropdown whose filter is in use shows its value in the accent colour */
+.dd-group.in-use .dd-value {
+  color: var(--accent);
+  font-weight: 500;
+}
+.dd-chevron {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.2s ease;
+}
+.dd-group.open .dd-chevron {
+  transform: rotate(180deg);
+}
+.dd-body {
+  padding-bottom: 8px;
+}
+.dd-body[hidden] {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dd-chevron {
+    transition: none;
+  }
+}
+/* ---- Mission player: more room for the scene title ("Hubble Space Telescope · Scene 3 of 3",
+   "Still at work", "Since 1990") ---- */
+.mp-top {
+  padding: 26px 30px 56px;
+}
+.mp-title {
+  display: grid;
+  gap: 8px;
+}
+.mp-mission {
+  margin: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+}
+.mp-chapter {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(1.6rem, 3vw, 2.5rem);
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+}
+.mp-date {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+}
+/* the speed shows next to the scene name when it is faster than normal */
+.mp-time.fast {
+  color: var(--accent);
+}
+
+/* ---- Mission player end card: more breathing room and a clearer order:
+   what finished -> mission name -> the outcome -> what happened -> Go Back / watch again (icon) ---- */
+.mp-card {
+  width: min(600px, calc(100% - 32px));
+  padding: 32px 34px 30px;
+  display: grid;
+  gap: 0;
+  background: rgba(6, 10, 20, 0.94);
+  border-radius: 16px;
+}
+.mp-card .mp-card-kind {
+  margin: 0 0 12px;
+}
+.mp-card h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  color: var(--text);
+}
+.mp-card .mp-card-outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+  margin: 12px 0 18px;
+  padding: 4px 12px;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--st-done);
+  background: var(--st-done-soft);
+  border: 1px solid rgba(92, 200, 160, 0.4);
+  border-radius: 999px;
+}
+.mp-card .mp-card-outcome::before {
+  content: "\2713";
+}
+.mp-card .mp-card-outcome:empty {
+  display: none;
+}
+.mp-card #mp-card-text {
+  margin: 0 0 26px;
+  max-width: 52ch;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.mp-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mp-card-actions .primary {
+  padding: 11px 22px;
+}
+.mp-card-again {
+  width: 44px;
+  height: 44px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.mp-card-again svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@media (max-width: 760px) {
+  .mp-top {
+    padding: 18px 16px 40px;
+  }
+  .mp-card {
+    padding: 24px 20px 22px;
+  }
+}
+/* ---- Mission Builder mode picker: an icon that matches each mode, and two clearly different cards.
+   Real Missions = a flag (blue); Free Build = a wrench (gold, the colour used for "fictional"). ---- */
+.sim-steps .sim-mode {
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.sim-mode .sim-mode-btn.mode-card {
+  padding: 14px 14px;
+}
+.mode-real .mode-icon {
+  color: var(--accent);
+  background: rgba(122, 184, 255, 0.1);
+  border-color: rgba(122, 184, 255, 0.35);
+}
+.mode-free .mode-icon {
+  color: #e8c35a;
+  background: rgba(232, 195, 90, 0.1);
+  border-color: rgba(232, 195, 90, 0.35);
+}
+.sim-mode .sim-mode-btn.mode-card.mode-free.active {
+  background: linear-gradient(135deg, rgba(232, 195, 90, 0.16), rgba(232, 195, 90, 0.03));
+  border-color: #e8c35a;
+  box-shadow: 0 0 0 3px rgba(232, 195, 90, 0.1);
+}
+.sim-mode-btn.mode-card.mode-free.active .mode-icon {
+  color: #1a1404;
+  background: #e8c35a;
+  border-color: #e8c35a;
+}
+.sim-mode-btn.mode-card.mode-free.active .mode-radio {
+  border-color: #e8c35a;
+  box-shadow: inset 0 0 0 4px #0a1222, inset 0 0 0 9px #e8c35a;
+}
+
+/* ---- Mission Builder: the row of choices above the bay was removed (the step tabs show them) ---- */
+.garage-head {
+  margin-bottom: 12px;
+}
+/* ---- Exploration: the site card (top left) gets room to breathe ---- */
+.explore-head {
+  padding: 16px 20px 18px;
+  max-width: 420px;
+}
+.explore-head .eyebrow {
+  margin: 0 0 8px;
+}
+.explore-head h2 {
+  margin: 0 0 10px;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(1.4rem, 2.4vw, 1.9rem);
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+}
+.explore-suit,
+.explore-fiction {
+  margin: 0 0 4px;
+  line-height: 1.5;
+}
+.explore-head-buttons {
+  gap: 10px;
+  margin-top: 16px;
+}
+.explore-head-buttons .small-button {
+  padding: 8px 14px;
+}
+.explore-help span {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  font-size: 0.7rem;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+/* ---- Exploration helpers (Auto walk, Auto run, Cruise, Go to nearest, Stop): one row, equal sizes ---- */
+.explore-auto {
+  max-width: none;
+  padding: 10px 12px 12px;
+  border-radius: 14px;
+  background: rgba(6, 10, 20, 0.8);
+  border-color: var(--line-strong);
+}
+.auto-status {
+  margin: 0 0 8px;
+  text-align: center;
+}
+.auto-buttons {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.auto-btn {
+  justify-content: center;
+  min-width: 96px;
+  padding: 8px 10px;
+  white-space: nowrap;
+  border-radius: 10px;
+}
+.auto-btn.hidden {
+  display: none;
+}
+@media (max-width: 760px) {
+  .auto-btn {
+    min-width: 0;
+    font-size: 0.68rem;
+    padding: 8px 6px;
+  }
+}
+
+/* ---- Lunar Module landing panel: autopilot by default, "Take control" shows a 3-line guide ---- */
+.lm-panel {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--topbar-h) + 72px);
+  transform: translateX(-50%);
+  z-index: 4;
+  width: min(420px, calc(100% - 32px));
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  background: rgba(6, 10, 20, 0.86);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.lm-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.lm-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--st-done);
+  box-shadow: 0 0 10px var(--st-done);
+}
+.lm-panel.manual .lm-dot {
+  background: var(--st-active);
+  box-shadow: 0 0 10px var(--st-active);
+}
+.lm-help {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 0 0 20px;
+  display: grid;
+  gap: 6px;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+.lm-help.hidden {
+  display: none;
+}
+.lm-help kbd {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 1px 6px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+@media (max-width: 760px) {
+  .lm-panel {
+    top: calc(var(--topbar-h) + 150px);
+  }
+}
+/* ---- Help: a short guide (4 steps, 9 key controls, the rest folded under "More keys") ---- */
+#help-dialog .dialog-card h4 {
+  margin: 22px 0 10px;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.help-steps {
+  list-style: none;
+  counter-reset: help-step;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.help-steps li {
+  counter-increment: help-step;
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px 12px 52px;
+  background: rgba(122, 184, 255, 0.05);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.help-steps li::before {
+  content: counter(help-step);
+  position: absolute;
+  left: 14px;
+  top: 12px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #06101c;
+  background: var(--accent);
+  border-radius: 50%;
+}
+.help-steps b {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: var(--text);
+}
+.help-steps span {
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.help-keys {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  margin: 0;
+  align-items: center;
+}
+.help-keys dt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.help-keys dd {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+.help-keys kbd {
+  min-width: 24px;
+  text-align: center;
+}
+.help-more {
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.help-more summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  list-style: none;
+}
+.help-more summary::-webkit-details-marker {
+  display: none;
+}
+.help-more summary::before {
+  content: "+ ";
+  color: var(--accent);
+}
+.help-more[open] summary::before {
+  content: "\2212 ";
+}
+.help-more[open] summary {
+  margin-bottom: 12px;
+}
+.help-more summary:focus-visible {
+  outline: 2px solid var(--st-active);
+  outline-offset: 3px;
+}
+@media (max-width: 520px) {
+  .help-keys {
+    grid-template-columns: 1fr;
+    gap: 2px 0;
+  }
+  .help-keys dd {
+    margin-bottom: 8px;
+  }
+}/* while the end card is open, the caption bar underneath would repeat the same text */
+.mission-player:has(.mp-card:not(.hidden)) .mp-caption {
+  visibility: hidden;
+}.hud-body {
+  max-height: calc(100vh - var(--topbar-h) - 290px - 90px);
+}

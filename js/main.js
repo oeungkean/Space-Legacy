@@ -86,6 +86,7 @@ setTimeout(hideBootLoader, 4000);
 // interface (top bar, side list, panels) then fades in with a short stagger (see css "screen-in").
 // With "reduce motion" (system setting or Settings) the change is instant.
 const TRANSITION_MS = 1100;
+const WELCOME_TRANSITION_MS = 1900; // leaving the welcome screen is slower: the title lifts away first
 let transitionToken = 0;
 function motionReduced() {
   const system = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -96,15 +97,19 @@ function startTransition(from, to) {
   document.querySelectorAll && document.querySelectorAll(".screen.leaving, .screen.entering").forEach(function (el) {
     el.classList.remove("leaving");
     el.classList.remove("entering");
+    el.classList.remove("from-welcome");
   });
   if (!from || from === to || motionReduced()) return;
+  const slow = from === welcomeScreen;
   from.classList.add("leaving");
   to.classList.add("entering");
+  to.classList.toggle("from-welcome", slow);
   setTimeout(function () {
     if (token !== transitionToken) return;
     from.classList.remove("leaving");
     to.classList.remove("entering");
-  }, TRANSITION_MS + 300);
+    to.classList.remove("from-welcome");
+  }, (slow ? WELCOME_TRANSITION_MS : TRANSITION_MS) + 300);
 }
 
 function showScreen(screenToShow) {
@@ -159,7 +164,8 @@ function showScreen(screenToShow) {
   if (screenToShow === collectionScreen) startCollection();
   else stopCollection();
   // The mission progress panel shows while flying and exploring
-  setHudVisible(screenToShow === solarSystemScreen || screenToShow === explorationScreen);
+  // (only while exploring: it no longer sits over the Solar System)
+  setHudVisible(screenToShow === explorationScreen);
 
   // Sound: a whoosh when the screen changes, and a quiet space hum on the calm screens
   const changed = currentScreen !== screenToShow;
@@ -669,7 +675,9 @@ function showSiteList() {
   sitesDialog.classList.remove("hidden");
 }
 
-document.getElementById("explore-sites-button").addEventListener("click", function () {
+// (the "All sites" button on the exploration screen was removed; sites are chosen in the Simulator)
+const exploreSitesButton = document.getElementById("explore-sites-button");
+if (exploreSitesButton) exploreSitesButton.addEventListener("click", function () {
   showScreen(simulatorScreen);
   showSimStep("explore");
 });
@@ -1052,11 +1060,21 @@ setInterval(updateClocks, 1000);
   });
 });
 
-// ----- On phones, the left list opens and closes with a button -----
+// ----- The left list: on phones it slides in and out over the view. On wider screens the Solar System
+// list can be hidden too (its "‹" button), and the ☰ button in the top bar brings it back; while it is
+// hidden the screen uses the full width, so the view controls move to the middle. -----
 (document.querySelectorAll ? document.querySelectorAll("[data-sidebar]") : []).forEach(function (button) {
   button.setAttribute("data-silent", "");
   button.addEventListener("click", function () {
     const list = document.getElementById(button.getAttribute("data-sidebar"));
+    const screen = list.closest ? list.closest(".screen") : null;
+    const phone = window.innerWidth <= 760;
+    if (!phone && screen && screen.classList.contains("can-hide-sidebar")) {
+      const hidden = screen.classList.toggle("sidebar-collapsed");
+      play(hidden ? "close" : "open");
+      window.dispatchEvent(new Event("resize")); // the 3D view and its overlays refit the new width
+      return;
+    }
     play(list.classList.toggle("open") ? "open" : "close");
   });
 });

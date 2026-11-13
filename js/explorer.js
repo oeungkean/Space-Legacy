@@ -160,7 +160,20 @@ function statusClass(label) {
 
 // ----- Building the sidebar (once) -----
 // Two ways in, both about missions: WHERE the mission went, and WHAT KIND of hardware you want to see.
+// Each way in is a dropdown: closed, its heading shows the current choice ("All missions",
+// "All hardware"). Only one dropdown is open at a time, and only one filter is used at a time:
+// choosing a destination resets the hardware type to "All hardware", and the other way round.
+const filterGroups = [];
+let currentGroup = null;
+
+function setGroupOpen(group, open) {
+  group.root.classList.toggle("open", open);
+  group.toggle.setAttribute("aria-expanded", String(open));
+  group.body.hidden = !open;
+}
+
 function sidebarRow(label, meta, dot, onClick, data) {
+  const group = currentGroup;
   const row = document.createElement("button");
   row.className = "sidebar-item explorer-cat";
   Object.keys(data).forEach(function (key) { row.dataset[key] = data[key]; });
@@ -173,33 +186,55 @@ function sidebarRow(label, meta, dot, onClick, data) {
   row.addEventListener("click", function () {
     onClick();
     sidebar.classList.remove("open");
+    if (group) setGroupOpen(group, false); // a dropdown closes once you choose
     play("tick");
     render();
   });
-  categoryList.appendChild(row);
+  (group ? group.body : categoryList).appendChild(row);
   return row;
 }
 function sidebarHeading(text) {
-  const heading = document.createElement("p");
-  heading.className = "sidebar-heading";
-  heading.textContent = text;
-  categoryList.appendChild(heading);
+  const root = document.createElement("section");
+  root.className = "dd-group";
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "dd-toggle";
+  toggle.innerHTML = '<span class="dd-title"></span><span class="dd-value"></span>' +
+    '<svg class="dd-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+  const body = document.createElement("div");
+  body.className = "dd-body";
+  body.id = "explorer-dd-" + filterGroups.length;
+  toggle.setAttribute("aria-controls", body.id);
+  if (toggle.querySelector) toggle.querySelector(".dd-title").textContent = text;
+  root.appendChild(toggle);
+  root.appendChild(body);
+  categoryList.appendChild(root);
+  const group = { root: root, toggle: toggle, body: body };
+  setGroupOpen(group, false);
+  toggle.addEventListener("click", function () {
+    const open = !root.classList.contains("open");
+    filterGroups.forEach(function (other) { if (other !== group) setGroupOpen(other, false); });
+    setGroupOpen(group, open);
+  });
+  filterGroups.push(group);
+  currentGroup = group;
 }
 const DEST_DOTS = { earth: "#4c8dff", moon: "#b9b6b0", mars: "#d9692f", inner: "#e8b24a", outer: "#c9a77a", small: "#8f877d" };
 
 function buildCategories() {
   categoryList.innerHTML = "";
+  // One selection at a time: a destination resets the hardware type, and a hardware type resets the destination
   sidebarHeading("Where they went");
   sidebarRow("All missions", String(MISSION_GROUPS.length), "#7ab8ff", function () { state.dest = ""; state.region = ""; }, { dest: "" });
   DESTINATIONS.forEach(function (dest) {
     const count = MISSION_GROUPS.filter(function (g) { return g.where === dest.id; }).length;
-    sidebarRow(dest.name, String(count), DEST_DOTS[dest.id], function () { state.dest = dest.id; state.region = ""; }, { dest: dest.id });
+    sidebarRow(dest.name, String(count), DEST_DOTS[dest.id], function () { state.dest = dest.id; state.region = ""; state.category = "all"; }, { dest: dest.id });
   });
   sidebarHeading("What it is");
   sidebarRow("All hardware", String(catalog.length), "#a3adbf", function () { state.category = "all"; }, { category: "all" });
   CATEGORIES.forEach(function (category) {
     const count = catalog.filter(function (item) { return item.category === category.id; }).length;
-    sidebarRow(category.short === "Rockets" ? "Launch vehicles" : category.short, String(count), null, function () { state.category = category.id; }, { category: category.id });
+    sidebarRow(category.short === "Rockets" ? "Launch vehicles" : category.short, String(count), null, function () { state.category = category.id; state.dest = ""; state.region = ""; }, { category: category.id });
   });
 }
 
@@ -413,13 +448,23 @@ function render() {
   filterPill.classList.toggle("hidden", !state.body);
   if (state.body) filterPill.textContent = "Linked to " + state.body + "  \u00D7";
 
-  Array.from(categoryList.children).forEach(function (row) {
+  // Only one selection shows at a time: the hardware type when one is chosen, otherwise the destination
+  const byType = state.category !== "all";
+  Array.from(categoryList.querySelectorAll ? categoryList.querySelectorAll(".explorer-cat") : []).forEach(function (row) {
     if (!row.dataset) return;
     let active = false;
-    if (row.dataset.dest !== undefined) active = row.dataset.dest === state.dest && !state.region;
-    if (row.dataset.category !== undefined) active = row.dataset.category === state.category;
+    if (row.dataset.dest !== undefined) active = !byType && row.dataset.dest === state.dest && !state.region;
+    if (row.dataset.category !== undefined) active = byType && row.dataset.category === state.category;
     if (row.classList) row.classList.toggle("active", active);
     if (row.setAttribute) row.setAttribute("aria-current", active ? "true" : "false");
+  });
+  // Each closed dropdown shows its current value
+  filterGroups.forEach(function (group, i) {
+    const value = group.toggle.querySelector ? group.toggle.querySelector(".dd-value") : null;
+    if (!value) return;
+    const activeName = group.body.querySelector ? group.body.querySelector(".explorer-cat.active .sb-name") : null;
+    value.textContent = activeName ? activeName.textContent : (i === 0 ? (state.region || "All missions") : "All hardware");
+    group.root.classList.toggle("in-use", Boolean(activeName));
   });
 
   if (document.activeElement !== searchInput) searchInput.value = state.search;
