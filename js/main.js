@@ -618,8 +618,10 @@ function briefOf(config) {
   }
 }
 
+let missionSuit = null; // the suit chosen in the builder (Master Doc 14), worn at the landing site
 document.addEventListener("sim-launch", function (event) {
   const config = event.detail;
+  missionSuit = config.suit || null;
   startMission(config);
   showResults(null);
   completeObjective("launch");
@@ -736,7 +738,7 @@ function goToMissionSite(mission) {
   completeObjective("reach");
   completeObjective("deploy");
   setMissionState({ stage: "C \u00B7 Landing", status: "On site" });
-  openSite(mission.siteId);
+  openSite(mission.siteId, missionSuit);
 }
 
 // After exploring: crews fly home (the trip home and the splashdown), then the mission is complete

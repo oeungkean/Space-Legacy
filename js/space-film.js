@@ -17,6 +17,7 @@
 
 import * as THREE from "three";
 import { createModel } from "./models.js";
+import { nasaUsableInScene, upgradeToNasaModel, announceNasaModel } from "./nasa-models.js";
 import { createSuitedAstronaut } from "./astronaut.js";
 import { createParticleSystem } from "./particles.js";
 import { buildTerrainShape, buildGround, heightAt } from "./terrain.js";
@@ -306,6 +307,11 @@ function makeCraft(name, size) {
   model.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   shotGroup.add(holder);
   craftsInShot.push(holder);
+  // NASA's official model, when NASA has one and nothing on it moves in this scene (Master Doc 14).
+  // The project's model shows until it has loaded, and stays if it can't be loaded.
+  if (nasaUsableInScene(model, name)) {
+    upgradeToNasaModel(model, name).then(function (shown) { if (shown) announceNasaModel(name); });
+  }
   return holder;
 }
 

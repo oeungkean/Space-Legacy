@@ -654,6 +654,7 @@ export function togglePause() {
 
 function close(callExit) {
   active = false;
+  hideNasaChip();
   pendingBrief = null;
   root.classList.remove("mp-complete");
   if (brief) brief.classList.add("hidden");
@@ -693,6 +694,7 @@ export function playPlan(p, opts) {
   // the replay was started from)
   if (brief) brief.classList.add("hidden");
   pendingBrief = options.brief || briefingForPlan(p);
+  hideNasaChip();
   root.classList.remove("mp-complete");
   firstScene = true;
   startChapter(0);
@@ -811,3 +813,13 @@ window.addEventListener("keydown", function (event) {
     else { play("click"); close(true); }
   }
 }, true);
+
+// A small label when an official NASA 3D model is on screen (Master Doc 14), with a link to its page
+var nasaChip = document.getElementById("mp-nasa"); // (var: used by close() above, which can run first)
+document.addEventListener("nasa-model-shown", function (event) {
+  if (!nasaChip || !active || !event.detail) return;
+  nasaChip.textContent = "NASA 3D model: " + event.detail.name;
+  nasaChip.href = event.detail.page;
+  nasaChip.classList.remove("hidden");
+});
+function hideNasaChip() { if (nasaChip) nasaChip.classList.add("hidden"); }

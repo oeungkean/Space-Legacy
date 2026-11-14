@@ -712,8 +712,15 @@ function buildModel(item) {
 }
 
 // Small 3D icons for other pages (the Simulator's cards): spec = { type: "rocket" | "model" | "astronaut", key }
-export function modelIcon(spec, img) {
-  requestThumbnail({ model: spec }, img);
+export function modelIcon(spec, img, onNasa) {
+  // the builder's cards also use NASA's model where it has one (Master Doc 14)
+  const nasa = Boolean(spec && spec.type !== "rocket" && spec.type !== "astronaut" && hasNasaModel(spec.key));
+  if (nasa && onNasa) {
+    const key = thumbKey({ model: spec }) + "|nasa";
+    if (nasaDone[key]) onNasa();
+    else (nasaCallbacks[key] = nasaCallbacks[key] || []).push(onNasa);
+  }
+  requestThumbnail({ model: spec }, img, nasa);
 }
 
 // Places the model in a holder so its center is at the origin, and returns its size
@@ -787,6 +794,7 @@ function requestThumbnail(item, img, nasa) {
   (thumbImages[key] = thumbImages[key] || []).push(img);
   if (thumbCache[key]) {
     img.src = thumbCache[key];
+    if (nasaDone[key]) tagNasa(img);
     return;
   }
   thumbQueue.push({ item: item, img: img, key: key });
@@ -821,11 +829,12 @@ function drawThumbnails() {
     const job = thumbQueue.shift();
     if (thumbCache[job.key]) {
       job.img.src = thumbCache[job.key];
+      if (nasaDone[job.key]) tagNasa(job.img);
       continue;
     }
     const model = buildModel(job.item);
     if (!model) continue;
-    if (/\|nasa$/.test(job.key) && !nasaThumbs[job.key] && !model.userData.setDeploy) {
+    if (/\|nasa$/.test(job.key) && !nasaThumbs[job.key]) {
       nasaThumbs[job.key] = true;
       nasaThumbnail(job.item, job.key);
     }
@@ -864,8 +873,21 @@ function nasaThumbnail(item, key) {
     thumbRenderer.render(thumbScene, thumbCamera);
     thumbCache[key] = thumbRenderer.domElement.toDataURL("image/png");
     thumbScene.remove(holder);
-    (thumbImages[key] || []).forEach(function (img) { img.src = thumbCache[key]; });
+    (thumbImages[key] || []).forEach(function (img) {
+      img.src = thumbCache[key];
+      tagNasa(img);
+    });
+    nasaDone[key] = true;
+    (nasaCallbacks[key] || []).forEach(function (fn) { fn(); });
+    nasaCallbacks[key] = [];
   });
+}
+const nasaCallbacks = {}; // key -> functions to call when the NASA picture is shown (builder card labels)
+const nasaDone = {};      // key -> true once the NASA picture has been drawn
+// label a Missions card picture as an official NASA model (Master Doc 14)
+function tagNasa(img) {
+  const tag = img.parentNode && img.parentNode.querySelector ? img.parentNode.querySelector(".hw-thumb-tag") : null;
+  if (tag) { tag.textContent = "NASA 3D"; tag.classList.add("is-nasa"); tag.title = "Official NASA 3D model"; }
 }
 
 function disposeObject(object) {
@@ -947,9 +969,10 @@ function showViewerModel(item) {
   // this viewer as soon as it has loaded, and the note under the picture says so
   detailModelNote.textContent = MODEL_NOTE;
   const nasaKey = item.model.key;
-  if (hasNasaModel(nasaKey) && !model.userData.setDeploy) {
+  if (hasNasaModel(nasaKey)) {
     upgradeToNasaModel(model, nasaKey).then(function (shown) {
       if (!shown || v.model !== model) return;
+      viewerDeploy.classList.add("hidden"); // NASA's model is shown as it is (it does not fold up)
       const info = nasaModelInfo(nasaKey);
       detailModelNote.innerHTML = "";
       detailModelNote.append("Official NASA 3D model: " + info.name + ", from ");

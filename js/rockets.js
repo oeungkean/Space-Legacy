@@ -651,7 +651,94 @@ export function paintRocket(rocket, look) {
 // ---------- Choose a rocket by name ----------
 // look (optional, Sandbox Mode only): { paint, accent } colors from the Rocket Lab
 export function createRocket(name, look) {
-  return paintRocket(buildRocket(name), look);
+  return addAccessories(paintRocket(buildRocket(name), look), look);
+}
+
+// ---------- Free Build accessories (Master Doc 14) ----------
+// Fictional add-ons from the Workshop, drawn on the rocket so they show in the builder and at launch:
+// look.acc = { fins, stripe, camera, flag }, colours look.finColor and look.stripeColor.
+// Never used for real missions.
+function coreRadiusAt(rocket, y) {
+  // how wide the main body is at height y (side boosters are left out)
+  const boosters = rocket.userData.boosters || [];
+  let r = 0;
+  rocket.updateMatrixWorld(true);
+  rocket.traverse(function (o) {
+    if (!o.isMesh || !o.geometry) return;
+    let p = o;
+    while (p) { if (boosters.indexOf(p) !== -1) return; p = p.parent; }
+    const box = new THREE.Box3().setFromObject(o);
+    if (box.min.y <= y && box.max.y >= y) r = Math.max(r, Math.max(Math.abs(box.min.x), Math.abs(box.max.x), Math.abs(box.min.z), Math.abs(box.max.z)));
+  });
+  return r || rocket.userData.radius * 0.5;
+}
+export function addAccessories(rocket, look) {
+  if (!rocket || !look || !look.acc) return rocket;
+  const acc = look.acc;
+  if (!acc.fins && !acc.stripe && !acc.camera && !acc.flag) return rocket;
+  const h = rocket.userData.height;
+  const group = new THREE.Group();
+  group.name = "free-build-accessories";
+  const finMat = new THREE.MeshStandardMaterial({ color: look.finColor !== undefined && look.finColor !== null ? look.finColor : 0xb8412c, roughness: 0.5, metalness: 0.2 });
+  if (acc.fins) {
+    const r = coreRadiusAt(rocket, h * 0.06);
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0); shape.lineTo(r * 1.1, -h * 0.02); shape.lineTo(r * 1.1, h * 0.03); shape.lineTo(0, h * 0.11); shape.lineTo(0, 0);
+    const geometry = new THREE.ExtrudeGeometry(shape, { depth: r * 0.08, bevelEnabled: false });
+    geometry.translate(0, 0, -r * 0.04);
+    for (let i = 0; i < 4; i++) {
+      const fin = new THREE.Mesh(geometry, finMat);
+      fin.position.y = h * 0.02;
+      fin.rotation.y = Math.PI / 4 + i * Math.PI / 2;
+      fin.translateX(r * 0.95);
+      group.add(fin);
+    }
+  }
+  if (acc.stripe) {
+    const y = h * 0.62;
+    const r = coreRadiusAt(rocket, y);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.015, r * 1.015, h * 0.025, 48, 1, true),
+      new THREE.MeshStandardMaterial({ color: look.stripeColor !== undefined && look.stripeColor !== null ? look.stripeColor : 0x2f6fd8, roughness: 0.45, side: THREE.DoubleSide }));
+    band.position.y = y;
+    group.add(band);
+  }
+  if (acc.camera) {
+    const y = h * 0.4;
+    const r = coreRadiusAt(rocket, y);
+    const pod = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(r * 0.22, r * 0.5, r * 0.22), new THREE.MeshStandardMaterial({ color: 0x2b2d33, metalness: 0.6, roughness: 0.4 }));
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.07, r * 0.07, r * 0.06, 16), new THREE.MeshStandardMaterial({ color: 0x0a0c10, metalness: 0.9, roughness: 0.1 }));
+    lens.rotation.x = Math.PI / 2;
+    lens.position.set(0, -r * 0.18, r * 0.12);
+    pod.add(body);
+    pod.add(lens);
+    pod.position.set(0, y, r + r * 0.11);
+    group.add(pod);
+  }
+  if (acc.flag) {
+    const y = h * 0.5;
+    const r = coreRadiusAt(rocket, y);
+    const canvas = document.createElement("canvas");
+    canvas.width = 96; canvas.height = 64;
+    const ctx = canvas.getContext && canvas.getContext("2d");
+    if (ctx) {
+      // a made-up team flag (not a real country's flag): stripes and a star
+      ctx.fillStyle = "#1d3f8f"; ctx.fillRect(0, 0, 96, 64);
+      ctx.fillStyle = "#f2f2f2"; ctx.fillRect(0, 22, 96, 20);
+      ctx.fillStyle = "#e8c35a"; ctx.beginPath();
+      for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? 6 : 14; ctx.lineTo(48 + Math.cos(a) * rr, 32 + Math.sin(a) * rr); }
+      ctx.fill();
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const decal = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.012, r * 1.012, r * 0.9, 32, 1, true, -0.55, 1.1),
+      new THREE.MeshStandardMaterial({ map: texture, roughness: 0.6, side: THREE.DoubleSide }));
+    decal.position.y = y;
+    group.add(decal);
+  }
+  rocket.add(group);
+  rocket.userData.custom = true;
+  return rocket;
 }
 
 function buildRocket(name) {

@@ -11,6 +11,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { createRocket } from "./rockets.js";
 import { createModel } from "./models.js";
+import { createEquipment } from "./equipment-models.js";
 import { createSuitedAstronaut } from "./astronaut.js";
 import { modelIcon } from "./explorer.js";
 import { destinationIcon, planetPicture, uiIcon } from "./icons.js";
@@ -20,7 +21,7 @@ import {
 } from "../data/simulator.js";
 import { buildObjectives, getPoints, getUpgrades, spendPoint, onProgressChange } from "./progress.js";
 import { play } from "./sounds.js";
-import { loadNasaModel } from "./nasa-models.js";
+import { loadNasaModel, nasaUsableInScene, upgradeToNasaModel, nasaModelInfo } from "./nasa-models.js";
 import { hardwareList } from "../data/hardware.js";
 
 const el = function (id) { return document.getElementById(id); };
@@ -30,7 +31,7 @@ const modeButtons = document.querySelectorAll ? document.querySelectorAll("[data
 // One place: the Mission Builder. (Older names "locker" and "explore" open the Suit and Destination steps.)
 const panels = { lab: el("sim-step-lab") };
 // Steps of the builder, in order, plus the optional Workshop
-const BAY_TABS = ["rocket", "spacecraft", "suit", "destination", "review", "workshop"];
+const BAY_TABS = ["rocket", "spacecraft", "suit", "destination", "workshop", "review"];
 const progressBar = el("bay-progress-bar");
 const progressText = el("bay-progress-text");
 const bayTabButtons = document.querySelectorAll ? document.querySelectorAll("[data-bay-tab]") : [];
@@ -65,23 +66,20 @@ const lockerFacts = el("locker-facts");
 const lockerName = el("locker-name");
 const lockerEquipment = el("locker-equipment");
 const lockerVehicles = el("locker-vehicles");
-const lockerWear = el("locker-wear");
-const lockerWearNote = el("locker-wear-note");
-const siteList = el("sim-site-list");
+const siteList = el("sim-site-list");      // (removed from the page in Master Doc 14; kept optional)
 const exploreNote = el("sim-explore-note");
 const rocketInfo = el("sim-rocket-info");
 const craftList = el("sim-craft-list");
-const craftInfo = el("sim-craft-info");
 const destList = el("sim-dest-list");
-const reviewList = el("sim-review");
 const reviewObjectives = el("sim-objectives");
-const reviewBadge = el("sim-badge");
 const launchButton = el("sim-launch");
 const modeNote = el("sim-mode-note");
 const labCanvas = el("lab-canvas");
-const labCompare = el("lab-compare");
-const labParts = el("lab-parts");
-const labTable = el("lab-table");
+const wsAccessories = el("ws-accessories");
+const wsName = el("ws-name");
+const wsPatch = el("ws-patch");
+const patchPreview = el("sim-patch-preview");
+const objectivesTitle = el("sim-objectives-title");
 const labCustom = el("lab-custom");
 const labPoints = el("lab-points");
 const labUpgrades = el("lab-upgrades");
@@ -100,8 +98,36 @@ const state = {
   labCompare: "",
   suit: "a7l",          // the suit shown in the Suit Locker
   pose: "walk",         // the animation shown in the Suit Locker
-  wearSuit: false       // Sandbox only: wear the locker's suit on every site (fictional)
+  // Master Doc 14
+  vehicle: null,        // a surface vehicle that rides along: "lrv", "curiosity" or "perseverance"
+  site: null,           // the landing site chosen in the Destination step ("none" = orbit or fly by)
+  lockerTool: null,     // a hand tool shown on the turntable instead of the astronaut
+  workshopSeen: false,
+  missionName: "",
+  patch: { shape: "circle", color: "#2f5fb8" }
 };
+state.look.acc = { fins: false, stripe: false, camera: false, flag: false };
+state.look.finColor = null;
+state.look.stripeColor = null;
+
+// Spacecraft that carry people get the Suit step
+function crewed() {
+  return Boolean(state.spacecraft && SPACECRAFT[state.spacecraft] && SPACECRAFT[state.spacecraft].type === "crewed");
+}
+const ROVERS = { curiosity: true, perseverance: true };
+
+// The spacecraft that counts for "did this really fly": a rover delivered by the sky crane flew as that
+// rover's own mission (MSL, Mars 2020)
+function effectiveCraft() {
+  if (state.spacecraft === "skycrane" && state.vehicle && ROVERS[state.vehicle]) return state.vehicle;
+  return state.spacecraft;
+}
+// The real mission that used this exact rocket, spacecraft, destination and site (Apollo 11, 15 and 17
+// all flew Saturn V + Apollo to the Moon, each to its own site)
+function realTemplateAt(siteId) {
+  return templatesFor({ rocket: state.rocket, spacecraft: effectiveCraft(), destination: state.destination })
+    .find(function (t) { return (t.site || null) === (siteId || null); }) || null;
+}
 
 // ----- Helpers -----
 function rocketName(key) {
@@ -148,7 +174,15 @@ function setPicture(frame, spec, svg) {
   const img = document.createElement("img");
   img.alt = "";
   frame.appendChild(img);
-  modelIcon(spec, img);
+  // where NASA's 3D Resources has the model, the picture switches to it and is labelled (Master Doc 14)
+  modelIcon(spec, img, function () {
+    if (!frame.querySelector || frame.querySelector(".nasa-tag")) return;
+    const tag = document.createElement("span");
+    tag.className = "nasa-tag";
+    tag.textContent = "NASA";
+    tag.title = "Official NASA 3D model";
+    frame.appendChild(tag);
+  });
 }
 
 // Destinations that are planets or moons get a rendered picture of the real-texture globe
@@ -205,14 +239,15 @@ function renderRockets() {
   const key = state.labRocket;
   const item = findItem(key);
   const missions = templatesFor({ rocket: key });
-  const compatible = missions.map(function (t) { return SPACECRAFT[t.spacecraft].name; });
+  const rocketModel = createRocket(key);
+  // Only what is needed to choose (Master Doc 14): name, size, side boosters, what it flew, status
+  const specs = item && item.specs ? item.specs.slice(0, 2).map(function (sp) { return sp[0] + ": " + sp[1]; }).join(" \u00B7 ") : "";
   factList(rocketInfo, [
-    ["On the pad", rocketName(key) + (state.rocket === key ? " (chosen for your mission)" : rocketAllowed(key) ? "" : " (inspect only: it launched no mission in this simulator; Free Build lets you fly it)")],
-    ["History", item ? item.background || item.description : ""],
-    ["Specifications", item && item.specs ? item.specs.map(function (s) { return s[0] + ": " + s[1]; }).join(" · ") : ""],
-    ["Flew", missions.length ? missions.map(function (t) { return t.name; }).join(", ") : "Free Build only in this simulator"],
-    ["Compatible spacecraft (historical)", compatible.length ? Array.from(new Set(compatible)).join(", ") : "None in this simulator"],
-    ["Launch animation", "The liftoff scene uses this rocket's own model, with its own boosters and staging."]
+    ["On the pad", rocketName(key) + (state.rocket === key ? " (chosen)" : "")],
+    ["Size", specs || ("About " + Math.round(rocketModel.userData.height * 8) + " m tall")],
+    ["Side boosters", String(rocketModel.userData.boosters.length)],
+    ["Flew", missions.length ? missions.map(function (t) { return t.name; }).join(", ") : (item && item.mission) || "Free Build only"],
+    ["Status", item && item.status ? item.status.label : ""]
   ]);
 }
 
@@ -220,152 +255,208 @@ function renderRockets() {
 function renderSpacecraft() {
   craftList.innerHTML = "";
   if (!state.rocket) {
-    craftList.innerHTML = '<p class="sim-empty">Roll a rocket onto the pad first (station 01).</p>';
-    craftInfo.innerHTML = "";
+    craftList.innerHTML = '<p class="sim-empty">Roll a rocket onto the pad first (step 01).</p>';
     return;
   }
   Object.keys(SPACECRAFT).forEach(function (key) {
     const craft = SPACECRAFT[key];
-    const historical = templatesFor({ rocket: state.rocket, spacecraft: key }).length > 0;
+    if (craft.type === "rover") return; // rovers are surface vehicles now (Master Doc 14)
+    const historical = key === "skycrane" ? state.rocket === "atlas-v-541" : templatesFor({ rocket: state.rocket, spacecraft: key }).length > 0;
     if (state.mode === "historical" && !historical) return;
-    const launchers = Array.from(new Set(templatesFor({ spacecraft: key }).map(function (t) { return rocketName(t.rocket); })));
+    const launchers = key === "skycrane" ? ["Atlas V 541"] : Array.from(new Set(templatesFor({ spacecraft: key }).map(function (t) { return rocketName(t.rocket); })));
     craftList.appendChild(card(craft.name,
       historical ? "Historically launched on " + rocketName(state.rocket) : "FICTIONAL combination (Free Build)",
-      "Real launch vehicles: " + (launchers.join(", ") || "none in this simulator"),
+      (craft.type === "crewed" ? "Carries astronauts \u00B7 " : "") + "Real launch vehicles: " + (launchers.join(", ") || "none in this simulator"),
       state.spacecraft === key,
       function () {
-        state.spacecraft = key;
-        state.destination = null;
+        if (state.spacecraft !== key) {
+          state.spacecraft = key;
+          state.destination = null;
+          state.site = null;
+        }
         play("select");
-        render();
+        render(); // only marks it chosen: the button moves on
       }, { fictional: !historical, picture: craftPicture(key) }));
   });
-  if (state.spacecraft) {
-    const craft = SPACECRAFT[state.spacecraft];
-    const item = craft.catalogId ? findItem(craft.catalogId) : null;
-    factList(craftInfo, [
-      ["Type", craft.type],
-      ["About", item ? item.description || item.mission : "Crew Dragon: SpaceX's crew capsule; Demo-2 (2020) carried Robert Behnken and Douglas Hurley to the space station."],
-      ["Can be launched by (historically)", Array.from(new Set(templatesFor({ spacecraft: state.spacecraft }).map(function (t) { return rocketName(t.rocket); }))).join(", ")]
-    ]);
-  } else craftInfo.innerHTML = "";
 }
 
 // ----- Step 3: destination -----
-const CAPABILITY = {
-  crewed: "Carries astronauts.",
-  rover: "A robot: explores the surface and does not return to Earth.",
-  lander: "A robot lander: it stays where it lands.",
-  probe: "A robotic probe: flybys or orbit, no astronauts and no landing of people.",
-  telescope: "A telescope: it observes from its orbit.",
-  station: "A space station module in Earth orbit."
-};
+// First only the worlds; after one is clicked, only that world's landing sites (Master Doc 14), plus
+// "Orbit or fly by". Choosing a site only marks it; the button then leads to the Workshop.
+const SITE_WORLD = { moon: "moon", mars: "mars", "earth-orbit": "orbit" };
+
+function sitesFor(destination) {
+  const world = SITE_WORLD[destination];
+  if (!world) return [];
+  return Object.keys(SITES).filter(function (id) {
+    const site = SITES[id];
+    if (site.world !== world) return false;
+    if (state.mode !== "sandbox" && site.fictional) return false;
+    if (crewed()) return Boolean(site.suit);                                     // people land where people walk
+    if (state.vehicle && ROVERS[state.vehicle]) return site.vehicle === "rover"; // a rover drives at a rover site
+    return false;                                                                // other robots: orbit or fly by
+  });
+}
+
+// Is this the site the real mission used?
+function realSite(id) {
+  return Boolean(realTemplateAt(id));
+}
 
 function renderDestinations() {
   destList.innerHTML = "";
   if (!state.spacecraft) {
-    destList.innerHTML = '<p class="sim-empty">Fit a spacecraft first (station 02).</p>';
+    destList.innerHTML = '<p class="sim-empty">Fit a spacecraft first (step 02).</p>';
     return;
   }
-  const craft = SPACECRAFT[state.spacecraft];
-  const note = document.createElement("p");
-  note.className = "sim-capability";
-  note.textContent = craft.name + ": " + CAPABILITY[craft.type];
-  destList.appendChild(note);
-  Object.keys(DESTINATIONS).forEach(function (key) {
-    const d = DESTINATIONS[key];
-    const historical = isHistoricalCombo(state.rocket, state.spacecraft, key);
-    if (state.mode === "historical" && !historical) return;
-    const template = templatesFor({ rocket: state.rocket, spacecraft: state.spacecraft, destination: key })[0];
-    destList.appendChild(card(d.name,
-      historical ? "Real mission: " + template.name + " (" + template.year + ")" : "FICTIONAL destination for this spacecraft",
-      "Travel time: " + d.travel,
-      state.destination === key,
+  if (!state.destination) {
+    const grid = document.createElement("div");
+    grid.className = "sim-grid";
+    Object.keys(DESTINATIONS).forEach(function (key) {
+      const d = DESTINATIONS[key];
+      const historical = isHistoricalCombo(state.rocket, effectiveCraft(), key);
+      if (state.mode === "historical" && !historical) return;
+      const template = templatesFor({ rocket: state.rocket, spacecraft: effectiveCraft(), destination: key })[0];
+      grid.appendChild(card(d.name,
+        historical ? "Real mission: " + template.name + " (" + template.year + ")" : "FICTIONAL destination for this spacecraft",
+        "Travel time: " + d.travel,
+        false,
+        function () {
+          state.destination = key;
+          state.site = null;
+          play("select");
+          render();
+        }, { fictional: !historical, picture: PLANET_PICTURE[key], icon: PLANET_PICTURE[key] ? null : planetPicture(key) }));
+    });
+    destList.appendChild(grid);
+    return;
+  }
+  const d = DESTINATIONS[state.destination];
+  const head = document.createElement("div");
+  head.className = "dest-head";
+  const back = document.createElement("button");
+  back.type = "button";
+  back.className = "small-button dest-back";
+  back.textContent = "\u2190 All destinations";
+  back.addEventListener("click", function () {
+    state.destination = null;
+    state.site = null;
+    play("click");
+    render();
+  });
+  const title = document.createElement("h4");
+  title.className = "sim-sub sim-sub-big";
+  title.textContent = d.name + ": choose where to go";
+  head.appendChild(back);
+  head.appendChild(title);
+  destList.appendChild(head);
+  const grid = document.createElement("div");
+  grid.className = "sim-grid";
+  sitesFor(state.destination).forEach(function (id) {
+    const site = SITES[id];
+    const suitKey = crewed() && state.suitSeen ? state.suit : site.suit;
+    const suit = suitKey ? SUITS[suitKey] : null;
+    const real = realSite(id) && (!crewed() || !state.suitSeen || state.suit === site.suit);
+    const how = site.vehicle === "lrv" ? "Lunar Roving Vehicle" : site.vehicle === "rover" ? "Drive the rover" : site.start === "eva" ? "Spacewalk" : site.start === "cockpit" ? "Spacecraft controls" : "On foot";
+    grid.appendChild(card(site.name,
+      real ? "Real site of " + site.mission : (site.fictional ? "FICTIONAL site" : site.mission + " \u00B7 FICTIONAL for this build"),
+      (suit ? "Suit: " + suit.name : "Robotic") + " \u00B7 " + how,
+      state.site === id,
       function () {
-        state.destination = key;
+        state.site = id;
         play("select");
         render();
-      }, { fictional: !historical, picture: PLANET_PICTURE[key], icon: PLANET_PICTURE[key] ? null : planetPicture(key) }));
+      }, { fictional: !real, picture: sitePicture(site) }));
   });
+  const lander = SPACECRAFT[state.spacecraft].type === "lander";
+  grid.appendChild(card(lander ? "No surface walk" : "Orbit or fly by",
+    "No landing site to explore",
+    lander ? "The replay follows the spacecraft to " + d.name + "; there is no surface exploration." : "The trip ends in orbit or with a flyby of " + d.name + ".",
+    state.site === "none",
+    function () {
+      state.site = "none";
+      play("select");
+      render();
+    }, { picture: PLANET_PICTURE[state.destination], icon: PLANET_PICTURE[state.destination] ? null : planetPicture(state.destination) }));
+  destList.appendChild(grid);
 }
 
-// ----- Step 4: review -----
+// ----- Launch step -----
+function ready() {
+  return Boolean(state.rocket && state.spacecraft && state.destination && state.site);
+}
+
 function missionConfig() {
-  const template = state.mode === "historical" ? historicalTemplate() : null;
   const craft = SPACECRAFT[state.spacecraft];
-  let siteId = template ? template.site : null;
-  if (state.mode === "sandbox") {
-    if (state.destination === "moon" && (craft.type === "crewed" || craft.type === "lander")) siteId = state.spacecraft === "apollo" ? "hadley" : "sandbox-moon";
-    else if (state.destination === "mars" && (craft.type === "crewed" || craft.type === "rover")) siteId = craft.type === "rover" ? (state.spacecraft === "curiosity" ? "gale" : "jezero") : "sandbox-mars";
-    else if (state.destination === "earth-orbit" && craft.type === "crewed") siteId = state.spacecraft === "dragon" ? "orbit-dragon" : "orbit-hubble";
+  if (state.mode === "historical") {
+    const t = historicalTemplate();
+    return { mode: "historical", fictional: false, rocket: state.rocket, spacecraft: state.spacecraft, destination: state.destination,
+      template: t, siteId: t ? t.site : null, crew: t ? t.crew : craft.crew, title: t ? t.name : "Mission", look: null, upgrades: null };
   }
-  const fictional = state.mode === "sandbox" && !isHistoricalCombo(state.rocket, state.spacecraft, state.destination);
+  // Free Build: the site chosen in the Destination step, the suit chosen in the Suit step (crews only),
+  // the rover chosen as a surface vehicle. Real only if all of it matches a real mission.
+  const siteId = state.site && state.site !== "none" ? state.site : null;
+  const template = realTemplateAt(siteId);
+  const site = siteId ? SITES[siteId] : null;
+  const suit = crewed() && state.suitSeen ? state.suit : null;
+  const siteMatches = Boolean(template);
+  const suitMatches = !site || !site.suit || !suit || suit === site.suit;
+  const vehicleMatches = !state.vehicle || (ROVERS[state.vehicle] ? state.spacecraft === "skycrane" : Boolean(site && site.vehicle === state.vehicle));
+  const fictional = !(template && siteMatches && suitMatches && vehicleMatches);
+  const name = (state.missionName || "").trim();
   return {
     mode: state.mode,
     fictional: fictional,
     rocket: state.rocket,
-    spacecraft: state.spacecraft,
+    spacecraft: effectiveCraft(),
+    carrier: state.spacecraft,
+    vehicle: state.vehicle,
     destination: state.destination,
-    template: template,
+    template: null,
     siteId: siteId,
-    crew: template ? template.crew : craft.crew,
-    title: template ? template.name : (fictional ? "Free Build mission (fictional)" : "Free Build mission"),
-    look: state.mode === "sandbox" ? state.look : null,
-    upgrades: state.mode === "sandbox" ? getUpgrades() : null
+    suit: site && site.suit ? suit : null,
+    crew: craft.crew,
+    title: name || (fictional ? "Free Build mission (fictional)" : "Free Build mission"),
+    missionName: name,
+    patch: { shape: state.patch.shape, color: state.patch.color },
+    look: state.look,
+    upgrades: getUpgrades()
   };
 }
 
 function renderReview() {
-  if (state.destination && state.mode === "historical" && !historicalTemplate()) {
-    // Never offered in Historical Mode, but guard anyway
-    reviewList.innerHTML = '<li class="sim-empty">This combination never flew. Switch to Free Build to try it as a fictional mission.</li>';
-    reviewObjectives.innerHTML = "";
+  reviewObjectives.innerHTML = "";
+  if (!ready()) {
+    const li = document.createElement("li");
+    li.className = "sim-empty";
+    li.textContent = "Choose a rocket, a spacecraft, a destination and a landing site (or Orbit or fly by) first.";
+    reviewObjectives.appendChild(li);
     launchButton.disabled = true;
-    reviewBadge.textContent = "";
-    return;
-  }
-  if (!state.destination) {
-    reviewList.innerHTML = '<li class="sim-empty">Choose a rocket, a spacecraft and a destination first (stations 01 to 03).</li>';
-    reviewObjectives.innerHTML = "";
-    launchButton.disabled = true;
-    reviewBadge.textContent = "";
+    if (objectivesTitle) objectivesTitle.textContent = "Mission objectives";
+    if (patchPreview) patchPreview.innerHTML = "";
     return;
   }
   const config = missionConfig();
   const site = config.siteId ? SITES[config.siteId] : null;
-  const suit = site && site.suit ? SUITS[site.suit] : null;
-  reviewBadge.textContent = config.mode === "historical" ? "Real mission · " + config.template.name + " (" + config.template.year + ")" :
-    config.fictional ? "Free Build · FICTIONAL combination" : "Free Build · matches a real mission";
-  reviewBadge.className = "sim-badge " + (config.mode === "historical" ? "historical" : "fictional");
-  factList(reviewList, [
-    ["Rocket", rocketName(config.rocket) + (config.look && (config.look.paint || config.look.accent) ? " (custom paint: fictional)" : "")],
-    ["Spacecraft", SPACECRAFT[config.spacecraft].name],
-    ["Destination", DESTINATIONS[config.destination].name],
-    ["Crew", config.crew ? config.crew + (config.crew === 1 ? " astronaut" : " astronauts") : "Uncrewed"],
-    ["Spacesuit", suit ? suit.name + " (" + suit.era + ")" : "None needed"],
-    ["Exploration", site ? site.name + (site.fictional ? " (fictional site)" : "") : "No surface exploration: the journey ends with the spacecraft's real final state"],
-    ["Exploration vehicles", site && site.vehicle === "lrv" ? "Lunar Roving Vehicle" : site && site.vehicle === "rover" ? "The rover itself" : "None"],
-    ["Equipment", site ? site.equipment.map(function (key) { return EQUIPMENT[key].name; }).join(", ") : "Mission instruments only"],
-    ["Duration estimate", config.template ? config.template.duration : DESTINATIONS[config.destination].travel + " (based on real missions)"],
-    ["Fictional upgrades", config.upgrades && Object.keys(config.upgrades).length ? Object.keys(config.upgrades).map(function (k) { return k + " +" + config.upgrades[k]; }).join(", ") + " (game mode)" : ""]
-  ]);
-  reviewObjectives.innerHTML = "";
+  // only the mission's three objectives and the launch button (Master Doc 14)
   buildObjectives(config, site).forEach(function (o) {
     const li = document.createElement("li");
     li.textContent = o.text;
     reviewObjectives.appendChild(li);
   });
+  if (objectivesTitle) objectivesTitle.textContent = config.missionName ? config.missionName + ": objectives" : "Mission objectives";
+  if (patchPreview) patchPreview.innerHTML = patchSvg(state.patch, config.missionName);
   launchButton.disabled = false;
 }
 
 launchButton.addEventListener("click", function () {
-  if (!state.destination) return;
+  if (!ready()) return;
   play("ignition");
   document.dispatchEvent(new CustomEvent("sim-launch", { detail: missionConfig() }));
 });
 
 // ----- Pages and stations -----
-// Old step names (rocket, spacecraft, destination, review) open that station inside the Engineering Bay.
+// Old step names (rocket, spacecraft, destination, review) open that step inside the builder.
 function setStep(step) {
   if (step === "locker") step = "suit";
   if (step === "explore") step = "destination";
@@ -383,12 +474,17 @@ function setStep(step) {
 }
 
 function setBayTab(tab) {
+  if (tab === "suit" && !crewed()) tab = "destination"; // uncrewed: no suit step
   state.bayTab = tab;
+  if (tab === "workshop") state.workshopSeen = true;
   render();
   showBayExtras();
+  const bar = bayPanesTop();
+  if (bar && bar.scrollIntoView) bar.scrollIntoView({ block: "nearest" });
 }
+function bayPanesTop() { return document.querySelector ? document.querySelector(".build-progress") : null; }
 
-// The Suit step shows the locker (with its 3D turntable); the Destination step also lists sites to explore
+// The Suit step shows the locker (with its 3D turntable)
 function showBayExtras() {
   if (state.bayTab === "suit") {
     state.suitSeen = true;
@@ -396,28 +492,39 @@ function showBayExtras() {
     requestAnimationFrame(function () { if (locker) sizeViewer(locker); });
     render();
   }
-  if (state.bayTab === "destination") renderSites();
   if (state.bayTab === "spacecraft") renderVehicles();
 }
 
-bayTabButtons.forEach(function (button) {
-  if (button.querySelector) {
-    const icon = button.querySelector("[data-ui-icon]");
+// The progress bar keeps its icons but is not clickable (Master Doc 14): the buttons move you on
+bayTabButtons.forEach(function (item) {
+  if (item.querySelector) {
+    const icon = item.querySelector("[data-ui-icon]");
     if (icon) icon.innerHTML = uiIcon(icon.getAttribute ? icon.getAttribute("data-ui-icon") : icon.dataset.uiIcon);
   }
-  button.addEventListener("click", function () {
-    play("click");
-    setBayTab(button.dataset.bayTab);
-  });
 });
 
-// The next station, so the bay guides you without extra sidebar buttons
+// The steps in order (the Suit step only for spacecraft that carry people)
+function visibleSteps() {
+  return BAY_TABS.filter(function (tab) { return tab !== "suit" || crewed(); });
+}
+function stepDone(tab) {
+  if (tab === "rocket") return Boolean(state.rocket);
+  if (tab === "spacecraft") return Boolean(state.spacecraft);
+  if (tab === "suit") return Boolean(state.suitSeen);
+  if (tab === "destination") return Boolean(state.destination && state.site);
+  if (tab === "workshop") return Boolean(state.workshopSeen);
+  return false;
+}
+
+// The one "next" button (bottom-right, in the same place on every step): what it says and where it goes
 function nextStation() {
-  if (!state.rocket) return null;
-  if (!state.spacecraft) return ["spacecraft", "Next: fit a spacecraft"];
-  if (!state.suitSeen) return ["suit", "Next: choose a suit"];
-  if (!state.destination) return ["destination", "Next: pick a destination"];
-  return ["review", "Next: launch preparation"];
+  const tab = state.bayTab;
+  if (tab === "rocket") return state.rocket ? ["spacecraft", "Pick a spacecraft"] : null;
+  if (tab === "spacecraft") return state.spacecraft ? (crewed() ? ["suit", "Pick a suit"] : ["destination", "Pick a destination"]) : null;
+  if (tab === "suit") return ["destination", "Pick a destination"];
+  if (tab === "destination") return state.destination && state.site ? ["workshop", "Go to Workshop"] : null;
+  if (tab === "workshop") return ["review", "Go to launch"];
+  return null;
 }
 
 bayNext.addEventListener("click", function () {
@@ -427,70 +534,47 @@ bayNext.addEventListener("click", function () {
   setBayTab(next[0]);
 });
 
-// The build sheet at the top of the bay: what you have chosen so far
-function renderBuildSheet() {
-  // The row of choices above the 3D bay was removed (the step tabs below already show them)
-  if (!buildSheet) return;
-  // The sheet is rebuilt on every change, so remember which slot had keyboard focus and restore it
-  const focused = document.activeElement && buildSheet.contains && buildSheet.contains(document.activeElement)
-    ? document.activeElement.getAttribute("data-slot") : null;
-  buildSheet.innerHTML = "";
-  const rows = [
-    ["rocket", "Rocket", state.rocket ? rocketName(state.rocket) : "Not chosen", state.rocket ? { type: "rocket", key: state.rocket } : uiIcon("rocket")],
-    ["spacecraft", "Spacecraft", state.spacecraft ? SPACECRAFT[state.spacecraft].name : "Not chosen", state.spacecraft ? craftPicture(state.spacecraft) : uiIcon("spacecraft")],
-    ["suit", "Suit", state.suitSeen && SUITS[state.suit] ? SUITS[state.suit].name : "Not chosen", state.suitSeen ? { type: "astronaut", key: state.suit } : uiIcon("suit")],
-    ["destination", "Destination", state.destination ? DESTINATIONS[state.destination].name : "Not chosen", state.destination ? (PLANET_PICTURE[state.destination] || planetPicture(state.destination)) : uiIcon("destination")]
-  ];
-  rows.forEach(function (row) {
-    const li = document.createElement("li");
-    const done = row[2] !== "Not chosen";
-    li.className = "build-row" + (done ? " done" : "") + (state.bayTab === row[0] ? " active" : "");
-    li.innerHTML = '<span class="build-icon"></span><span class="build-text"><em></em><b></b></span>';
-    if (li.querySelector) {
-      if (typeof row[3] === "string") li.querySelector(".build-icon").innerHTML = row[3];
-      else setPicture(li.querySelector(".build-icon"), row[3]);
-      li.querySelector("em").textContent = row[1];
-      li.querySelector("b").textContent = row[2];
-    }
-    // Each manifest slot opens its station, with the mouse or the keyboard (Tab, then Enter or Space)
-    li.tabIndex = 0;
-    li.setAttribute("data-slot", row[0]);
-    li.setAttribute("role", "button");
-    li.setAttribute("aria-label", row[1] + ": " + row[2] + (done ? " (chosen)" : "") + ". Open the " + row[1] + " station");
-    li.addEventListener("click", function () { play("click"); setBayTab(row[0]); });
-    li.addEventListener("keydown", function (event) {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        play("click");
-        setBayTab(row[0]);
-      }
-    });
-    buildSheet.appendChild(li);
-    if (focused === row[0] && li.focus) li.focus();
-  });
-}
+// Back one step (the progress bar itself is not clickable)
+const bayBack = document.createElement("button");
+bayBack.type = "button";
+bayBack.className = "small-button bay-back hidden";
+bayBack.textContent = "\u2190 Back";
+bayBack.addEventListener("click", function () {
+  const steps = visibleSteps();
+  const i = steps.indexOf(state.bayTab);
+  if (i <= 0) return;
+  play("click");
+  setBayTab(steps[i - 1]);
+});
+if (bayNext.parentNode && bayNext.parentNode.insertBefore) bayNext.parentNode.insertBefore(bayBack, bayNext);
+
+// (the build sheet over the 3D bay was removed earlier; kept as a no-op for safety)
+function renderBuildSheet() {}
 
 function renderBayChrome() {
-  bayTabButtons.forEach(function (button) {
-    const tab = button.dataset.bayTab;
-    button.classList.toggle("active", tab === state.bayTab);
-    const done = (tab === "rocket" && state.rocket) || (tab === "spacecraft" && state.spacecraft) || (tab === "suit" && state.suitSeen) || (tab === "destination" && state.destination);
-    button.classList.toggle("done", Boolean(done));
+  if (state.bayTab === "suit" && !crewed()) state.bayTab = "destination";
+  const steps = visibleSteps();
+  const current = steps.indexOf(state.bayTab);
+  bayTabButtons.forEach(function (item) {
+    const tab = item.dataset.bayTab;
+    const shown = steps.indexOf(tab) !== -1;
+    item.classList.toggle("hidden", !shown);
+    item.classList.toggle("active", tab === state.bayTab);
+    item.classList.toggle("done", shown && stepDone(tab) && tab !== state.bayTab);
+    if (item.setAttribute) item.setAttribute("aria-current", tab === state.bayTab ? "step" : "false");
+    const number = item.querySelector ? item.querySelector("em") : null;
+    if (number && shown) number.textContent = String(steps.indexOf(tab) + 1).padStart(2, "0");
   });
-  // Progress: how many of the four choices are made, and which step you are on
-  const chosen = [state.rocket, state.spacecraft, state.suitSeen, state.destination].filter(Boolean).length;
-  const stepIndex = ["rocket", "spacecraft", "suit", "destination", "review"].indexOf(state.bayTab);
-  progressBar.style.width = (chosen / 4 * 100) + "%";
-  progressText.textContent = (stepIndex >= 0 ? "Step " + (stepIndex + 1) + " of 5 \u00B7 " : "Workshop (optional) \u00B7 ") +
-    chosen + " of 4 chosen" + (chosen === 4 ? " \u00B7 ready to launch" : "");
+  // the bar fills up to the current step
+  progressBar.style.width = (steps.length > 1 ? Math.max(0, current) / (steps.length - 1) * 100 : 0) + "%";
+  if (progressText) progressText.textContent = state.bayTab ? "Current step: " + state.bayTab : "";
   bayPanes.forEach(function (pane) {
     pane.classList.toggle("hidden", pane.dataset.bayPane !== state.bayTab);
   });
-  renderBuildSheet();
   const next = nextStation();
-  const show = Boolean(next) && state.bayTab !== "review" && state.bayTab !== "workshop" && next[0] !== state.bayTab;
-  bayNext.classList.toggle("hidden", !show);
-  if (next) bayNext.textContent = next[1] + " →";
+  bayNext.classList.toggle("hidden", !next);
+  if (next) bayNext.textContent = next[1] + " \u2192";
+  bayBack.classList.toggle("hidden", current <= 0);
 }
 
 export function showSimStep(step) {
@@ -501,6 +585,7 @@ export function showSimStep(step) {
 const WORLD_GROUPS = [["moon", "The Moon"], ["mars", "Mars"], ["orbit", "Earth orbit"]];
 
 function renderSites() {
+  if (!siteList) return; // (the "go straight to the surface" list left the builder in Master Doc 14)
   siteList.innerHTML = "";
   exploreNote.textContent = state.mode === "historical"
     ? "Real landing sites, with the suits and vehicles used there. To fly there first, finish the steps above and launch."
@@ -527,7 +612,7 @@ function renderSites() {
         false,
         function () {
           play("select");
-          const wear = state.mode === "sandbox" && state.wearSuit && site.suit ? state.suit : null;
+          const wear = null;
           document.dispatchEvent(new CustomEvent("open-site", { detail: { siteId: id, suit: wear } }));
         }, { fictional: Boolean(site.fictional), picture: sitePicture(site) }));
     });
@@ -559,7 +644,6 @@ export function setMode(mode) {
     if (state.destination && !isHistoricalCombo(state.rocket, state.spacecraft, state.destination)) state.destination = null;
   }
   render();
-  if (state.bayTab === "destination") renderSites();
   if (state.bayTab === "suit") renderLocker();
 }
 
@@ -1910,8 +1994,36 @@ const PAINTS = [
 const UPGRADES = [
   { key: "thrust", name: "Engine thrust", effect: "Shorter cruise in the replay" },
   { key: "efficiency", name: "Fuel efficiency", effect: "More fuel for the Lunar Module game" },
-  { key: "payload", name: "Payload capacity", effect: "Shown on your mission review" }
+  { key: "payload", name: "Payload capacity", effect: "Shown on your mission results" },
+  // Master Doc 14: more upgrades (fictional game mode); each one is listed on the mission results
+  { key: "heatshield", name: "Heat shield", effect: "Shown on your mission results" },
+  { key: "solar", name: "Solar panels", effect: "Shown on your mission results" },
+  { key: "comms", name: "Comms antenna", effect: "Shown on your mission results" }
 ];
+// Accessories and patches (Workshop, Master Doc 14): fictional, Free Build only
+const ACCESSORIES = [
+  { key: "fins", name: "Tail fins", text: "Four fins at the base" },
+  { key: "stripe", name: "Body stripe", text: "A coloured band high on the body" },
+  { key: "camera", name: "Camera pod", text: "An outside camera on the side" },
+  { key: "flag", name: "Team flag", text: "A made-up team flag (not a real country's)" }
+];
+const PATCH_SHAPES = [["circle", "Round"], ["shield", "Shield"], ["hexagon", "Hexagon"], ["star", "Star"]];
+const PATCH_COLORS = ["#2f5fb8", "#b5482a", "#c9a13b", "#3b8f6a", "#6a4cb8", "#3b3f46"];
+
+// The mission patch: a shape in a colour, with the mission's initials
+function patchSvg(patch, name) {
+  const c = patch.color;
+  const shapes = {
+    circle: '<circle cx="40" cy="40" r="34"/>',
+    shield: '<path d="M40 6 L70 16 V40 C70 58 56 70 40 76 C24 70 10 58 10 40 V16 Z"/>',
+    hexagon: '<path d="M40 5 L71 22.5 V57.5 L40 75 L9 57.5 V22.5 Z"/>',
+    star: '<path d="M40 5 L49 29 L75 30 L54 46 L62 72 L40 57 L18 72 L26 46 L5 30 L31 29 Z"/>'
+  };
+  const initials = String(name || "FB").split(/\s+/).filter(Boolean).map(function (w) { return w[0]; }).join("").slice(0, 3).toUpperCase() || "FB";
+  const safe = initials.replace(/[^A-Z0-9]/g, "") || "FB";
+  return '<svg viewBox="0 0 80 80" role="img" aria-label="Mission patch"><g fill="' + c + '" stroke="#e8eef8" stroke-width="2.5">' + (shapes[patch.shape] || shapes.circle) + '</g>' +
+    '<text x="40" y="47" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="17" font-weight="700" fill="#ffffff">' + safe + '</text></svg>';
+}
 
 function fillRocketSelect(select, withNone) {
   select.innerHTML = "";
@@ -1928,8 +2040,6 @@ function fillRocketSelect(select, withNone) {
     select.appendChild(option);
   });
 }
-fillRocketSelect(labCompare, true);
-labCompare.addEventListener("change", function () { state.labCompare = labCompare.value; renderLab(); });
 
 function specsOf(key) {
   const item = findItem(key);
@@ -2044,86 +2154,109 @@ function renderLab() {
       ? bar("Thrust (fictional)", statLevels.thrust || 0, 3, "Level " + (statLevels.thrust || 0), true) +
         bar("Efficiency (fictional)", statLevels.efficiency || 0, 3, "Level " + (statLevels.efficiency || 0), true)
       : "");
-  labCompare.value = state.labCompare;
   const look = state.mode === "sandbox" ? state.look : null;
   let craftModel = null;
+  const plateNasa = labPlate.querySelector ? labPlate.querySelector("i") : null;
   if (craft) {
     craftModel = createModel(craft.model);
     const box = new THREE.Box3().setFromObject(craftModel);
     const size = new THREE.Vector3();
     box.getSize(size);
     craftModel.scale.multiplyScalar(Math.max(3, rocketModel.userData.height * 0.4) / (Math.max(size.x, size.y, size.z) || 1)); // shown enlarged beside the rocket
+    // NASA's official model where NASA has one (Master Doc 14), labelled on the plate
+    if (nasaModelInfo(craft.model)) {
+      const shownModel = craftModel;
+      upgradeToNasaModel(shownModel, craft.model).then(function (shown) {
+        if (!shown || !plateNasa || !shownModel.parent) return;
+        plateNasa.textContent += " \u00B7 NASA 3D model";
+      });
+    }
   }
-  fill(lab, [createRocket(padKey, look), craftModel, state.labCompare && state.labCompare !== padKey ? createRocket(state.labCompare) : null]);
+  // the chosen surface vehicle stands beside the spacecraft
+  let vehicleModel = null;
+  if (state.vehicle) {
+    vehicleModel = createModel(state.vehicle);
+    const vbox = new THREE.Box3().setFromObject(vehicleModel);
+    const vsize = new THREE.Vector3();
+    vbox.getSize(vsize);
+    vehicleModel.scale.multiplyScalar(Math.max(2.4, rocketModel.userData.height * 0.25) / (Math.max(vsize.x, vsize.y, vsize.z) || 1));
+  }
+  fill(lab, [createRocket(padKey, look), craftModel, vehicleModel, state.labCompare && state.labCompare !== padKey ? createRocket(state.labCompare) : null]);
   sizeViewer(lab);
 
-  // Parts, as numbered component cards
-  const partRows = parts.length ? parts : (item && item.specs ? item.specs : []);
-  labParts.innerHTML = "";
-  partRows.forEach(function (part, i) {
-    const li = document.createElement("li");
-    li.className = "part-card";
-    li.innerHTML = '<span class="part-num"></span><strong></strong><span class="part-text"></span>';
-    if (li.querySelector) {
-      li.querySelector(".part-num").textContent = String(i + 1).padStart(2, "0");
-      li.querySelector("strong").textContent = part[0];
-      li.querySelector(".part-text").textContent = part[1];
-    }
-    labParts.appendChild(li);
-  });
-
-  // Comparison table
-  const a = specsOf(padKey);
-  const b = state.labCompare ? specsOf(state.labCompare) : null;
-  const rows = Array.from(new Set(Object.keys(a).concat(b ? Object.keys(b) : [])));
-  let html = "<thead><tr><th></th><th>" + rocketName(padKey) + "</th>" + (b ? "<th>" + rocketName(state.labCompare) + "</th>" : "") + "</tr></thead><tbody>";
-  rows.forEach(function (row) {
-    html += "<tr><th>" + row + "</th><td>" + (a[row] || "—") + "</td>" + (b ? "<td>" + (b[row] || "—") + "</td>" : "") + "</tr>";
-  });
-  labTable.innerHTML = html + "</tbody>";
-
-  // Customization: sandbox only
+  // ----- Workshop: one box in four (Master Doc 14) -----
   const sandbox = state.mode === "sandbox";
   labLock.textContent = sandbox
-    ? "SANDBOX · FICTIONAL: paint and upgrades below are game changes, not real rocket specifications."
-    : "Real Missions keeps every rocket exactly as it flew. Switch to Free Build to customize.";
+    ? "FREE BUILD \u00B7 FICTIONAL: paint, accessories, upgrades and the patch are game changes, not real specifications."
+    : "Real Missions keeps every rocket exactly as it flew.";
   labLock.className = "lab-lock " + (sandbox ? "fictional" : "historical");
+
+  // 1. Paint
   labCustom.innerHTML = "";
-  [["paint", "Body paint"], ["accent", "Band color"]].forEach(function (pair) {
+  [["paint", "Body"], ["accent", "Bands"], ["finColor", "Fins"], ["stripeColor", "Stripe"]].forEach(function (pair) {
     const row = document.createElement("div");
     row.className = "lab-row";
     const label = document.createElement("span");
     label.textContent = pair[1];
     row.appendChild(label);
+    const swatches = document.createElement("span");
+    swatches.className = "lab-swatches";
     PAINTS.forEach(function (paint) {
       const swatch = document.createElement("button");
       swatch.className = "lab-swatch" + (state.look[pair[0]] === paint.value ? " active" : "");
-      swatch.title = paint.name;
+      swatch.title = pair[1] + ": " + paint.name;
+      swatch.setAttribute("aria-label", pair[1] + ": " + paint.name);
       swatch.disabled = !sandbox;
       swatch.style.setProperty("--swatch", paint.value === null ? "transparent" : "#" + paint.value.toString(16).padStart(6, "0"));
-      swatch.textContent = paint.value === null ? "×" : "";
+      swatch.textContent = paint.value === null ? "\u00D7" : "";
       swatch.addEventListener("click", function () {
         state.look[pair[0]] = paint.value;
         play("tick");
         render();
       });
-      row.appendChild(swatch);
+      swatches.appendChild(swatch);
     });
+    row.appendChild(swatches);
     labCustom.appendChild(row);
   });
 
-  labPoints.textContent = getPoints() + " upgrade point" + (getPoints() === 1 ? "" : "s") + " (earn one for each object you record while exploring)";
+  // 2. Accessories
+  wsAccessories.innerHTML = "";
+  ACCESSORIES.forEach(function (a) {
+    const on = Boolean(state.look.acc[a.key]);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ws-toggle" + (on ? " on" : "");
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+    button.disabled = !sandbox;
+    button.innerHTML = '<b></b><span></span>';
+    if (button.querySelector) {
+      button.querySelector("b").textContent = a.name;
+      button.querySelector("span").textContent = a.text;
+    }
+    button.addEventListener("click", function () {
+      state.look.acc[a.key] = !state.look.acc[a.key];
+      play(state.look.acc[a.key] ? "toggleOn" : "toggleOff");
+      render();
+    });
+    wsAccessories.appendChild(button);
+  });
+
+  // 3. Upgrades, with the points next to the title
+  labPoints.textContent = getPoints() + " point" + (getPoints() === 1 ? "" : "s");
+  labPoints.title = "Earn one point for each object you record while exploring";
   labUpgrades.innerHTML = "";
   const levels = getUpgrades();
   UPGRADES.forEach(function (up) {
     const row = document.createElement("div");
     row.className = "lab-row";
     const label = document.createElement("span");
-    label.textContent = up.name + " · level " + (levels[up.key] || 0) + "/3 · " + up.effect;
+    label.textContent = up.name + " \u00B7 " + (levels[up.key] || 0) + "/3 \u00B7 " + up.effect;
     row.appendChild(label);
     const button = document.createElement("button");
     button.className = "small-button";
-    button.textContent = "Upgrade (fictional)";
+    button.textContent = "Upgrade";
+    button.title = "Fictional game upgrade (costs 1 point)";
     button.disabled = !sandbox || getPoints() < 1 || (levels[up.key] || 0) >= 3;
     button.addEventListener("click", function () {
       if (spendPoint(up.key)) { play("success"); render(); }
@@ -2131,7 +2264,45 @@ function renderLab() {
     row.appendChild(button);
     labUpgrades.appendChild(row);
   });
+
+  // 4. Mission name & patch
+  if (document.activeElement !== wsName) wsName.value = state.missionName;
+  wsPatch.innerHTML = "";
+  const preview = document.createElement("div");
+  preview.className = "ws-patch-preview";
+  preview.innerHTML = patchSvg(state.patch, state.missionName);
+  wsPatch.appendChild(preview);
+  const pickers = document.createElement("div");
+  pickers.className = "ws-patch-pickers";
+  PATCH_SHAPES.forEach(function (shape) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "small-button" + (state.patch.shape === shape[0] ? " active" : "");
+    b.textContent = shape[1];
+    b.setAttribute("aria-pressed", state.patch.shape === shape[0] ? "true" : "false");
+    b.addEventListener("click", function () { state.patch.shape = shape[0]; play("tick"); render(); });
+    pickers.appendChild(b);
+  });
+  const colors = document.createElement("div");
+  colors.className = "lab-swatches";
+  PATCH_COLORS.forEach(function (color) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "lab-swatch" + (state.patch.color === color ? " active" : "");
+    b.style.setProperty("--swatch", color);
+    b.setAttribute("aria-label", "Patch colour " + color);
+    b.addEventListener("click", function () { state.patch.color = color; play("tick"); render(); });
+    colors.appendChild(b);
+  });
+  pickers.appendChild(colors);
+  wsPatch.appendChild(pickers);
 }
+
+wsName.addEventListener("input", function () {
+  state.missionName = wsName.value.slice(0, 40);
+  const preview = wsPatch.querySelector ? wsPatch.querySelector(".ws-patch-preview") : null;
+  if (preview) preview.innerHTML = patchSvg(state.patch, state.missionName);
+});
 
 onProgressChange(function () { if (state.step === "lab") renderLab(); });
 
@@ -2143,18 +2314,55 @@ const LOCKER_VEHICLES = [
   { key: "curiosity", name: "Curiosity rover", text: "Climbing Mount Sharp in Gale Crater." }
 ];
 
-// Surface vehicles are machines, so they sit with the spacecraft (not with the suits)
-let vehiclesBuilt = false;
+// Surface vehicles: the rovers and the Lunar Roving Vehicle (Master Doc 14: rovers moved here from the
+// spacecraft list). One can ride along with the spacecraft; it is only marked as chosen.
 function renderVehicles() {
-  if (vehiclesBuilt) return;
-  vehiclesBuilt = true;
   lockerVehicles.innerHTML = "";
   LOCKER_VEHICLES.forEach(function (v) {
-    lockerVehicles.appendChild(card(v.name, "Surface vehicle", v.text, false, function () {
-      play("select");
-      showSimStep("explore");
-    }, { picture: { type: "model", key: v.key } }));
+    const real = ROVERS[v.key] ? state.spacecraft === "skycrane" && state.rocket === "atlas-v-541" : state.spacecraft === "apollo";
+    lockerVehicles.appendChild(card(v.name,
+      real ? "Surface vehicle \u00B7 rides along as it really did" : "Surface vehicle" + (state.spacecraft ? " \u00B7 FICTIONAL with this spacecraft" : ""),
+      v.text + (ROVERS[v.key] ? " Really delivered by a cruise stage and sky crane on an Atlas V 541." : ""),
+      state.vehicle === v.key,
+      function () {
+        state.vehicle = state.vehicle === v.key ? null : v.key; // click again to leave it behind
+        state.site = null;
+        play("select");
+        render();
+        renderVehicles();
+      }, { fictional: Boolean(state.spacecraft) && !real, picture: { type: "model", key: v.key } }));
   });
+}
+
+// A hand tool on the turntable, with its facts and a way back to the suit
+function showLockerTool() {
+  const eq = EQUIPMENT[state.lockerTool];
+  const tool = createEquipment(state.lockerTool);
+  const box = new THREE.Box3().setFromObject(tool);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  tool.scale.multiplyScalar(0.8 / (Math.max(size.x, size.y, size.z) || 1));
+  tool.updateMatrixWorld(true);
+  tool.position.y -= new THREE.Box3().setFromObject(tool).min.y;
+  locker.holder.add(tool);
+  locker.astronaut = null;
+  // the view is shifted so the tool stands clear of the tools list on the left
+  locker.camera.position.set(1.6, 1.3, 3.4);
+  locker.controls.target.set(-0.45, 0.4, 0);
+  locker.controls.update();
+  sizeViewer(locker);
+  lockerPoses.innerHTML = "";
+  const back = document.createElement("button");
+  back.className = "small-button active";
+  back.textContent = "\u2190 Back to the suit";
+  back.addEventListener("click", function () { state.lockerTool = null; play("tick"); renderLocker(); });
+  lockerPoses.appendChild(back);
+  lockerName.textContent = eq.name;
+  factList(lockerFacts, [
+    ["What it is", eq.text],
+    ["Carried by", "The crew (Free Build: any suit can carry it)"]
+  ]);
+  renderToolList();
 }
 
 function renderLocker() {
@@ -2178,14 +2386,19 @@ function renderLocker() {
     door.addEventListener("click", function () {
       state.suit = key;
       state.suitSeen = true;
+      state.lockerTool = null;
       play("open");
       renderLocker();
     });
     lockerSuits.appendChild(door);
   });
 
-  // The astronaut on the turntable
+  // The astronaut (or the chosen tool) on the turntable
   while (locker.holder.children.length) locker.holder.remove(locker.holder.children[0]);
+  if (state.lockerTool && EQUIPMENT[state.lockerTool]) {
+    showLockerTool();
+    return;
+  }
   const astronaut = createSuitedAstronaut(state.suit);
   // Stand the boots on the turntable (the model's soles sit a few centimetres below its origin)
   astronaut.updateMatrixWorld(true);
@@ -2193,8 +2406,8 @@ function renderLocker() {
   locker.holder.add(astronaut);
   locker.holder.position.x = 0;
   locker.astronaut = astronaut;
-  locker.camera.position.set(3.4, 1.5, 4.8);
-  locker.controls.target.set(0, 0.85, 0);
+  locker.camera.position.set(3.0, 1.5, 4.8);
+  locker.controls.target.set(-0.55, 0.85, 0); // (shifted: the tools list sits on the left of the view)
   locker.controls.update();
   sizeViewer(locker);
 
@@ -2224,33 +2437,32 @@ function renderLocker() {
     ["Source", suit.sources.map(function (src) { return src.label; }).join(" · ")]
   ]);
 
-  // Equipment rack and vehicle bay
+  renderToolList();
+}
+
+function renderToolList() {
+  // Hand tools and kit: a side list inside the viewer box; click one to see it on the turntable
   lockerEquipment.innerHTML = "";
   Object.keys(EQUIPMENT).forEach(function (key) {
     const eq = EQUIPMENT[key];
-    const chip = document.createElement("span");
-    chip.className = "rack-item";
-    chip.title = eq.text;
-    chip.innerHTML = '<b class="rack-pic"></b><span></span>';
-    if (chip.querySelector) {
-      setPicture(chip.querySelector("b"), { type: "equipment", key: key });
-      chip.querySelector("span").textContent = eq.name;
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "locker-tool" + (state.lockerTool === key ? " active" : "");
+    item.title = eq.text;
+    item.setAttribute("aria-pressed", state.lockerTool === key ? "true" : "false");
+    item.innerHTML = '<b class="rack-pic"></b><span></span>';
+    if (item.querySelector) {
+      setPicture(item.querySelector("b"), { type: "equipment", key: key });
+      item.querySelector("span").textContent = eq.name;
     }
-    lockerEquipment.appendChild(chip);
+    item.addEventListener("click", function () {
+      state.lockerTool = state.lockerTool === key ? null : key;
+      play("open");
+      renderLocker();
+    });
+    lockerEquipment.appendChild(item);
   });
-
-  // Sandbox: wear this suit everywhere (fictional)
-  lockerWear.disabled = state.mode !== "sandbox";
-  lockerWear.checked = state.mode === "sandbox" && state.wearSuit;
-  lockerWearNote.textContent = state.mode === "sandbox"
-    ? "Free Build: wear the " + suit.name + " on every site. Any site where this suit was not really used is fictional."
-    : "Real Missions: each site uses the suit really worn there. Switch to Free Build to try other suits.";
 }
-
-lockerWear.addEventListener("change", function () {
-  state.wearSuit = lockerWear.checked;
-  play(state.wearSuit ? "toggleOn" : "toggleOff");
-});
 
 // ----- Results after a mission -----
 export function showResults(mission) {
@@ -2268,6 +2480,29 @@ export function showResults(mission) {
     (mission.discoveries.length ? " · Discoveries: " + mission.discoveries.join(", ") : "") +
     (mission.mode === "sandbox" ? " · Free Build mission (fictional elements labelled)" : " · Real mission");
   resultsBox.appendChild(p);
+  // Free Build: the mission's patch, and the fictional upgrades and accessories it flew with
+  if (mission.mode === "sandbox") {
+    const extras = document.createElement("div");
+    extras.className = "results-extras";
+    if (mission.patch) {
+      const patch = document.createElement("span");
+      patch.className = "results-patch";
+      patch.innerHTML = patchSvg(mission.patch, mission.missionName);
+      extras.appendChild(patch);
+    }
+    const ups = mission.upgrades ? Object.keys(mission.upgrades).filter(function (k) { return mission.upgrades[k]; }) : [];
+    const accs = mission.look && mission.look.acc ? Object.keys(mission.look.acc).filter(function (k) { return mission.look.acc[k]; }) : [];
+    const note = document.createElement("p");
+    note.textContent = (ups.length ? "Fictional upgrades: " + ups.map(function (k) {
+      const up = UPGRADES.find(function (u) { return u.key === k; });
+      return (up ? up.name : k) + " " + mission.upgrades[k] + "/3";
+    }).join(", ") : "No upgrades") + (accs.length ? " · Accessories: " + accs.map(function (k) {
+      const a = ACCESSORIES.find(function (x) { return x.key === k; });
+      return a ? a.name : k;
+    }).join(", ") : "");
+    extras.appendChild(note);
+    resultsBox.appendChild(extras);
+  }
   const list = document.createElement("ul");
   mission.objectives.forEach(function (o) {
     const li = document.createElement("li");

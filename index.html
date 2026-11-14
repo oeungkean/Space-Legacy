@@ -651,26 +651,33 @@
           </div>
           <div class="garage-hazard" aria-hidden="true"></div>
         </div>
+        <!-- Master Doc 14: a progress bar (not clickable) with the step icons; the Suit step only shows for
+             spacecraft that carry people. One "next" button, always in the bottom-right corner, moves on. -->
         <div class="bay-progress" aria-hidden="true"><span id="bay-progress-bar"></span></div>
-        <p id="bay-progress-text" class="bay-progress-text"></p>
-        <div class="station-tabs" role="tablist" aria-label="Build your mission">
-          <button class="station-tab" data-bay-tab="rocket" role="tab"><span class="station-icon" data-ui-icon="rocket"></span><span><em>01</em>Rocket</span></button>
-          <button class="station-tab" data-bay-tab="spacecraft" role="tab"><span class="station-icon" data-ui-icon="spacecraft"></span><span><em>02</em>Spacecraft</span></button>
-          <button class="station-tab" data-bay-tab="suit" role="tab"><span class="station-icon" data-ui-icon="suit"></span><span><em>03</em>Suit</span></button>
-          <button class="station-tab" data-bay-tab="destination" role="tab"><span class="station-icon" data-ui-icon="destination"></span><span><em>04</em>Destination</span></button>
-          <button class="station-tab" data-bay-tab="review" role="tab"><span class="station-icon" data-ui-icon="launch"></span><span><em>05</em>Launch</span></button>
-          <button class="station-tab station-extra" data-bay-tab="workshop" role="tab"><span class="station-icon" data-ui-icon="wrench"></span><span><em>Optional</em>Workshop</span></button>
-        </div>
+        <p id="bay-progress-text" class="bay-progress-text sr-only" aria-live="polite"></p>
+        <ol class="station-tabs build-progress" aria-label="Mission build progress">
+          <li class="station-tab" data-bay-tab="rocket"><span class="station-icon" data-ui-icon="rocket"></span><span><em>01</em>Rocket</span></li>
+          <li class="station-tab" data-bay-tab="spacecraft"><span class="station-icon" data-ui-icon="spacecraft"></span><span><em>02</em>Spacecraft</span></li>
+          <li class="station-tab" data-bay-tab="suit"><span class="station-icon" data-ui-icon="suit"></span><span><em>03</em>Suit</span></li>
+          <li class="station-tab" data-bay-tab="destination"><span class="station-icon" data-ui-icon="destination"></span><span><em>04</em>Destination</span></li>
+          <li class="station-tab" data-bay-tab="workshop"><span class="station-icon" data-ui-icon="wrench"></span><span><em>05</em>Workshop</span></li>
+          <li class="station-tab" data-bay-tab="review"><span class="station-icon" data-ui-icon="launch"></span><span><em>06</em>Launch</span></li>
+        </ol>
         <div class="station-pane" data-bay-pane="rocket" id="sim-step-rocket">
-          <p class="station-hint">Click a bay to roll that rocket onto the pad. Shift+click a second bay to park it beside for comparison.</p>
-          <div id="lab-bay" class="lab-bay" aria-label="Rocket bays"></div>
-          <ul id="sim-rocket-info" class="detail-facts sim-info"></ul>
+          <div class="rocket-split">
+            <div class="rocket-left">
+              <p class="station-hint">Click a bay to roll that rocket onto the pad. Shift+click a second bay to park it beside for comparison.</p>
+              <div id="lab-bay" class="lab-bay" aria-label="Rocket bays"></div>
+            </div>
+            <div class="rocket-right">
+              <ul id="sim-rocket-info" class="detail-facts sim-info"></ul>
+            </div>
+          </div>
         </div>
         <div class="station-pane hidden" data-bay-pane="spacecraft" id="sim-step-spacecraft">
-          <h4 class="sim-sub">Spacecraft <small>machines that fly</small></h4>
+          <h4 class="sim-sub sim-sub-big">Spacecraft <small>machines that fly</small></h4>
           <div id="sim-craft-list" class="sim-grid"></div>
-          <ul id="sim-craft-info" class="detail-facts sim-info"></ul>
-          <h4 class="sim-sub">Surface vehicles <small>machines that drive</small></h4>
+          <h4 class="sim-sub sim-sub-big">Surface vehicles <small>machines that drive (optional: rides along and is driven at the landing site)</small></h4>
           <div id="locker-vehicles" class="sim-grid"></div>
         </div>
         <div class="station-pane hidden locker" data-bay-pane="suit" id="sim-step-locker">
@@ -678,65 +685,64 @@
           <div id="locker-suits" class="locker-row" aria-label="Spacesuits"></div>
           <div class="locker-room">
             <div class="locker-stage">
-              <canvas id="locker-canvas" aria-label="The astronaut on a turntable, in 3D"></canvas>
+              <canvas id="locker-canvas" aria-label="The astronaut or a piece of kit on a turntable, in 3D"></canvas>
+              <!-- the crew's hand tools and kit, in a side list inside the viewer: click one to see it -->
+              <aside class="locker-tools" aria-label="Hand tools and kit">
+                <p class="locker-tools-head">Hand tools &amp; kit</p>
+                <div id="locker-equipment" class="locker-tools-list"></div>
+              </aside>
               <div id="locker-poses" class="locker-poses"></div>
             </div>
             <div class="locker-info">
               <h3 id="locker-name"></h3>
               <ul id="locker-facts" class="detail-facts locker-facts"></ul>
-              <label class="locker-wear"><input id="locker-wear" type="checkbox"> Wear this suit on every site</label>
-              <p id="locker-wear-note" class="sim-mode-note"></p>
             </div>
           </div>
-          <h4 class="sim-sub">Hand tools &amp; kit <small>what the crew carries</small></h4>
-          <div id="locker-equipment" class="rack"></div>
         </div>
         <div class="station-pane hidden" data-bay-pane="destination" id="sim-step-destination">
-          <div id="sim-dest-list" class="sim-grid"></div>
-          <section id="sim-step-explore" class="dest-sites">
-            <h4 class="sim-sub">Or go straight to the surface <small>no launch needed</small></h4>
-            <p class="sim-mode-note sim-explore-note" id="sim-explore-note"></p>
-            <div id="sim-site-list"></div>
-          </section>
-        </div>
-        <div class="station-pane hidden" data-bay-pane="review" id="sim-step-review">
-          <p id="sim-badge" class="sim-badge"></p>
-          <ul id="sim-review" class="detail-facts"></ul>
-          <h4 class="sim-sub">Mission objectives</h4>
-          <ol id="sim-objectives" class="sim-objectives"></ol>
-          <button id="sim-launch" class="primary big">Launch mission</button>
+          <div id="sim-dest-list"></div>
         </div>
         <div class="station-pane hidden" data-bay-pane="workshop" id="sim-step-workshop">
-          <div class="lab-pickers">
-            <select id="lab-compare" aria-label="Compare with"></select>
-          </div>
-          <h4 class="sim-sub">Components: stages, engines and boosters</h4>
-          <ul id="lab-parts" class="part-cards"></ul>
-          <h4 class="sim-sub">Compare</h4>
-          <table id="lab-table" class="lab-table"></table>
           <p id="lab-lock" class="lab-lock"></p>
-          <div class="garage-shop">
-            <div>
-              <h4 class="sim-sub">Paint shop (sandbox, fictional)</h4>
+          <!-- one box in four: each kind of change has its own quarter -->
+          <div class="workshop-grid">
+            <section class="ws-box">
+              <h4 class="sim-sub">Paint <small>fictional</small></h4>
               <div id="lab-custom"></div>
-            </div>
-            <div>
-              <h4 class="sim-sub">Upgrades (fictional game mode)</h4>
-              <p id="lab-points" class="explorer-count"></p>
+            </section>
+            <section class="ws-box">
+              <h4 class="sim-sub">Accessories <small>fictional</small></h4>
+              <div id="ws-accessories"></div>
+            </section>
+            <section class="ws-box">
+              <h4 class="sim-sub">Upgrades <span id="lab-points" class="ws-points"></span></h4>
               <div id="lab-upgrades"></div>
-            </div>
+            </section>
+            <section class="ws-box">
+              <h4 class="sim-sub">Mission name &amp; patch <small>Free Build</small></h4>
+              <label class="ws-name"><span>Mission name</span><input id="ws-name" type="text" maxlength="40" placeholder="My Free Build mission" autocomplete="off"></label>
+              <div id="ws-patch"></div>
+            </section>
           </div>
         </div>
-        <button id="bay-next" class="primary bay-next hidden"></button>
+        <div class="station-pane hidden" data-bay-pane="review" id="sim-step-review">
+          <div class="launch-center">
+            <div id="sim-patch-preview" class="sim-patch-preview" aria-hidden="true"></div>
+            <h4 class="sim-sub" id="sim-objectives-title">Mission objectives</h4>
+            <ol id="sim-objectives" class="sim-objectives"></ol>
+            <button id="sim-launch" class="primary big">Launch mission</button>
+          </div>
+        </div>
+        <div class="bay-next-row"><button id="bay-next" class="primary bay-next hidden"></button></div>
         <div id="sim-coach" class="sim-coach hidden" role="dialog" aria-labelledby="sim-coach-title">
           <p class="eyebrow">Start here</p>
-          <h3 id="sim-coach-title">Build a mission in five steps</h3>
+          <h3 id="sim-coach-title">Build a mission step by step</h3>
           <ol class="coach-steps">
             <li><b>Rocket</b> Click a bay to roll a rocket onto the pad.</li>
-            <li><b>Spacecraft</b> Fit what rides on top (and the rover, if you land).</li>
-            <li><b>Suit</b> Choose what the crew wears.</li>
-            <li><b>Destination</b> Choose where it goes.</li>
-            <li><b>Launch</b> Check the plan and press Launch mission.</li>
+            <li><b>Spacecraft</b> Fit what rides on top (and a rover, if you land).</li>
+            <li><b>Suit</b> For crews only: choose what they wear.</li>
+            <li><b>Destination</b> Choose a world, then a landing site.</li>
+            <li><b>Workshop &amp; Launch</b> Paint and name it, then press Launch mission.</li>
           </ol>
           <p class="coach-tip"><b>Real Missions</b> only allows what really flew. <b>Free Build</b> lets you mix anything (labelled fictional). Switch in the left panel.</p>
           <p class="coach-tip">During the flight, the bar at the bottom has <b>0.5&times; 1&times; 2&times;</b> to slow down or speed up the launch, journey and landing, and <b>Skip</b>.</p>
@@ -963,7 +969,7 @@
             <table class="credit-table">
               <thead><tr><th scope="col">Source</th><th scope="col">Used for</th><th scope="col">License / attribution</th></tr></thead>
               <tbody>
-              <tr><th scope="row"><a href="https://science.nasa.gov/3d-resources/" target="_blank" rel="noopener">NASA 3D Resources</a></th><td>Official 3D models (Saturn V, Apollo Lunar Module, Gemini, Galileo, Parker Solar Probe, Pioneer 10, Viking Lander, Perseverance, Agena Target Vehicle), loaded from NASA on the Missions page (cards and 3D viewer) and in the Real Missions builder hall (Agena exhibit).</td><td>NASA Images and Media Usage Guidelines (free to use; no endorsement implied)</td></tr>
+              <tr><th scope="row"><a href="https://science.nasa.gov/3d-resources/" target="_blank" rel="noopener">NASA 3D Resources</a></th><td>Official 3D models (Saturn V, Apollo Lunar Module, Gemini, Galileo, Parker Solar Probe, Pioneer 10, Viking Lander, Perseverance, Agena Target Vehicle, Hubble, James Webb, Voyager, Cassini-Huygens, Lunar Reconnaissance Orbiter, MESSENGER, OSIRIS-REx, Stardust), loaded from NASA when online and labelled "NASA" where shown: the Missions page, the builder (cards and the assembly hall, including the Agena exhibit) and the mission scenes. Rockets, rovers, the Lunar Module and anything that unfolds keep the project's own models in the scenes, so stages can separate and parts can move.</td><td>NASA Images and Media Usage Guidelines (free to use; no endorsement implied)</td></tr>
               <tr><th scope="row"><a href="https://images.nasa.gov" target="_blank" rel="noopener">NASA Image and Video Library</a></th><td>One real photo per mission on the "Replay finished" card (links and captions in data/mission-photos.js), loaded from NASA when online.</td><td>NASA Images and Media Usage Guidelines (generally not copyrighted; no endorsement implied)</td></tr>
               <tr><th scope="row"><a href="https://threejs.org" target="_blank" rel="noopener">three.js r160</a></th><td>3D rendering, cameras, controls and the RoomEnvironment lighting in the Engineering Bay.</td><td>MIT License</td></tr>
               <tr><th scope="row"><a href="https://www.jsdelivr.com/" target="_blank" rel="noopener">jsDelivr CDN</a></th><td>Delivers three.js and the Earth/Moon textures.</td><td>Free public CDN</td></tr>
@@ -1051,6 +1057,7 @@
         <p id="mp-date" class="mp-date"></p>
       </div>
       <div id="mp-map" class="mp-map hidden" aria-hidden="true"></div>
+      <a id="mp-nasa" class="mp-nasa hidden" target="_blank" rel="noopener" title="Official model from NASA 3D Resources"></a>
       <button id="mp-exit" class="small-button mp-exit" data-silent title="Exit the replay (Esc)">Exit replay &times;</button>
     </div>
     <!-- Mission briefing (js/briefing.js): a glass card on the left, from -> to, journey time and whether the

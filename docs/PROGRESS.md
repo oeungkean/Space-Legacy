@@ -321,6 +321,36 @@ The first countdown caption describes each pad, and rockets that were stacked on
 - Venus texture 404 fixed.
 - `docs/ASSETS.md` lists the Venus files by their real names.
 
+## Completed (2026-11-14): Kampu Space Master Doc (14)
+- **NASA 3D models in every mode.** NASA's list was checked on science.nasa.gov and its GitHub mirror; the Chrome DevTools MCP failed to connect, so the built-in browser was used.
+  - Added: Hubble, James Webb, Voyager, Cassini-Huygens, LRO, MESSENGER, OSIRIS-REx and Stardust. Where NASA offers two files, the lighter one is used.
+  - Each file is turned to face the way our model does (checked side by side), so craft fly nose first.
+  - Shown on the Missions page, on builder cards and in the assembly hall, and in mission scenes. Each is labelled "NASA" / "NASA 3D model: …".
+  - Our models stay where parts move: rockets (stages), the Apollo stack and Lunar Module, rovers (wheels), landers that unfold, Galileo and Cassini (probe release).
+  - Also our own models: Curiosity, Skylab and SLS (no .glb on NASA's pages); the ISS (our model is only Zarya); the astronaut (animated).
+- **Free Build builder redesign**
+  - **Progress bar:** keeps the icons but isn't clickable; "Step 1 of 5" is gone. One button bottom right moves on, with a small Back on the left. On phones the bar shows icons only.
+  - **Rocket:** bays on the left; on the right, past a faint line, only the essentials (size, boosters, flew, status). The button says "Pick a spacecraft".
+  - **Spacecraft:** the info section is removed and the titles are bolder.
+    - Curiosity and Perseverance moved to Surface vehicles. A rover rides along with a spacecraft.
+    - It's real only with the new "Cruise stage, aeroshell and sky crane" carrier on an Atlas V 541 (NASA sources in `data/simulator.js`); otherwise it's fictional.
+    - Choosing a card only marks it. Crewed craft show the Suit step; others skip it.
+  - **Suit:** hand tools are a side list inside the viewer. Clicking one shows it on the turntable, with "Back to the suit". "Wear this suit on every site" is removed; the chosen suit is worn at the chosen site.
+  - **Destination:** worlds first, then that world's sites (crews: suit sites; rovers: rover sites) plus "Orbit or fly by" ("No surface walk" for landers). Selecting only marks it; then "Go to Workshop".
+    - Real sites (Apollo 11, 15 and 17, Gale, Jezero) are labelled real.
+  - **Workshop:** one box in four quarters.
+    - Paint: body, bands, fins, stripe.
+    - Accessories (fictional): tail fins, body stripe, camera pod, a made-up team flag. They're drawn on the rocket in the hall and at launch.
+    - Upgrades: points shown in the title; 3 new ones (heat shield, solar panels, comms antenna).
+    - Mission name & patch: shown at launch, in the player and on the results card.
+  - **Launch:** only three objectives and a centred Launch button. Objectives are launch, reach, and one main activity.
+- Tested in the browser:
+  - Rover path: Atlas V 541 → sky crane + Curiosity → Mars → Gale (real) → Workshop (fins and stripe) → Launch. Settings checked; the replay starts with the name, and the stripe shows at liftoff.
+  - Crewed path: Saturn V → Apollo → Suit (tools list) → Moon → Hadley (real, A7-L).
+  - Voyager's replay shows NASA's model with its label; 17 Missions cards have NASA labels.
+  - Phone width, with no sideways scrolling; no console errors.
+- Not verified: frame rate with several NASA models on a real GPU; every craft's NASA model in every scene (Voyager was watched); the exploration site with a non-matching suit.
+
 ## Completed (2026-11-14): Kampu Space Master Doc (13)
 - **Missions sidebar is one panel**: the Real Missions card on top, with All missions and All hardware joined to it by a rail, so they read as one thing. The whole sidebar scrolls, so "Switch to Free Build" always comes after everything, even with a list open. In the slim strip, the Real Missions card now fits its box.
 - **New icon set (15 icons)** in the site's thin-line style, each showing what it is: an Earth with an orbit, a crescent Moon, Mars, the Sun, a ringed planet, an asteroid; a rocket, a satellite (spacecraft), a telescope, a rover, an instrument trace, a station and a capsule.

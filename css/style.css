@@ -10637,3 +10637,140 @@ body.player-on .cinema-stages { width: 230px; box-sizing: border-box; padding: 1
 @media (max-width: 760px) {
   body.player-on .cinema-stages { width: 180px; box-sizing: border-box; }
 }
+
+/* =========================================================================================
+   Kampu Space Master Doc (14), 2026-11-14
+   ========================================================================================= */
+/* Builder progress: a bar with the step icons, not clickable; the Suit step only for crews */
+.build-progress {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+}
+.build-progress .station-tab { flex: 1 1 0; cursor: default; }
+.build-progress .station-tab.hidden { display: none; }
+.build-progress .station-tab::after { display: block !important; }
+.build-progress .station-tab:last-child::after { display: none !important; }
+.build-progress .station-tab:hover { background: none; }
+.build-progress .station-tab.active { pointer-events: none; }
+/* the one "next" button, always bottom right; a small Back on the left */
+.bay-next-row { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+.bay-next-row .bay-next { margin: 0; }
+.bay-next-row .bay-back { margin-right: auto; }
+/* Rocket step: bays on the left, the essentials on the right, a faint line between them */
+.rocket-split { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(240px, 1fr); gap: 20px; }
+.rocket-right { border-left: 1px solid rgba(255, 255, 255, 0.1); padding-left: 20px; }
+.rocket-right .sim-info { margin: 0; }
+@media (max-width: 900px) {
+  .rocket-split { grid-template-columns: 1fr; }
+  .rocket-right { border-left: 0; border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 14px 0 0; }
+}
+/* Spacecraft step: bolder, larger section titles */
+.sim-sub.sim-sub-big { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.08em; color: var(--text); margin-top: 18px; }
+.sim-sub.sim-sub-big small { font-weight: 400; letter-spacing: 0.04em; }
+/* Suit step: hand tools in a side list inside the viewer box */
+.locker-stage .locker-tools {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  bottom: 56px;
+  width: 170px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  background: rgba(6, 10, 18, 0.72);
+  border: 1px solid rgba(143, 208, 255, 0.18);
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+  z-index: 2;
+}
+.locker-tools-head { margin: 0 0 6px; font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+.locker-tools-list { display: grid; gap: 4px; overflow-y: auto; min-height: 0; }
+.locker-tool {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 6px; text-align: left;
+  border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--text); font-size: 0.72rem; cursor: pointer;
+}
+.locker-tool:hover { background: rgba(122, 184, 255, 0.08); }
+.locker-tool.active { border-color: var(--accent-line); background: rgba(122, 184, 255, 0.14); }
+.locker-tool:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.locker-tool .rack-pic { width: 30px; height: 30px; flex: none; }
+.locker-tool .rack-pic img { width: 100%; height: 100%; object-fit: contain; }
+@media (max-width: 760px) {
+  .locker-stage .locker-tools { width: 130px; }
+}
+/* Destination step: a world, then its sites */
+.dest-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.dest-head .sim-sub { margin: 0; }
+/* Workshop: one box split into four */
+.workshop-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.ws-box { padding: 14px 16px; border-right: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); min-width: 0; }
+.ws-box:nth-child(2n) { border-right: 0; }
+.ws-box:nth-child(n + 3) { border-bottom: 0; }
+.ws-box .sim-sub { margin-top: 0; }
+.ws-box .lab-row { gap: 10px; flex-wrap: wrap; }
+.lab-swatches { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.ws-points { margin-left: 8px; padding: 2px 8px; border: 1px solid var(--accent-line); border-radius: 999px; color: var(--accent); font-size: 0.66rem; letter-spacing: 0.06em; }
+#ws-accessories { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ws-toggle {
+  display: grid; gap: 2px; padding: 10px 12px; text-align: left; border: 1px solid var(--line-strong); border-radius: 10px;
+  background: rgba(122, 184, 255, 0.03); color: var(--text); cursor: pointer;
+}
+.ws-toggle b { font-size: 0.84rem; }
+.ws-toggle span { font-size: 0.7rem; color: var(--muted); }
+.ws-toggle.on { border-color: var(--accent); background: rgba(122, 184, 255, 0.14); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.ws-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ws-name { display: grid; gap: 4px; margin-bottom: 10px; font-size: 0.72rem; color: var(--muted); }
+.ws-name input { padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: rgba(0, 0, 0, 0.3); color: var(--text); font: inherit; font-size: 0.9rem; }
+.ws-name input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+#ws-patch { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.ws-patch-preview svg { width: 76px; height: 76px; display: block; }
+.ws-patch-pickers { display: grid; gap: 8px; }
+.ws-patch-pickers > .small-button { margin-right: 4px; }
+@media (max-width: 760px) {
+  .workshop-grid { grid-template-columns: 1fr; }
+  .ws-box { border-right: 0; border-bottom: 1px solid var(--line-strong); }
+  .ws-box:nth-child(n + 3) { border-bottom: 1px solid var(--line-strong); }
+  .ws-box:last-child { border-bottom: 0; }
+}
+/* Launch step: only the three objectives and the button, in the middle */
+.launch-center { display: grid; justify-items: center; gap: 12px; text-align: center; padding: 18px 0 6px; }
+.launch-center .sim-objectives { text-align: left; margin: 0; }
+.launch-center #sim-launch { margin: 6px auto 0; }
+.sim-patch-preview svg { width: 64px; height: 64px; display: block; }
+.sim-patch-preview:empty { display: none; }
+/* NASA 3D model labels */
+.sim-card-pic { position: relative; }
+.nasa-tag {
+  position: absolute; left: 4px; bottom: 4px; padding: 1px 5px; border-radius: 4px;
+  background: rgba(11, 61, 145, 0.92); color: #fff; font-family: var(--mono); font-size: 0.5rem; letter-spacing: 0.08em;
+}
+.hw-thumb-tag.is-nasa { background: rgba(11, 61, 145, 0.92); color: #fff; }
+.mp-nasa {
+  position: absolute; top: 50px; right: 30px; padding: 2px 8px; border-radius: 999px;
+  background: rgba(11, 61, 145, 0.85); color: #fff; font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.06em; text-decoration: none;
+}
+.mp-nasa:hover { text-decoration: underline; }
+@media (max-width: 760px) { .mp-nasa { top: auto; bottom: 150px; right: 10px; } }
+/* Free Build results: the patch and what the mission flew with */
+.results-extras { display: flex; align-items: center; gap: 12px; }
+.results-patch svg { width: 48px; height: 48px; display: block; }
+.locker-tools-list { overflow-x: hidden; }
+.locker-tool { font-family: var(--sans); text-transform: none; letter-spacing: 0; font-weight: 500; line-height: 1.25; white-space: normal; }
+.locker-tool span { min-width: 0; }
+/* the NASA label sits just left of the mission map (clear of Exit replay) */
+.mp-nasa { top: 78px; right: 272px; }
+@media (max-width: 760px) {
+  /* phones: the progress bar shows only the step icons, so every step fits on one line */
+  .build-progress { overflow: hidden; }
+  .build-progress .station-tab { min-width: 0; padding: 10px 2px; justify-content: center; }
+  .build-progress .station-tab > span:last-child { display: none; }
+  .build-progress .station-tab::after { width: 10px; right: -5px; }
+}

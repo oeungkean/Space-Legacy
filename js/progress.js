@@ -132,7 +132,12 @@ export function buildObjectives(config, site) {
     list.push({ id: "deploy", text: "Watch the spacecraft reach its final state" });
   }
   list.push({ id: "complete", text: "Complete the mission and review the results" });
-  return list.map(function (o) { return Object.assign({ done: false }, o); });
+  // Three objectives (Master Doc 14): launch, reach the destination, and the one main thing to do there
+  const main = ["drive", "eva", "controls", "explore", "deploy", "complete"].map(function (id) {
+    return list.find(function (o) { return o.id === id; });
+  }).find(Boolean);
+  const three = [list[0], list[1], main].filter(Boolean);
+  return three.map(function (o) { return Object.assign({ done: false }, o); });
 }
 
 export function completeObjective(id) {

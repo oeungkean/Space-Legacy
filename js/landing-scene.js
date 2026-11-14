@@ -14,6 +14,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createModel, createParachute, createBackshell, createAstronaut } from "./models.js";
+import { nasaUsableInScene, upgradeToNasaModel, announceNasaModel } from "./nasa-models.js";
 import { createParticleSystem } from "./particles.js";
 import { buildTerrainShape, buildGround as buildRealGround, heightAt as realHeight, stepGround } from "./terrain.js";
 import { getPlaybackSpeed } from "./playback.js";
@@ -893,9 +894,11 @@ function makeModel(name, scale) {
   const model = createModel(name);
   model.scale.setScalar(scale || 1);
   addFlames(model);
-  // The project's own model is used here, the same one as in the launch, the space shots and the
-  // exploration, so a spacecraft looks the same from launch to landing (Master Doc 8). The official NASA
-  // models are shown on the Missions page.
+  // NASA's official model where NASA has one and none of its parts move here (Master Doc 14); landers
+  // that unfold, rovers with turning wheels and the Lunar Module keep the project's model
+  if (nasaUsableInScene(model, name)) {
+    upgradeToNasaModel(model, name).then(function (shown) { if (shown) announceNasaModel(name); });
+  }
   return addActor(model);
 }
 
