@@ -321,6 +321,36 @@ The first countdown caption describes each pad, and rockets that were stacked on
 - Venus texture 404 fixed.
 - `docs/ASSETS.md` lists the Venus files by their real names.
 
+## Completed (2026-11-14): Kampu Space Master Doc (13)
+- **Missions sidebar is one panel**: the Real Missions card on top, with All missions and All hardware joined to it by a rail, so they read as one thing. The whole sidebar scrolls, so "Switch to Free Build" always comes after everything, even with a list open. In the slim strip, the Real Missions card now fits its box.
+- **New icon set (15 icons)** in the site's thin-line style, each showing what it is: an Earth with an orbit, a crescent Moon, Mars, the Sun, a ringed planet, an asteroid; a rocket, a satellite (spacecraft), a telescope, a rover, an instrument trace, a station and a capsule.
+- **Every list shows exactly its own items**:
+  - "All missions" now clears the hardware type. Before, after choosing "Return Capsules" it still showed only 5.
+  - "All hardware" clears the destination and lists all 64 pieces, rockets included. Before, it showed 46, or only 4 after choosing a destination.
+- **Switch buttons** are small, quiet pills on both pages.
+- **Builder zoom**: + and − are drawn as icons, exactly centred in their squares.
+- **Mission player**
+  - Pause stops everything, the narrator included, along with the title card. Play says the interrupted sentence again and carries on. (This changes the Doc 9 behaviour, where the narrator kept talking.)
+  - Replays of real missions show "★ Real mission · Gemini III, 1965." The "Possible: it really flew" verdict and the reach meter are predictions, so they appear only in Free Build.
+  - The stages box is exactly as wide as the mission map.
+  - The launch-site and landing-site cards sit above the subtitle, with room kept for a two-line subtitle.
+- **Bug fix: named asteroids are no longer drawn as Bennu.**
+  - Any "deep space" event naming Vesta, Ceres, Eros or Mathilde now gets that body, both in the film and on the mission map. Before, every asteroid became Bennu, which broke the Dawn and NEAR Shoemaker replays (NLC-2, since reverted).
+  - Each body has an illustrative painted look based on mission pictures:
+    - Vesta: grey and battered.
+    - Ceres: round and dark, with a bright spot at Occator.
+    - Eros: long and tan.
+    - Mathilde: nearly black.
+  - An Earth "swingby" is now shown as a fly-past, not as "In orbit".
+  - Tested with the Dawn/NEAR data loaded into the page for the test only: every scene has the right world, and the map reads Earth → Mars → Vesta → Ceres. Every existing replay plan still builds, and OSIRIS-REx still goes to Bennu.
+- Tested in the browser:
+  - every sidebar list's count against what it shows (all 15 match);
+  - the slim strip;
+  - phone width;
+  - builder zoom centring (measured 0 px off);
+  - the Gemini III replay: badge, pause/play of the voice, stages width (764–994 px, the same as the map) and site card above the subtitle;
+  - no console errors.
+
 ## Completed (2026-11-14): Kampu Space Master Doc (12)
 - **Two modes, clearly split** (replaces Doc 11's split)
   - **Real Missions** = the Missions page: the "Real Missions" mode card on top, then All missions / All hardware, then a "Switch to Free Build →" button. Every item keeps its "Replay mission".

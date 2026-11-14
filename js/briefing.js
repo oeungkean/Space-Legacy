@@ -197,5 +197,16 @@ export function briefingForPlan(plan) {
     return x.replay && x.replay.type === s.type && (x.replay.id === s.id || x.replay.id === s.name);
   }) || TEMPLATES.find(function (x) { return x.id === s.id; });
   if (!t) return null;
-  return missionBriefing({ rocket: t.rocket, spacecraft: t.spacecraft, destination: t.destination, siteId: t.site, title: t.name });
+  const brief = missionBriefing({ rocket: t.rocket, spacecraft: t.spacecraft, destination: t.destination, siteId: t.site, title: t.name });
+  // A real mission is simply labelled as one (Master Doc 13): "Possible: it really flew" and the reach
+  // meter are predictions, so they belong to Free Build only
+  if (brief && brief.verdict) {
+    brief.verdict = Object.assign({}, brief.verdict, {
+      kind: "real",
+      label: "Real mission",
+      tagline: t.name + ", " + t.year + ".",
+      meter: null
+    });
+  }
+  return brief;
 }

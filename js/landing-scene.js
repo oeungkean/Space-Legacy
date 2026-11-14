@@ -2314,7 +2314,11 @@ function updateSiteCard() {
     // in the mission player, just above its scene bar (it used to sit behind the controls)
     const bar = document.getElementById("mp-timeline");
     if (document.body.classList.contains("player-on") && bar && bar.getBoundingClientRect && bar.getBoundingClientRect().top > 0) {
-      siteCard.style.bottom = Math.round(window.innerHeight - bar.getBoundingClientRect().top + 12) + "px";
+      // above the subtitle too (Master Doc 13), with room for a two-line subtitle
+      const cap = document.getElementById("mp-caption");
+      let top = bar.getBoundingClientRect().top;
+      if (cap && cap.getBoundingClientRect && window.innerWidth > 760) top = Math.min(top, cap.getBoundingClientRect().bottom - 84);
+      siteCard.style.bottom = Math.round(window.innerHeight - top + 12) + "px";
     } else {
       siteCard.style.bottom = "";
     }

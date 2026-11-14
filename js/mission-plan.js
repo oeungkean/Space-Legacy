@@ -78,12 +78,21 @@ const SAY = {
 // ----- Helpers -----
 function worldOf(target, event) {
   if (WORLD[target]) return WORLD[target];
-  if (target === "deep") return /wild|comet/i.test(event.body || event.title) ? "comet" : "bennu";
+  if (target === "deep") {
+    // a named asteroid or dwarf planet is drawn and labelled as itself (it used to become Bennu)
+    const name = event.body || event.title || "";
+    if (/wild|comet/i.test(name)) return "comet";
+    const known = name.match(/\b(vesta|ceres|eros|mathilde|bennu)\b/i);
+    return known ? known[1].toLowerCase() : "bennu";
+  }
   if (target === "oval") return "sun";
   if (/pluto/i.test(event.title)) return "pluto";
   if (/arrokoth/i.test(event.title)) return "arrokoth";
   return null;
 }
+
+// asteroids, dwarf planets and comets: a spacecraft flies alongside them instead of orbiting a planet
+const SMALL_BODY = { comet: true, bennu: true, vesta: true, ceres: true, eros: true, mathilde: true };
 
 function chapter(engine, label, e, extra) {
   return Object.assign({ engine: engine, label: label, title: e ? e.title : label, date: e ? e.date : "", caption: e ? e.caption : "" }, extra);
@@ -175,9 +184,9 @@ function fromEvents(events, meta) {
     }
     if (action === "deploy" || e.deploy && e.deploy[0] !== e.deploy[1]) {
       const place = meta.jwst ? "deep" : e.target === "Earth" ? "earth" : "deep";
-      if (world && world !== "earth" && world !== "comet" && world !== "bennu") {
+      if (world && world !== "earth" && !SMALL_BODY[world]) {
         chapters.push(chapter("film", "In orbit", e, { shot: { kind: "orbitAt", world: world, craft: craft }, narration: SAY.deploy(e), part: part }));
-      } else if (world === "comet" || world === "bennu") {
+      } else if (SMALL_BODY[world]) {
         chapters.push(chapter("film", "Flyby", e, { shot: { kind: "flyby", world: world, craft: craft }, narration: SAY.flyby(e), part: part }));
       } else {
         chapters.push(chapter("film", "Deployment", e, { shot: { kind: "deploy", craft: craft, place: place, from: e.deploy ? e.deploy[0] : 0, to: e.deploy ? e.deploy[1] : 1 }, narration: SAY.deploy(e), part: part }));
@@ -236,6 +245,11 @@ function fromEvents(events, meta) {
     }
     if (e.target === "Earth" && /L2/.test(e.title)) {
       chapters.push(chapter("film", "At L2", e, { shot: { kind: "deploy", craft: craft, place: "deep", from: 1, to: 1 }, narration: join(e.narration || e.caption), part: part }));
+      continue;
+    }
+    // a swingby past Earth (a gravity assist) is a fly-past, not an orbit
+    if (e.target === "Earth" && /swing|flyby|fly-by|gravity assist/i.test(e.title) && action !== "orbit") {
+      chapters.push(chapter("film", "Flyby", e, { shot: { kind: "flyby", world: "earth", craft: craft }, narration: SAY.flyby(e), part: part }));
       continue;
     }
     if (e.target === "Earth" && (action === "orbit" || stage === "B")) {

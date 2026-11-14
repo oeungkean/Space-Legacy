@@ -10501,3 +10501,139 @@ body.player-on .cinema-stages li { padding: 7px 10px; }
 }
 /* The scene title card sits high on the screen, above the spacecraft in the middle (not on top of it) */
 .mp-bridge { top: 22%; }
+
+/* =========================================================================================
+   Kampu Space Master Doc (13), 2026-11-14
+   ========================================================================================= */
+/* Missions sidebar: the whole list scrolls, so the switch button always comes after everything,
+   including an opened list (it used to stay pinned at the bottom, over the list) */
+#explorer-sidebar { overflow-y: auto; overscroll-behavior: contain; }
+#explorer-sidebar #explorer-categories { flex: none; overflow: visible; }
+/* One panel: the Real Missions card and its two lists belong together */
+.explorer-panel {
+  position: relative;
+  margin: 0 10px 4px;
+  padding: 6px 6px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(122, 184, 255, 0.07), rgba(122, 184, 255, 0.015));
+}
+.explorer-panel .explorer-mode { padding: 0 0 2px; }
+.explorer-panel #explorer-categories {
+  position: relative;
+  margin: 0 0 0 8px;
+  padding: 4px 0 0 7px;
+}
+/* the rail from the card down to its lists, with a short branch to each */
+.explorer-panel #explorer-categories::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 26px;
+  border-left: 1px solid var(--accent-line);
+}
+.explorer-panel #explorer-categories .dd-group { position: relative; margin-left: 0; margin-right: 0; }
+.explorer-panel #explorer-categories .dd-group::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 26px;
+  width: 7px;
+  border-top: 1px solid var(--accent-line);
+}
+/* the switch buttons are small and quiet (they are a way out, not a main choice) */
+.mode-switch-btn {
+  display: inline-block;
+  width: auto;
+  margin: 10px 14px 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  align-self: flex-start;
+}
+.mode-switch-btn:hover { color: var(--text); border-color: var(--accent-line); background: rgba(122, 184, 255, 0.08); }
+@media (min-width: 761px) {
+  /* slim strip: the card fits its box (icon centred above a short label), the lists hang under it */
+  #explorer-screen.sidebar-collapsed .explorer-panel { margin: 0 6px 4px; padding: 6px 4px 8px; border-radius: 14px; }
+  #explorer-screen.sidebar-collapsed .explorer-panel #explorer-categories { margin: 0; padding: 4px 0 0; }
+  #explorer-screen.sidebar-collapsed .explorer-panel #explorer-categories::before,
+  #explorer-screen.sidebar-collapsed .explorer-panel #explorer-categories .dd-group::before { display: none; }
+  #explorer-screen.sidebar-collapsed .explorer-mode { padding: 0; }
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    padding: 8px 2px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-art {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    background: none;
+    border: 0;
+  }
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-art::before,
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-art::after { display: none; }
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-icon { width: 30px; height: 30px; margin: 0; }
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-row { display: block; width: 100%; padding: 0; text-align: center; }
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-text { display: block; }
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-text b { display: block; font-size: 0.56rem; line-height: 1.2; text-align: center; white-space: normal; }
+  #explorer-screen.sidebar-collapsed .mode-switch-btn {
+    display: block;
+    width: 64px;
+    margin: 10px auto;
+    padding: 6px 2px;
+    font-size: 0.5rem;
+    letter-spacing: 0.04em;
+    white-space: normal;
+    line-height: 1.3;
+  }
+}
+/* Builder zoom: + and - drawn as icons, exactly centred in their squares */
+.lab-zoom-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.lab-zoom-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+/* inside the panel the box titles are shown in full ("All hardware", not "All ha...") */
+.explorer-panel .dd-toggle { gap: 6px; }
+.explorer-panel .dd-value,
+.explorer-panel .dd-title { white-space: normal; overflow: visible; text-overflow: clip; }
+.explorer-panel .dd-action { padding: 4px 7px; font-size: 0.56rem; gap: 3px; flex: none; }
+@media (min-width: 761px) {
+  /* the slim strip still scrolls, without a scrollbar eating its 84px */
+  #explorer-screen.sidebar-collapsed #explorer-sidebar { scrollbar-width: none; }
+  #explorer-screen.sidebar-collapsed #explorer-sidebar::-webkit-scrollbar { display: none; }
+  #explorer-screen.sidebar-collapsed .explorer-panel { margin: 0 4px 4px; padding: 4px 3px 6px; }
+  #explorer-screen.sidebar-collapsed .explorer-panel #explorer-categories .dd-group { margin: 6px 0 0; }
+  #explorer-screen.sidebar-collapsed .explorer-panel #explorer-categories .sidebar-item,
+  #explorer-screen.sidebar-collapsed .explorer-panel #explorer-categories .dd-body .sidebar-item:not(:first-child) {
+    width: auto;
+    margin: 3px 2px;
+  }
+}
+
+/* Mission player briefing: a real mission is labelled "Real mission" (no prediction badge or meter) */
+.mb-verdict.real { border-color: var(--accent-line); background: rgba(122, 184, 255, 0.1); }
+.mb-verdict.real i { background: var(--accent); color: #07101d; }
+
+/* The stage list is exactly as wide as the mission map above it (Master Doc 13) */
+body.player-on .cinema-stages { width: 230px; box-sizing: border-box; padding: 10px 10px; }
+@media (max-width: 760px) {
+  body.player-on .cinema-stages { width: 180px; box-sizing: border-box; }
+}

@@ -1030,7 +1030,10 @@ function fitAboveSceneBar() {
   [siteCard].forEach(function (box) {
     if (!box) return;
     if (!playerOn || !bar || window.innerWidth <= 760 || !bar.getBoundingClientRect) { box.style.bottom = ""; return; }
-    const top = bar.getBoundingClientRect().top;
+    // above the subtitle, not behind it (Master Doc 13): room is kept for a two-line subtitle
+    const cap = document.getElementById("mp-caption");
+    let top = bar.getBoundingClientRect().top;
+    if (cap && cap.getBoundingClientRect) top = Math.min(top, cap.getBoundingClientRect().bottom - 84);
     if (top > 0) box.style.bottom = Math.round(window.innerHeight - top + 12) + "px";
   });
 }

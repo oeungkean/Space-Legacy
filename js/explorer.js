@@ -24,27 +24,35 @@ import { createGlow } from "./glow.js";
 import { play } from "./sounds.js";
 import { hasNasaModel, nasaModelInfo, upgradeToNasaModel } from "./nasa-models.js";
 import { onThemeChange, accentNumber } from "./theme.js";
-import { destinationIcon, uiIcon, craftIcon, vehicleIcon, toolIcon } from "./icons.js";
 
-// An icon for each choice in the left list (Master Doc 10), so each one can be told apart at a glance,
-// also in the slim strip
-const LIST_ICONS = {
-  "dest:": function () { return uiIcon("destination"); },
-  "dest:earth": function () { return destinationIcon("earth-orbit"); },
-  "dest:moon": function () { return destinationIcon("moon"); },
-  "dest:mars": function () { return destinationIcon("mars"); },
-  "dest:inner": function () { return destinationIcon("sun"); },
-  "dest:outer": function () { return destinationIcon("saturn"); },
-  "dest:small": function () { return destinationIcon("asteroid"); },
-  "category:all": function () { return uiIcon("wrench"); },
-  "category:rockets": function () { return uiIcon("rocket"); },
-  "category:spacecraft": function () { return craftIcon("voyager"); },
-  "category:telescopes": function () { return craftIcon("hubble"); },
-  "category:landers": function () { return vehicleIcon("rover"); },
-  "category:instruments": function () { return toolIcon("SCI"); },
-  "category:stations": function () { return craftIcon("skylab"); },
-  "category:capsules": function () { return uiIcon("spacecraft"); }
+// An icon for each choice in the left list, drawn as one set (Master Doc 13: each icon shows what it is,
+// e.g. a moon for the Moon, a spacecraft for Spacecraft), in the site's thin-line style
+function listIcon(body) {
+  return '<svg class="line-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + "</svg>";
+}
+const LIST_ICON_BODIES = {
+  // where they went
+  "dest:": '<circle cx="12" cy="12" r="2.2"/><circle cx="12" cy="12" r="6" stroke-dasharray="2 2.2"/><circle cx="12" cy="12" r="9.5"/><circle cx="18" cy="8.5" r="1.1" fill="currentColor"/>',
+  "dest:earth": '<circle cx="12" cy="12" r="6"/><path d="M8.2 9.5c1.6.4 2.4 1.6 2 3.1-.3 1.2.6 2.2 1.8 2.4M13.5 6.4c.2 1.3 1.3 2 2.6 1.9"/><ellipse cx="12" cy="12" rx="10" ry="3.6" transform="rotate(-20 12 12)" stroke-dasharray="2 1.8"/><rect x="19" y="7.2" width="2.6" height="2.6" rx=".5" fill="currentColor"/>',
+  "dest:moon": '<path d="M15.5 3.6A8.6 8.6 0 1 0 20.4 17 7 7 0 0 1 15.5 3.6z"/><circle cx="9" cy="10" r="1.4"/><circle cx="11.5" cy="15.6" r="1"/><circle cx="7.2" cy="14.4" r=".7"/>',
+  "dest:mars": '<circle cx="12" cy="12" r="8.5"/><path d="M8.6 4.3c1 .8 2.3 1.1 3.4 1.1s2.4-.3 3.4-1.1"/><path d="M5.5 13.5c2.2-1 4.4.6 6.5-.4s3.7-1.2 6.3.2"/><circle cx="9" cy="17" r="1.2"/><circle cx="15.5" cy="9.5" r=".9"/>',
+  "dest:inner": '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>',
+  "dest:outer": '<circle cx="12" cy="12" r="5.2"/><path d="M7.3 14.4C3.4 16.3 1.6 18 2.2 19c.9 1.5 6.4-.2 12.2-3.6S23.6 7 22.8 5.5c-.5-1-2.8-.8-6 .4"/>',
+  "dest:small": '<path d="M7.5 6.2l5-1.7 5 2.4 2.3 4.6-1.6 5.6-4.9 3-5.8-1.2-3.2-4.5.6-5.1z"/><circle cx="10" cy="10" r="1.6"/><circle cx="14.6" cy="14.4" r="1.2"/><circle cx="9" cy="15" r=".7"/>',
+  // what it is
+  "category:all": '<path d="M12 2.8l8.2 4.6v9.2L12 21.2l-8.2-4.6V7.4z"/><path d="M3.8 7.4L12 12l8.2-4.6M12 12v9.2"/>',
+  "category:rockets": '<path d="M12 2.5c2.6 2.2 3.8 5.3 3.8 8.8v4.2H8.2v-4.2c0-3.5 1.2-6.6 3.8-8.8z"/><circle cx="12" cy="9.5" r="1.5"/><path d="M8.2 12.8l-2.6 3.4v2.3l2.6-1.2M15.8 12.8l2.6 3.4v2.3l-2.6-1.2M10.4 18.2l1.6 3.3 1.6-3.3"/>',
+  "category:spacecraft": '<rect x="9.3" y="9.3" width="5.4" height="5.4" rx=".8"/><path d="M2.5 9.5h5v5h-5zM16.5 9.5h5v5h-5zM5 9.5v5M19 9.5v5M7.5 12h1.8M14.7 12h1.8"/><path d="M12 9.3V6.2M9.8 4.4a3.2 3.2 0 0 0 4.4 0"/>',
+  "category:telescopes": '<path d="M5.2 13.8l9.6-9.6 4.6 4.6-9.6 9.6z"/><path d="M14.8 4.2l1.8-1.8 4.6 4.6-1.8 1.8"/><path d="M7.5 16.1L4 19.6M3 21.2l1.6-1.6"/><path d="M10.4 18.4l2.4 2.8M12.8 21.2h-4"/>',
+  "category:landers": '<rect x="6" y="9" width="12" height="5.2" rx="1.2"/><path d="M9 9V6.4M9 6.4h3.2M8 4.5h2.2v1.9H8z"/><circle cx="7" cy="17.6" r="1.9"/><circle cx="12" cy="17.6" r="1.9"/><circle cx="17" cy="17.6" r="1.9"/><path d="M15 9l2.5-3.2"/>',
+  "category:instruments": '<rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M5.8 12h2.4l1.5-3.4 2.4 6.8 1.9-5.4 1.3 2h2.9"/>',
+  "category:stations": '<path d="M3.5 12h17"/><rect x="9.5" y="9.6" width="5" height="4.8" rx="1"/><path d="M5.5 5.5h3.5v4H5.5zM15 5.5h3.5v4H15zM5.5 14.5h3.5v4H5.5zM15 14.5h3.5v4H15zM7.2 9.5v2.5M16.8 9.5v2.5M7.2 12v2.5M16.8 12v2.5"/>',
+  "category:capsules": '<path d="M9.6 4.5h4.8l3.8 11.2H5.8z"/><path d="M4.6 15.7c1.6 2.4 4.3 3.6 7.4 3.6s5.8-1.2 7.4-3.6"/><path d="M9.6 4.5l2.4-2 2.4 2M8.3 10.6h7.4"/>'
 };
+const LIST_ICONS = {};
+Object.keys(LIST_ICON_BODIES).forEach(function (key) {
+  LIST_ICONS[key] = function () { return listIcon(LIST_ICON_BODIES[key]); };
+});
 
 // ----- Page elements -----
 const screen = document.getElementById("explorer-screen");
@@ -103,7 +111,8 @@ const state = {
   sort: "year",
   replayOnly: false,
   dest: "",           // a destination group from data/mission-groups.js ("" = everywhere)
-  body: ""            // set when coming from a planet's info panel: only items linked to that body
+  body: "",           // set when coming from a planet's info panel: only items linked to that body
+  allHardware: false  // "All hardware": every piece (rockets too) in one list (Master Doc 13)
 };
 
 const STATUS_GROUPS = ["Operating", "Active", "On the surface", "Completed", "Ended", "Retired", "Flown"];
@@ -216,6 +225,7 @@ function sidebarRow(label, meta, dot, onClick, data) {
     if (slim && group && group.body.firstChild === row) setGroupOpen(group, !group.root.classList.contains("open"));
     // choosing from the list while a detail page is open goes back to the list with that choice
     if (!detail.classList.contains("hidden")) closeDetail();
+    state.allHardware = false; // only the "All hardware" row turns this on
     onClick();
     sidebar.classList.remove("open");
     // the dropdown stays open after choosing; it only closes when its header is clicked
@@ -258,13 +268,13 @@ function buildCategories() {
   categoryList.innerHTML = "";
   // One selection at a time: a destination resets the hardware type, and a hardware type resets the destination
   sidebarHeading("Where they went");
-  sidebarRow("All missions", String(MISSION_GROUPS.length), "#7ab8ff", function () { state.dest = ""; state.region = ""; }, { dest: "" });
+  sidebarRow("All missions", String(MISSION_GROUPS.length), "#7ab8ff", function () { state.dest = ""; state.region = ""; state.category = "all"; }, { dest: "" }); // every mission, nothing else filtered
   DESTINATIONS.forEach(function (dest) {
     const count = MISSION_GROUPS.filter(function (g) { return g.where === dest.id; }).length;
     sidebarRow(dest.name, String(count), DEST_DOTS[dest.id], function () { state.dest = dest.id; state.region = ""; state.category = "all"; }, { dest: dest.id });
   });
   sidebarHeading("What it is");
-  sidebarRow("All hardware", String(catalog.length), "#a3adbf", function () { state.category = "all"; }, { category: "all" });
+  sidebarRow("All hardware", String(catalog.length), "#a3adbf", function () { state.category = "all"; state.dest = ""; state.region = ""; state.allHardware = true; }, { category: "all" }); // every piece of hardware
   CATEGORIES.forEach(function (category) {
     const count = catalog.filter(function (item) { return item.category === category.id; }).length;
     sidebarRow(category.short === "Rockets" ? "Launch vehicles" : category.short, String(count), null, function () { state.category = category.id; state.dest = ""; state.region = ""; }, { category: category.id });
@@ -445,7 +455,8 @@ function render() {
   // Searching (or a quick topic) shows one list of results, grouped by status, oldest first
   const searching = Boolean(state.search.trim()) || state.replayOnly || Boolean(state.status);
   // Launch vehicles are shared by many missions, so they are listed on their own
-  const flat = state.category === "rockets" && !searching;
+  const allHw = state.allHardware && state.category === "all" && !state.dest && !state.region && !state.body;
+  const flat = (state.category === "rockets" || allHw) && !searching;
   grid.classList.toggle("grouped", !flat && !searching);
   grid.classList.toggle("results", searching);
   if (searching) {
@@ -468,10 +479,12 @@ function render() {
 
   const typeTitle = state.category === "all" ? "" : categoryName(state.category);
   const destTitle = state.dest ? destName(state.dest) : (state.region || "");
-  titleText.textContent = searching ? "Search results" : flat ? "Launch vehicles" : (destTitle || "All missions") + (typeTitle ? " \u00B7 " + typeTitle : "");
-  eyebrow.textContent = searching ? "Grouped by status \u00B7 oldest first" : flat ? "The rockets that launched these missions" : "Missions and the hardware they used";
+  titleText.textContent = searching ? "Search results" : allHw ? "All hardware" : flat ? "Launch vehicles" : (destTitle || "All missions") + (typeTitle ? " \u00B7 " + typeTitle : "");
+  eyebrow.textContent = searching ? "Grouped by status \u00B7 oldest first" : allHw ? "Every piece of hardware, rockets included" : flat ? "The rockets that launched these missions" : "Missions and the hardware they used";
   countText.textContent = searching
     ? shown + (shown === 1 ? " result" : " results") + (state.search.trim() ? " for \u201C" + state.search.trim() + "\u201D" : "")
+    : allHw
+    ? shown + (shown === 1 ? " piece" : " pieces") + " of hardware"
     : flat
     ? shown + (shown === 1 ? " rocket" : " rockets")
     : missionsShown + (missionsShown === 1 ? " mission" : " missions") + " \u00B7 " + shown + (shown === 1 ? " piece" : " pieces") + " of hardware" +
@@ -486,8 +499,8 @@ function render() {
   Array.from(categoryList.querySelectorAll ? categoryList.querySelectorAll(".explorer-cat") : []).forEach(function (row) {
     if (!row.dataset) return;
     let active = false;
-    if (row.dataset.dest !== undefined) active = !byType && row.dataset.dest === state.dest && !state.region;
-    if (row.dataset.category !== undefined) active = byType && row.dataset.category === state.category;
+    if (row.dataset.dest !== undefined) active = !byType && !allHw && row.dataset.dest === state.dest && !state.region;
+    if (row.dataset.category !== undefined) active = row.dataset.category === "all" ? allHw : byType && row.dataset.category === state.category;
     if (row.classList) row.classList.toggle("active", active);
     if (row.setAttribute) row.setAttribute("aria-current", active ? "true" : "false");
   });
@@ -671,7 +684,7 @@ statusSelect.addEventListener("change", function () { state.status = statusSelec
 sortSelect.addEventListener("change", function () { state.sort = sortSelect.value; play("tick"); render(); });
 replayOnlyBox.addEventListener("change", function () { state.replayOnly = replayOnlyBox.checked; render(); });
 clearButton.addEventListener("click", function () {
-  state.category = "all"; state.search = ""; state.region = ""; state.status = ""; state.replayOnly = false; state.body = ""; state.dest = "";
+  state.category = "all"; state.search = ""; state.region = ""; state.status = ""; state.replayOnly = false; state.body = ""; state.dest = ""; state.allHardware = false;
   searchInput.value = "";
   hideSuggestions();
   render();

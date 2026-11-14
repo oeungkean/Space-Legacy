@@ -467,7 +467,10 @@
       <p id="explorer-view-note" class="sim-mode-note hidden"></p>
       <!-- Master Doc 12: the Missions page IS the "Real Missions" mode (what really happened); the builder
            is Free Build. The mode card, then All missions / All hardware, then the switch button. -->
+      <!-- Master Doc 13: one panel, so it reads as one thing: the Real Missions card on top and its two
+           lists (All missions / All hardware) joined to it by a rail -->
       <p class="sidebar-heading explorer-mode-heading">Mode</p>
+      <div class="explorer-panel">
       <div class="sim-mode explorer-mode">
         <div class="sim-mode-btn mode-card mode-real active" aria-current="true">
           <span class="mode-art" aria-hidden="true">
@@ -483,7 +486,8 @@
         </div>
       </div>
       <div id="explorer-categories" class="sidebar-list"></div>
-      <button id="explorer-to-free" class="mode-switch-btn" type="button">Switch to Free Build &rarr;</button>
+      </div>
+      <button id="explorer-to-free" class="mode-switch-btn" type="button" title="Switch to Free Build">Switch to Free Build &rarr;</button>
       <p class="sidebar-foot">Official NASA 3D models where NASA has one &middot; otherwise representative models</p>
     </nav>
 
@@ -622,7 +626,7 @@
         </button>
       </div>
       <!-- the way to the other mode (Real Missions is the Missions page) -->
-      <button id="sim-switch" class="mode-switch-btn" type="button">Switch to Real Missions &rarr;</button>
+      <button id="sim-switch" class="mode-switch-btn" type="button" title="Switch to Real Missions">Switch to Real Missions &rarr;</button>
     </nav>
 
     <main class="sim-main">
@@ -642,8 +646,8 @@
           <div id="lab-stats" class="lab-stats"></div>
           <!-- Zoom in and out; zooming out far enough shows the whole building from outside -->
           <div class="lab-zoom" role="group" aria-label="Zoom the view">
-            <button id="lab-zoom-in" type="button" class="lab-zoom-btn" aria-label="Zoom in" title="Zoom in">+</button>
-            <button id="lab-zoom-out" type="button" class="lab-zoom-btn" aria-label="Zoom out" title="Zoom out (all the way out shows the whole building)">&minus;</button>
+            <button id="lab-zoom-in" type="button" class="lab-zoom-btn" aria-label="Zoom in" title="Zoom in"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>
+            <button id="lab-zoom-out" type="button" class="lab-zoom-btn" aria-label="Zoom out" title="Zoom out (stops at the walls: the view stays inside the building)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button>
           </div>
           <div class="garage-hazard" aria-hidden="true"></div>
         </div>

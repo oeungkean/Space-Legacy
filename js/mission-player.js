@@ -10,7 +10,7 @@ import { startCinematic, stopCinematic, pauseCinematic, nextCinematicScene, cine
 import { startFilm, stopFilm, pauseFilm, filmProgress, seekFilm } from "./space-film.js";
 import { startLanding, stopLanding, pauseLanding, landingProgress, seekLanding } from "./landing-scene.js";
 import { missionPhoto } from "../data/mission-photos.js";
-import { speak, stopSpeaking, speechSupported, getVoices, getChosenVoice, onVoicesChange, voiceQuality } from "./narrator.js";
+import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking, speechSupported, getVoices, getChosenVoice, onVoicesChange, voiceQuality } from "./narrator.js";
 import { getSetting, setSetting } from "./settings.js";
 import { getPlaybackSpeed, setPlaybackSpeed } from "./playback.js";
 import { play, isSoundOn, isGroupOn, setGroupOn, stopLoops } from "./sounds.js";
@@ -105,7 +105,7 @@ function worldsOf() {
   return list;
 }
 
-const MAP_COLORS = { moon: "#cfcac2", mars: "#e0763a", venus: "#f2d79a", mercury: "#b9b3ab", jupiter: "#e8c08a", saturn: "#f0dcae", uranus: "#a8dde6", neptune: "#5a7fe0", titan: "#e0a040", pluto: "#d9c3a6", sun: "#ffd36e", bennu: "#8f877d", comet: "#9ab0c8", arrokoth: "#b06a50" };
+const MAP_COLORS = { moon: "#cfcac2", mars: "#e0763a", venus: "#f2d79a", mercury: "#b9b3ab", jupiter: "#e8c08a", saturn: "#f0dcae", uranus: "#a8dde6", neptune: "#5a7fe0", titan: "#e0a040", pluto: "#d9c3a6", sun: "#ffd36e", bennu: "#8f877d", vesta: "#a39d93", ceres: "#77746e", eros: "#b39c7c", mathilde: "#6a6763", comet: "#9ab0c8", arrokoth: "#b06a50" };
 
 function buildMap() {
   if (!mapBox) return;
@@ -223,8 +223,9 @@ function startChapter(i, natural) {
     sayLine(my, c.pre ? c.pre.narration : c.narration); // the narrator speaks over the title card too
     spokenFor = my;
   }
-  setTimeout(function () {
+  setTimeout(function next() {
     if (my !== token) return;
+    if (paused) { setTimeout(next, 200); return; } // a pause also holds the title card
     holdLastFrame(function (held) {
       if (my !== token) return;
       hideBridge();
@@ -380,7 +381,7 @@ function showBriefing(b) {
   const verdict = el("mp-brief-verdict");
   verdict.className = "mb-verdict " + (b.verdict ? b.verdict.kind : "");
   // a small sign, not a big red cross: the reach meter below shows why
-  verdict.querySelector("i").textContent = !b.verdict ? "" : b.verdict.kind === "possible" ? "\u2713" : b.verdict.kind === "unlikely" ? "!" : "?";
+  verdict.querySelector("i").textContent = !b.verdict ? "" : b.verdict.kind === "possible" ? "\u2713" : b.verdict.kind === "real" ? "\u2605" : b.verdict.kind === "unlikely" ? "!" : "?";
   // Reach meter: four steps (Earth orbit, Moon, planets, far out); the bar is how far this rocket
   // really sent anything, the flag is where this trip goes, and a gap means it would need more
   const meter = el("mp-brief-meter");
@@ -639,9 +640,14 @@ export function togglePause() {
   pauseCinematic(paused);
   pauseFilm(paused);
   pauseLanding(paused);
-  // Only the scene stops: the narrator keeps talking and the subtitles keep following it (team request,
-  // Master Doc 9). The engines' sounds go quiet while paused (each engine silences its own sounds).
-  if (paused) stopLoops("ambient", "music");
+  // Everything stops (Master Doc 13): the scene, its sounds, and the narrator, who stops after the word
+  // being said and, on Play, says that sentence again and carries on (the subtitles follow)
+  if (paused) {
+    stopLoops("ambient", "music");
+    pauseSpeaking();
+  } else {
+    resumeSpeaking();
+  }
   play(paused ? "pause" : "resume");
   if (!paused) tryAdvance(token, false);
 }

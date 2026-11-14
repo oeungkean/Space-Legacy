@@ -128,7 +128,8 @@ const LOOKS = {
   venus: ["#e2c27c", "#b8934a", 1, "#f6d9a0"], mercury: ["#8f8984", "#5f5a55", 0, null], jupiter: ["#d9b88a", "#a7704a", 1, null],
   saturn: ["#e7d3a5", "#bfa16a", 1, null], uranus: ["#a8dde6", "#8cc8d4", 1, "#c9f0f6"], neptune: ["#4a6fd8", "#2f4fb0", 1, "#7f9ff0"],
   titan: ["#d79a3c", "#a8722a", 1, "#f2b860"], pluto: ["#d9c3a6", "#8f7458", 0, null], sun: ["#ffd36e", "#ff8a1f", 0, null],
-  bennu: ["#4a4642", "#2c2a28", 0, null], comet: ["#5c5852", "#38352f", 0, null], arrokoth: ["#a2614a", "#6e3e2e", 0, null]
+  bennu: ["#4a4642", "#2c2a28", 0, null], vesta: ["#8f8a82", "#6a655e", 0, null], ceres: ["#55534f", "#3a3936", 0, null],
+  eros: ["#a48e70", "#7a6650", 0, null], mathilde: ["#33322f", "#22211f", 0, null], comet: ["#5c5852", "#38352f", 0, null], arrokoth: ["#a2614a", "#6e3e2e", 0, null]
 };
 const texCache = {};
 
@@ -176,7 +177,7 @@ function planetMaterial(name, radius) {
     });
   }
   // small worlds without a photo map: a painted map that follows the real world's look, plus close-up relief
-  const small = { titan: true, pluto: true, bennu: true, comet: true, arrokoth: true };
+  const small = { titan: true, pluto: true, bennu: true, comet: true, arrokoth: true, vesta: true, ceres: true, eros: true, mathilde: true };
   if (small[name]) {
     const r = radius || R;
     const painted = new THREE.MeshStandardMaterial({ map: smallWorldMap(name) || proceduralTexture(name), roughness: name === "titan" ? 1 : 0.95, metalness: 0 });
@@ -206,14 +207,19 @@ function planetMaterial(name, radius) {
 // A world: sphere, clouds and a glowing rim of air if it has one, rings for Saturn
 function makeWorld(name, radius) {
   const g = new THREE.Group();
-  const lumpy = name === "bennu" || name === "comet" || name === "arrokoth";
+  // irregular small bodies (Ceres is round enough to be a dwarf planet, so it stays a sphere)
+  const lumpy = name === "bennu" || name === "comet" || name === "arrokoth" || name === "vesta" || name === "eros" || name === "mathilde";
   const geometry = lumpy ? new THREE.IcosahedronGeometry(radius, 3) : new THREE.SphereGeometry(radius, 96, 64);
   if (lumpy && geometry.attributes && geometry.attributes.position && geometry.attributes.position.setXYZ) {
     const p = geometry.attributes.position;
     for (let i = 0; i < p.count; i++) {
       const v = V(p.getX(i), p.getY(i), p.getZ(i));
       const k = 1 + Math.sin(v.x * 0.21) * 0.08 + Math.cos(v.y * 0.17 + v.z * 0.13) * 0.1;
-      p.setXYZ(i, v.x * k, v.y * k * (name === "arrokoth" ? 0.7 : 0.92), v.z * k);
+      // Eros is long and narrow (about 34 x 11 x 11 km); Vesta is a squashed, battered ball
+      const sx = name === "eros" ? 1.55 : 1;
+      const sy = name === "arrokoth" ? 0.7 : name === "eros" ? 0.55 : name === "vesta" ? 0.86 : 0.92;
+      const sz = name === "eros" ? 0.6 : 1;
+      p.setXYZ(i, v.x * k * sx, v.y * k * sy, v.z * k * sz);
     }
     geometry.computeVertexNormals();
   }

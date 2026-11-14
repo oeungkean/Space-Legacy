@@ -105,6 +105,27 @@ export function smallWorldMap(name) {
         col = mix([46, 44, 42], [84, 80, 76], n);
         if (rocks > 0.68) col = mix(col, [130, 124, 116], (rocks - 0.68) * 3);
         if (rocks < 0.3) col = mix(col, [22, 21, 20], (0.3 - rocks) * 2.5);
+      } else if (name === "vesta") {
+        // grey basaltic surface with brighter and darker regions (Dawn's pictures)
+        const n = fbm(px * 4 + 11, py * 4, pz * 4, 5);
+        col = mix([112, 108, 100], [168, 162, 152], n);
+        if (fbm(px * 2 + 5, py * 2, pz * 2, 3) < 0.38) col = mix(col, [84, 80, 74], 0.5);
+      } else if (name === "ceres") {
+        // dark grey, with small bright salt deposits (the brightest, in Occator crater, near 20 N 239 E)
+        const n = fbm(px * 5 + 13, py * 5, pz * 5, 5);
+        col = mix([62, 60, 57], [96, 93, 88], n);
+        const oLon = (239 / 180 - 1) * Math.PI, oLat = 0.35;
+        const dLon = Math.atan2(Math.sin(lon - oLon), Math.cos(lon - oLon));
+        const d = Math.sqrt(dLon * dLon * cl * cl + (lat - oLat) * (lat - oLat));
+        if (d < 0.05) col = mix(col, [236, 234, 228], 1 - d / 0.05);
+      } else if (name === "eros") {
+        // a stony (S-type) asteroid: tan-grey dust with brighter crater walls
+        const n = fbm(px * 5 + 15, py * 5, pz * 5, 5);
+        col = mix([136, 118, 94], [184, 166, 140], n);
+      } else if (name === "mathilde") {
+        // one of the darkest asteroids known (carbon-rich): nearly black, many large craters
+        const n = fbm(px * 5 + 17, py * 5, pz * 5, 5);
+        col = mix([34, 33, 31], [62, 60, 57], n);
       } else if (name === "arrokoth") {
         // very red (organic-rich ices), with brighter patches and a pale "neck" region
         const n = fbm(px * 4 + 6, py * 4, pz * 4, 5);
