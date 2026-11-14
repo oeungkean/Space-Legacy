@@ -528,7 +528,10 @@ function freeDescentChapter(config, site) {
     approach: "The lander turns upright and slows down, looking for a safe, flat spot.",
     touchdown: "Engines stir up the dust as the lander settles onto its footpads at " + site.name + "."
   };
-  const preShot = { kind: "descend", world: site.world, craft: craft ? craft.model : "lunar-module", style: landing.lander === "lunar-module" ? "lm" : undefined, cruiseStage: !moon };
+  // the descent shows the same lander that touches down (on Mars, inside its entry capsule, as in the
+  // real missions' scenes), and the spacecraft it undocks from is the one that was built, not Apollo's
+  const lmStyle = landing.lander === "lunar-module";
+  const preShot = { kind: "descend", world: site.world, craft: lmStyle ? "lunar-module" : !moon ? "capsule" : (landing.lander || (craft ? craft.model : "capsule")), mother: lmStyle && craft ? (craft.model === "apollo-stack" ? "apollo-csm" : craft.model) : undefined, style: lmStyle ? "lm" : undefined, cruiseStage: !moon };
   return {
     engine: "landing",
     label: "Descent & Landing",

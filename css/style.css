@@ -9773,3 +9773,276 @@ body.player-on .cinema-site {
   cursor: pointer;
   text-decoration: underline;
 }
+
+/* ---- Master Doc 8: stage list during the climb (which parts are firing, which have separated) ---- */
+.cinema-stages {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 6;
+  width: 230px;
+  padding: 12px 14px;
+  background: rgba(8, 12, 22, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  font-size: 0.78rem;
+  pointer-events: none;
+}
+.cinema-stages .cs-title {
+  margin: 0 0 8px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8fb8ff;
+}
+.cinema-stages ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.cinema-stages li {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  column-gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  transition: opacity 0.4s ease, background 0.4s ease;
+}
+.cinema-stages li i {
+  grid-row: span 2;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #6b7686;
+}
+.cinema-stages li b { font-weight: 600; color: #f1f4f8; }
+.cinema-stages li span { font-size: 0.68rem; color: #9fb0c4; }
+.cinema-stages li.st-burning { background: rgba(255, 150, 60, 0.16); }
+.cinema-stages li.st-burning i { background: #ff9a3c; box-shadow: 0 0 8px #ff9a3c; }
+.cinema-stages li.st-burning span { color: #ffc28a; }
+.cinema-stages li.st-attached i { background: #7ab8ff; }
+.cinema-stages li.st-separated { opacity: 0.5; }
+.cinema-stages li.st-separated b { text-decoration: line-through; }
+.cinema-stages li.st-separated i { background: transparent; border: 1.5px solid #9fb0c4; }
+@media (max-width: 760px) {
+  .cinema-stages { top: 110px; transform: none; right: 10px; width: 170px; padding: 8px 10px; font-size: 0.7rem; }
+  .cinema-stages li { padding: 4px 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cinema-stages li { transition: none; }
+}
+
+/* ---- Master Doc 8: the scene card is read over the live scene (it keeps moving underneath) ---- */
+.mission-player::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 46%, rgba(4, 6, 12, 0.62), rgba(4, 6, 12, 0.25) 70%);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+.mission-player.bridging::after { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .mission-player::after { transition: none; }
+}
+
+/* ---- Master Doc 8, Missions page ----
+   1) The thing you click opens full screen (the 3D model on the left, its facts on the right);
+      Back returns to the list exactly as it was (same filters, same scroll).
+   2) The left list (All missions / All hardware) collapses to a slim strip, like the Solar System's,
+      and opens again with the same button. */
+@media (min-width: 761px) {
+  .explorer-detail {
+    left: 0;
+    width: auto;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(380px, 0.8fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+    border-left: 0;
+    box-shadow: none;
+    animation: detail-full-in 0.32s ease;
+  }
+  .explorer-detail .detail-nav {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .explorer-detail .detail-viewer {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-bottom: 0;
+    border-right: 1px solid var(--line);
+  }
+  .explorer-detail #detail-canvas {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+  }
+  .explorer-detail .detail-body {
+    grid-column: 2;
+    grid-row: 2;
+    overflow-y: auto;
+    min-height: 0;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+  .explorer-detail > .panel-close {
+    z-index: 4;
+  }
+
+  #explorer-screen .sidebar-close.sidebar-hide {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    border: 1px solid var(--line-strong);
+    background: rgba(122, 184, 255, 0.05);
+    color: var(--muted);
+  }
+  #explorer-screen .sidebar-close.sidebar-hide:hover {
+    color: var(--text);
+    border-color: var(--accent-line);
+  }
+  #explorer-screen .sidebar-hide svg {
+    width: 18px;
+    height: 18px;
+  }
+  #explorer-screen .sidebar {
+    transition: width 0.3s var(--ease-journey);
+  }
+  #explorer-screen .explorer-main {
+    transition: left 0.3s var(--ease-journey);
+  }
+  /* the top-bar menu button is not needed on wide screens: the list has its own button */
+  #explorer-screen .sidebar-toggle {
+    display: none;
+  }
+  #explorer-screen.sidebar-collapsed {
+    --sidebar-w: 84px;
+  }
+  #explorer-screen.sidebar-collapsed .sidebar {
+    width: 84px;
+    transform: none;
+    pointer-events: auto;
+  }
+  #explorer-screen.sidebar-collapsed .sidebar-head {
+    display: flex;
+    justify-content: center;
+    padding: 14px 0 10px;
+  }
+  #explorer-screen.sidebar-collapsed .sidebar-head p,
+  #explorer-screen.sidebar-collapsed .sidebar-foot,
+  #explorer-screen.sidebar-collapsed #explorer-view-note {
+    display: none;
+  }
+  #explorer-screen.sidebar-collapsed .sidebar-hide {
+    position: static;
+    color: var(--accent);
+    border-color: var(--accent-line);
+  }
+  /* the two groups become small centred labels, with every choice listed under them */
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-group {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-toggle {
+    display: block;
+    width: 100%;
+    margin: 10px 0 2px;
+    padding: 6px 0 0;
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    background: none;
+    pointer-events: none;
+    text-align: center;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-group:first-child .dd-toggle {
+    border-top: 0;
+    margin-top: 2px;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-title {
+    font-size: 0.5rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--faint);
+    white-space: nowrap;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-value,
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-action {
+    display: none;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-body,
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-body[hidden] {
+    display: block !important;
+    max-height: none;
+    padding: 0;
+    border: 0;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .sidebar-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 72px;
+    height: auto;
+    min-height: 46px;
+    margin: 1px auto;
+    padding: 6px 2px;
+    border-radius: 10px;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .sb-meta {
+    display: none;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .sb-name {
+    display: -webkit-box;
+    max-width: 74px;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 0.6rem;
+    line-height: 1.1;
+    text-align: center;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .sb-dot {
+    width: 14px;
+    height: 14px;
+  }
+  #explorer-screen.sidebar-collapsed .sidebar-list {
+    scrollbar-width: none;
+  }
+}
+@keyframes detail-full-in {
+  from { opacity: 0; transform: scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #explorer-screen .sidebar,
+  #explorer-screen .explorer-main {
+    transition: none;
+  }
+  .explorer-detail {
+    animation: none;
+  }
+}

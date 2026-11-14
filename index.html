@@ -415,7 +415,7 @@
   <!-- SCREEN 5: Close-up landing scene -->
 
   <!-- SCREEN: Spacecraft & Hardware Explorer (filled in by explorer.js from data/catalog.js) -->
-  <section id="explorer-screen" class="screen hidden explorer-screen" aria-label="Missions and hardware">
+  <section id="explorer-screen" class="screen hidden explorer-screen can-hide-sidebar" aria-label="Missions and hardware">
     <header class="top-bar">
       <button class="sidebar-toggle small-button icon-btn" data-sidebar="explorer-sidebar" aria-label="Show the categories" aria-controls="explorer-sidebar">&#9776;</button>
       <a class="brand" href="#" data-home aria-label="Space Legacy home">
@@ -450,11 +450,11 @@
       <div class="sidebar-head">
         <p class="sidebar-sub">Browse</p>
         <p class="sidebar-title">Missions</p>
-        <button class="sidebar-close panel-close" data-sidebar="explorer-sidebar" aria-label="Close the list">&times;</button>
+        <button class="sidebar-close panel-close sidebar-hide" data-sidebar="explorer-sidebar" aria-label="Collapse the list" title="Collapse the list"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9 4.5v15"/></svg></button>
       </div>
       <p id="explorer-view-note" class="sim-mode-note hidden"></p>
       <div id="explorer-categories" class="sidebar-list"></div>
-      <p class="sidebar-foot">Representative 3D models &middot; not official NASA models</p>
+      <p class="sidebar-foot">Official NASA 3D models where NASA has one &middot; otherwise representative models</p>
     </nav>
 
     <main class="explorer-main">
@@ -696,7 +696,7 @@
             <li><b>Launch</b> Check the plan and press Launch mission.</li>
           </ol>
           <p class="coach-tip"><b>Real Missions</b> only allows what really flew. <b>Free Build</b> lets you mix anything (labelled fictional). Switch in the left panel.</p>
-          <p class="coach-tip">During the flight, the bar at the bottom has <b>1&times; 2&times; 4&times;</b> and <b>Skip</b> to speed up the launch, journey and landing.</p>
+          <p class="coach-tip">During the flight, the bar at the bottom has <b>0.5&times; 1&times; 2&times;</b> to slow down or speed up the launch, journey and landing, and <b>Skip</b>.</p>
           <button id="sim-coach-ok" class="primary">Got it, let&rsquo;s build</button>
         </div>
       </section>
@@ -919,7 +919,7 @@
             <table class="credit-table">
               <thead><tr><th scope="col">Source</th><th scope="col">Used for</th><th scope="col">License / attribution</th></tr></thead>
               <tbody>
-              <tr><th scope="row"><a href="https://science.nasa.gov/3d-resources/" target="_blank" rel="noopener">NASA 3D Resources</a></th><td>Official 3D models (Saturn V, Apollo Lunar Module, Gemini, Galileo, Parker Solar Probe, Pioneer 10, Viking Lander, Perseverance, Agena Target Vehicle), loaded from NASA in the Missions 3D viewer, the landing scenes and the Real Missions builder hall (Agena exhibit).</td><td>NASA Images and Media Usage Guidelines (free to use; no endorsement implied)</td></tr>
+              <tr><th scope="row"><a href="https://science.nasa.gov/3d-resources/" target="_blank" rel="noopener">NASA 3D Resources</a></th><td>Official 3D models (Saturn V, Apollo Lunar Module, Gemini, Galileo, Parker Solar Probe, Pioneer 10, Viking Lander, Perseverance, Agena Target Vehicle), loaded from NASA on the Missions page (cards and 3D viewer) and in the Real Missions builder hall (Agena exhibit).</td><td>NASA Images and Media Usage Guidelines (free to use; no endorsement implied)</td></tr>
               <tr><th scope="row"><a href="https://threejs.org" target="_blank" rel="noopener">three.js r160</a></th><td>3D rendering, cameras, controls and the RoomEnvironment lighting in the Engineering Bay.</td><td>MIT License</td></tr>
               <tr><th scope="row"><a href="https://www.jsdelivr.com/" target="_blank" rel="noopener">jsDelivr CDN</a></th><td>Delivers three.js and the Earth/Moon textures.</td><td>Free public CDN</td></tr>
               <tr><th scope="row"><a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API" target="_blank" rel="noopener">Web Audio API and Web Speech API</a></th><td>All sounds are generated live in the browser; narration uses your browser’s own voices.</td><td>Built into the browser</td></tr>
@@ -1046,9 +1046,9 @@
         </div>
         <div class="mp-group mp-speed" role="group" aria-label="Playback speed">
           <span class="mp-group-label">Speed</span>
+          <button class="mp-speed-btn" data-speed="0.5" aria-pressed="false" data-silent title="Half speed, slow motion (0)">0.5&times;</button>
           <button class="mp-speed-btn active" data-speed="1" aria-pressed="true" data-silent title="Normal speed (1)">1&times;</button>
           <button class="mp-speed-btn" data-speed="2" aria-pressed="false" data-silent title="Twice as fast (2)">2&times;</button>
-          <button class="mp-speed-btn" data-speed="4" aria-pressed="false" data-silent title="Four times as fast (4)">4&times;</button>
           <button id="mp-next" class="mp-speed-btn mp-skip" data-silent title="Skip to the next scene (Right arrow)">Skip &#9197;</button>
         </div>
         <span id="mp-time" class="mp-time"></span>
@@ -1266,7 +1266,7 @@
 
       <ol class="help-steps">
         <li><b>Explore the Solar System</b><span>Drag to turn, scroll to zoom. Click a planet, or pick it from the list, to learn about it.</span></li>
-        <li><b>Watch a real mission</b><span>Open <strong>Missions</strong> and press <strong>Replay</strong>. Speed it up with 1&times; 2&times; 4&times;.</span></li>
+        <li><b>Watch a real mission</b><span>Open <strong>Missions</strong> and press <strong>Replay</strong>. Slow it down or speed it up with 0.5&times; 1&times; 2&times;.</span></li>
         <li><b>Build your own</b><span>In <strong>Simulator</strong>, pick a rocket, spacecraft, suit and destination, then <strong>Launch</strong>.</span></li>
         <li><b>Explore the surface</b><span>Walk, drive and record what you find. It is saved in your <strong>Collection</strong>.</span></li>
       </ol>

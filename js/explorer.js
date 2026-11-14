@@ -338,7 +338,7 @@ function makeCard(item) {
     status.className = "m-status status-" + statusClass(item.status && item.status.label);
     const img = card.querySelector("img");
     cardThumbs[item.id] = img;
-    requestThumbnail(item, img);
+    requestThumbnail(item, img, true);
   }
 
   card.addEventListener("click", function () { openDetail(item.id); });
@@ -518,7 +518,7 @@ function makeResultRow(item) {
     row.querySelector(".rr-meta").textContent = roleOf(item) + (group ? " \u00B7 " + group.name : item.mission ? " \u00B7 " + item.mission : "");
     row.querySelector(".rr-year").textContent = String(launchYear(item) || "\u2014");
     row.querySelector(".rr-dest").textContent = item.destination || "";
-    requestThumbnail(item, row.querySelector("img"));
+    requestThumbnail(item, row.querySelector("img"), true);
   }
   row.addEventListener("click", function () { openDetail(item.id); });
   return row;
@@ -738,8 +738,10 @@ function redrawThumb(key, item) {
   if (!thumbScheduled) { thumbScheduled = true; requestAnimationFrame(drawThumbnails); }
 }
 
-function requestThumbnail(item, img) {
-  const key = thumbKey(item);
+// nasa: true on the Missions cards. Where NASA's 3D Resources has an official model, the card's picture
+// is drawn again with it once it has loaded, so the card shows the same model as the 3D viewer it opens.
+function requestThumbnail(item, img, nasa) {
+  const key = thumbKey(item) + (nasa && item.model && hasNasaModel(item.model.key) ? "|nasa" : "");
   (thumbImages[key] = thumbImages[key] || []).push(img);
   if (thumbCache[key]) {
     img.src = thumbCache[key];
@@ -781,6 +783,10 @@ function drawThumbnails() {
     }
     const model = buildModel(job.item);
     if (!model) continue;
+    if (/\|nasa$/.test(job.key) && !nasaThumbs[job.key] && !model.userData.setDeploy) {
+      nasaThumbs[job.key] = true;
+      nasaThumbnail(job.item, job.key);
+    }
     const holder = centerModel(model);
     holder.rotation.y = -0.5;
     thumbScene.add(holder);
@@ -801,6 +807,23 @@ function drawThumbnails() {
     thumbScheduled = true;
     requestAnimationFrame(drawThumbnails);
   }
+}
+
+const nasaThumbs = {};
+function nasaThumbnail(item, key) {
+  const model = buildModel(item);
+  if (!model) return;
+  upgradeToNasaModel(model, item.model.key).then(function (shown) {
+    if (!shown || !thumbRenderer) return;
+    const holder = centerModel(model);
+    holder.rotation.y = -0.5;
+    thumbScene.add(holder);
+    cameraFor(thumbCamera, holder, item);
+    thumbRenderer.render(thumbScene, thumbCamera);
+    thumbCache[key] = thumbRenderer.domElement.toDataURL("image/png");
+    thumbScene.remove(holder);
+    (thumbImages[key] || []).forEach(function (img) { img.src = thumbCache[key]; });
+  });
 }
 
 function disposeObject(object) {

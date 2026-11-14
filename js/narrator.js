@@ -111,7 +111,27 @@ function sentences(text) {
   return out;
 }
 
+// Pause and resume, sentence by sentence. The browser's own speechSynthesis.pause() is not reliable
+// (with many voices it ends the speech for good), so a pause stops the voice and remembers which sentence
+// it was on; resume says that sentence again and carries on. Subtitles follow along.
+let held = null;
+export function pauseSpeaking() {
+  if (!speechSupported || !live || live.token !== token || live.index >= live.list.length) return;
+  held = { list: live.list, index: live.index, onDone: live.onDone, onSentence: live.onSentence, shown: live.shown };
+  token++; // the cancelled sentence's end and error events are ignored
+  window.speechSynthesis.cancel();
+}
+export function resumeSpeaking() {
+  if (!held) return false;
+  const h = held;
+  held = null;
+  speakList(h.list, h.index, h.onDone, h.onSentence, h.shown);
+  return true;
+}
+export function isSpeechHeld() { return Boolean(held); }
+
 export function stopSpeaking() {
+  held = null;
   token++;
   if (speechSupported) {
     window.speechSynthesis.cancel();
@@ -174,7 +194,7 @@ function speakList(list, start, onDone, onSentence, shown) {
       return;
     }
     const sentence = list[index];
-    if (onSentence && shown && shown[index] && (index === 0 || shown[index] !== shown[index - 1])) onSentence(shown[index]);
+    if (onSentence && shown && shown[index] && (index === (start || 0) || shown[index] !== shown[index - 1])) onSentence(shown[index]);
     const utterance = new SpeechSynthesisUtterance(sentence);
     if (chosen) {
       utterance.voice = chosen;

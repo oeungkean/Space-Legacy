@@ -19,7 +19,6 @@ import { buildTerrainShape, buildGround as buildRealGround, heightAt as realHeig
 import { getPlaybackSpeed } from "./playback.js";
 import { planetMaterial as lookMaterial, cloudMaterial } from "./planet-look.js";
 import { createGlow } from "./glow.js";
-import { hasNasaModel, upgradeToNasaModel } from "./nasa-models.js";
 
 // The real exploration terrain is used for these landings (same craters, rilles and dunes as when you explore)
 const LANDING_SITE = { apollo11: "tranquility", apollo15: "hadley", apollo17: "taurus-littrow", curiosity: "gale", perseverance: "jezero" };
@@ -824,8 +823,9 @@ function makeModel(name, scale) {
   const model = createModel(name);
   model.scale.setScalar(scale || 1);
   addFlames(model);
-  // the official NASA 3D model, when there is one (loaded from NASA; the project's model until then)
-  if (hasNasaModel(name)) upgradeToNasaModel(model, name);
+  // The project's own model is used here, the same one as in the launch, the space shots and the
+  // exploration, so a spacecraft looks the same from launch to landing (Master Doc 8). The official NASA
+  // models are shown on the Missions page.
   return addActor(model);
 }
 
@@ -2075,10 +2075,11 @@ function setAutoCamera() {
   hintBox.textContent = AUTO_HINT;
 }
 
+const UP_AXIS = new THREE.Vector3(0, 1, 0);
 function frame(now) {
   if (!running) return;
   rafId = requestAnimationFrame(frame);
-  const dt = Math.min((now - lastTime) / 1000, 0.05) * getPlaybackSpeed(); // 2x / 4x playback
+  const dt = Math.min((now - lastTime) / 1000, 0.05) * getPlaybackSpeed(); // 0.5x / 2x playback
   lastTime = now;
   frameDt = dt;
   if (engineLight) engineLight.intensity *= 0.5; // fades unless an engine keeps it lit this frame
@@ -2115,6 +2116,7 @@ function frame(now) {
   // Auto camera: glide toward the planned camera position.
   // User camera: keep the angle and distance the user chose, but move along with the spacecraft.
   if (autoCamera) {
+    if (finished && !paused) cameraGoal.sub(lookGoal).applyAxisAngle(UP_AXIS, dt * 0.06).add(lookGoal);
     camera.position.lerp(cameraGoal, 1 - Math.exp(-2.2 * dt));
     lookNow.lerp(lookGoal, 1 - Math.exp(-3.5 * dt)); // a steady camera: no jitter from small movements
     controls.target.copy(lookNow);

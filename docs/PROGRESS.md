@@ -321,6 +321,37 @@ The first countdown caption describes each pad, and rockets that were stacked on
 - Venus texture 404 fixed.
 - `docs/ASSETS.md` lists the Venus files by their real names.
 
+## Completed (2026-11-14): Kampu Space Master Doc (8)
+- **Builder halls tidied.** The equipment now stands in labelled work areas (floor lines, a floor label and a wall sign each), and nothing is left lying around the rocket.
+  - Real Missions:
+    - Stage Processing (left): spare stages and engines.
+    - Test & Checkout (right): desks, tool chests and supplies.
+    - Parking bays (back): vehicles, stairs and scaffold.
+    - Front: the three NASA photos and the Agena exhibit.
+    - The repeated mission plaques and the banner were removed.
+  - Free Build lab: eight evenly spaced, numbered bays around the dome.
+  - The hall is smaller, and the camera still stays inside.
+- **Stage separation in flight** (inspired by how flight-simulator games show staging):
+  - The real order: engines off, a short coast, the stages part, ullage puffs, then upper-stage ignition. (Before, the upper engine lit before the separation.)
+  - The spent stage drifts away slowly while the camera holds on both pieces.
+  - A Stages list shows each part as Engines firing, Waiting, Attached, Engines off or Separated.
+- **Scene cards no longer freeze the picture.** The "Scene N of M" card shows over the live scene.
+  - The launch keeps going (Earth turns, the camera circles slowly).
+  - Space and landing shots drift gently after they end.
+  - Only one scene renders at a time: the old one stops when the next starts.
+- **Narrator**
+  - Pause stops the voice and Play says the same sentence again, with its subtitle.
+  - Speed changes never cut the voice, and the story waits for the narrator at every speed.
+  - Speeds are now 0.5×, 1× and 2× (keys 0, 1 and 2).
+- **Same model from launch to landing**
+  - Descent, landing and exploration use the project's own models (the NASA Lunar Module swap in the landing scene was removed: it sank into the ground and had no textures).
+  - The descent shot shows the lander undocking from the mission's own spacecraft (Dragon in a Dragon Free Build, not the Apollo CSM), with a clear gap and no overlap.
+  - Free Build Mars landings arrive in an entry capsule, like the real missions' scenes.
+- **Missions page**
+  - Cards show the official NASA model when there is one, matching the 3D viewer they open.
+  - A clicked item opens full screen (model left, facts right). Back returns to the list as it was.
+  - The left list collapses to a slim strip, like the Solar System's.
+
 ## Completed (2026-11-14): Kampu Space Master Doc (7)
 - **Two separate builder buildings.**
   - Real Missions: the rectangular assembly hall, now with a forklift, a tow tractor with carts, rolling stairs, an engineers' desk row, pallets, tool chests and safety barriers.
@@ -361,6 +392,7 @@ The first countdown caption describes each pad, and rockets that were stacked on
 ## Current issues
 - `js/results.js` imports `saveMissionRecord`, which `js/progress.js` does not export, so the module cannot load. Nothing imports it (the results panel lives in `main.js`), so the site is unaffected. This was already the case before Doc (7). It can be deleted or fixed later (ask first).
 - The builder equipment is drawn larger than real life, scaled with the hall, so it can be seen in a hall built to hold a 110 m rocket.
+- NASA models appear only on the Missions page (cards, 3D viewer) and in the Agena exhibit; the mission scenes use the project's own models so one spacecraft looks the same throughout (team decision, Master Doc 8).
 - `space-film.js` (the space shots after launch) draws the departure-burn plume as a large flat orange blob. A real vacuum burn plume is faint. Not changed in this pass.
 - The launch Earth is still a little soft at low altitude (now a 4096px map; a real photo map can't be sharper than that that close).
 - Real-GPU frame rate was not measured here. Shadows (2048px) and up to 1200 smoke sprites are the main costs, so please check on the oldest computer you'll present on.

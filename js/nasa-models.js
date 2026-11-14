@@ -2,10 +2,11 @@
 // straight from NASA's asset server when they are needed. NASA states these assets are free to download
 // and use (see the NASA Images and Media Usage Guidelines); they are credited on the Credits page.
 //
-// They replace the project's own simplified models where they fit: the Missions page's 3D viewer and the
-// landers in the landing scenes. The project's model is always shown first and stays as the fallback
-// (offline, slow connection, or if NASA's server is unreachable). Rockets in the launch scene keep the
-// project's models, because their stage separations are built from those models' parts.
+// They replace the project's own simplified models on the Missions page (the cards' pictures and the 3D
+// viewer) and are shown in the Agena exhibit. The project's model is always shown first and stays as the
+// fallback (offline, slow connection, or if NASA's server is unreachable). The mission scenes (launch,
+// space shots, landing, exploration) keep the project's models, so a spacecraft looks the same from
+// launch to landing (Master Doc 8); the rockets' stage separations are built from those models' parts.
 
 import * as THREE from "three";
 

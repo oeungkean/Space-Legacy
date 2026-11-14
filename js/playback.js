@@ -1,5 +1,5 @@
 // Playback speed shared by the mission engines (launch, journey film and landing).
-// The mission player's 1x / 2x / 4x buttons set it; 1x (real pacing) is always the default.
+// The mission player's 0.5x / 1x / 2x buttons set it; 1x (real pacing) is always the default.
 let speed = 1;
 const listeners = [];
 
@@ -8,7 +8,7 @@ export function getPlaybackSpeed() {
 }
 
 export function setPlaybackSpeed(value) {
-  const next = value === 2 || value === 4 ? value : 1;
+  const next = value === 0.5 || value === 2 ? value : 1;
   if (next === speed) return;
   speed = next;
   listeners.forEach(function (listener) { listener(speed); });

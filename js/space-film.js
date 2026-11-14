@@ -708,7 +708,9 @@ function descendCore(o, site) {
   let craft;
   let mother = null;
   if (o.style === "lm") {
-    mother = makeCraft("apollo-csm", 2.4);
+    // the lander undocks from the mission's own spacecraft (the Apollo CSM on Apollo missions; in a Free
+    // Build, the spacecraft that was built), so the descent shows the same craft as the rest of the film
+    mother = makeCraft(o.mother || "apollo-csm", 2.4);
     craft = makeCraft("lunar-module", 1.6);
   } else {
     craft = makeCraft(o.craft || "capsule", 1.8);
@@ -783,7 +785,7 @@ function descendCore(o, site) {
       craft.visible = true;
       if (mother) mother.visible = true;
       craft.position.copy(start);
-      if (mother) mother.position.copy(start).add(V(0, 0.4, -3.2));
+      if (mother) mother.position.copy(start).add(V(0, 0.6, -4.4));
       parts.forEach(function (p) { p.position.copy(start).addScaledVector(dir0, -1.4); });
       snapCamera(start.clone().add(V(-6, 2, 6)), start);
     },
@@ -794,7 +796,7 @@ function descendCore(o, site) {
       if (o.style === "lm") {
         // Undocking: the LM backs away from the Command and Service Module, then fires its descent engine
         if (mother) {
-          mother.position.copy(start).add(V(0, 0.4, -3.2)).addScaledVector(dir0, u * 6);
+          mother.position.copy(start).add(V(0, 0.6, -4.4)).addScaledVector(dir0, u * 6);
           aim(mother, dir0, 2, dt);
         }
         aim(craft, V(0, 1, 0).lerp(travel.clone().negate(), smooth(0.3, 0.6, u)).normalize(), 1.5, dt);
@@ -1065,7 +1067,7 @@ function clearShot() {
 function frame(now) {
   if (!running) return;
   rafId = requestAnimationFrame(frame);
-  const dt = (Math.min(0.05, Math.max(0, (now - lastTime) / 1000)) || 1 / 60) * getPlaybackSpeed(); // 2x / 4x playback
+  const dt = (Math.min(0.05, Math.max(0, (now - lastTime) / 1000)) || 1 / 60) * getPlaybackSpeed(); // 0.5x / 2x playback
   lastTime = now;
   if (!paused && shot) {
     elapsed += dt;
@@ -1078,9 +1080,24 @@ function frame(now) {
       if (doneCallback) doneCallback();
     }
   }
+  // When the shot has ended, the camera keeps floating slowly around what it was looking at (shown behind
+  // the next scene's card), so the picture never freezes. The drift is added for drawing only and taken
+  // off again, so the shot's own camera moves are not disturbed.
+  let restore = null;
+  if (finished) {
+    if (!paused) idleTime += dt;
+    const k = Math.min(1, idleTime / 1.5);
+    restore = { p: camera.position.clone(), q: camera.quaternion.clone() };
+    const off = camera.position.clone().sub(camLook);
+    off.applyAxisAngle(V(0, 1, 0), idleTime * 0.045 * k).multiplyScalar(1 - Math.min(0.1, idleTime * 0.015));
+    camera.position.copy(camLook).add(off);
+    camera.lookAt(camLook);
+  }
   stars.position.copy(camera.position);
   renderer.render(scene, camera);
+  if (restore) { camera.position.copy(restore.p); camera.quaternion.copy(restore.q); }
 }
+let idleTime = 0;
 
 // shotSpec: { kind, craft, world, ... }. onDone runs when the shot's time is up (the last frame keeps showing).
 let lastSpec = null;
@@ -1092,6 +1109,7 @@ export function startFilm(shotSpec, onDone) {
   const make = SHOTS[shotSpec.kind] || cruiseShot;
   shot = make(shotSpec);
   elapsed = 0;
+  idleTime = 0;
   finished = false;
   paused = false;
   doneCallback = onDone || null;

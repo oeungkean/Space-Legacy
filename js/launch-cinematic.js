@@ -1560,6 +1560,7 @@ function enterScene(index) {
   if (id !== "rollout") endRollout();
   if (id !== "ascent" && cloudDeck) cloudDeck.visible = false;
   if (id === "ascent") hideLaunchSite();
+  if (id !== "ascent") hideStageHud();
 
   captionBox.textContent =
     id === "liftoff" && captionOverride ? captionOverride : activeScenes[index].caption;
@@ -2024,8 +2025,11 @@ function beginAscent() {
     engineOff: 0,
     secondStage: false,
     fairing: [],
-    downrange: 0
+    downrange: 0,
+    sepIn: 0,
+    hadBoosters: boosters.length > 0
   };
+  buildStageHud();
   fadeBox.style.transition = "none";
   fadeBox.style.opacity = "1";
 }
@@ -2128,13 +2132,85 @@ function separateStage() {
   capAt(rocketModel, ascent.split + 0.002, false);
   capAt(lower, ascent.split - 0.002, true);
   // relative speed: a few meters per second at first; the gap then grows as the upper stage accelerates
-  lower.userData.velocity = new THREE.Vector3(0, -3, 0).applyQuaternion(rocketRoot.quaternion);
+  lower.userData.velocity = new THREE.Vector3(0, -2.2, 0).applyQuaternion(rocketRoot.quaternion);
   lower.userData.spin = random(0.04, 0.09) * (Math.random() < 0.5 ? -1 : 1);
   lower.userData.tumble = random(0.02, 0.05);
   lower.userData.age = 0;
   ascent.lower = lower;
   separationPuff(ascent.split, radiusAt(rocketModel, ascent.split), 70, true);
   play("separation");
+}
+
+function stageApart() {
+  if (!ascent || ascent.lower) return;
+  separateStage();
+  markStage("first", "separated");
+}
+
+// Small puffs from the upper stage's thrusters just above the separation line
+function ullagePuffs(dt) {
+  const n = perSecond("ullage", 24, dt);
+  if (!n) return;
+  rocketRoot.updateMatrixWorld(true);
+  const r = radiusAt(rocketModel, ascent.split + 0.05) * ROCKET_SCALE;
+  const back = new THREE.Vector3(0, -1, 0).applyQuaternion(rocketRoot.quaternion);
+  for (let i = 0; i < n; i++) {
+    const angle = random(0, Math.PI * 2);
+    const side = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)).applyQuaternion(rocketRoot.quaternion);
+    const at = rocketModel.localToWorld(new THREE.Vector3(0, ascent.split + 0.12, 0)).addScaledVector(side, r * 1.02);
+    particles.emit(false, at, back.clone().multiplyScalar(random(8, 14)).addScaledVector(side, random(2, 5)), random(0.4, 0.8), random(2, 4), random(0.3, 0.6), 0.5, 0xeef3fa, 0.6);
+  }
+}
+
+// ----- Stage list (inspired by how flight-simulator games show staging): every part of the rocket, top
+// to bottom, lit while its engines burn, greyed out and marked when it has separated -----
+let stageHud = null;
+function buildStageHud() {
+  if (!stageHud) {
+    stageHud = document.createElement("aside");
+    stageHud.className = "cinema-stages hidden";
+    stageHud.setAttribute("aria-label", "Rocket stages");
+    stageHud.innerHTML = '<p class="cs-title">Stages</p><ol></ol>';
+    // on the launch screen itself (its .cinema-ui panel is hidden while the mission player runs)
+    const screen = document.getElementById("launch-screen");
+    (screen || document.body).appendChild(stageHud);
+  }
+  const shuttle = rocketKey === "shuttle" || rocketKey === "shuttle-sts31";
+  const rows = [];
+  if (ESCAPE_TOWER[rocketKey]) rows.push(["nose", "Launch escape tower", "attached"]);
+  else if (NOSE_CUT[rocketKey]) rows.push(["nose", "Payload fairing", "attached"]);
+  rows.push(["payload", shuttle ? "Orbiter and payload" : "Spacecraft", "attached"]);
+  if (ascent && ascent.split) {
+    rows.push(["upper", "Upper stage", "waiting"]);
+    rows.push(["first", "First stage", "burning"]);
+  } else {
+    rows.push(["core", shuttle ? "External tank (main engines)" : "Core stage", "burning"]);
+  }
+  if (ascent && ascent.hadBoosters) rows.push(["boosters", shuttle ? "Solid rocket boosters" : "Side boosters", "burning"]);
+  const list = stageHud.querySelector("ol");
+  list.innerHTML = "";
+  rows.forEach(function (row) {
+    const li = document.createElement("li");
+    li.dataset.stage = row[0];
+    li.innerHTML = '<i aria-hidden="true"></i><b></b><span></span>';
+    li.querySelector("b").textContent = row[1];
+    list.appendChild(li);
+    setStageRow(li, row[2]);
+  });
+  stageHud.classList.remove("hidden");
+}
+const STAGE_WORDS = { burning: "Engines firing", waiting: "Waiting", attached: "Attached", off: "Engines off", separated: "Separated" };
+function setStageRow(li, state) {
+  li.className = "st-" + state;
+  li.querySelector("span").textContent = STAGE_WORDS[state] || state;
+}
+function markStage(id, state) {
+  if (!stageHud) return;
+  const li = stageHud.querySelector('li[data-stage="' + id + '"]');
+  if (li) setStageRow(li, state);
+}
+function hideStageHud() {
+  if (stageHud) stageHud.classList.add("hidden");
 }
 
 // The nose comes off: the launch escape tower flies away on its own motor, or the payload fairing
@@ -2200,7 +2276,9 @@ function updateSeparatedParts(dt) {
   if (ascent.lower) {
     const lower = ascent.lower;
     lower.userData.age += dt;
-    lower.userData.velocity.addScaledVector(back, dt * 9);
+    // while both coast (before the upper engine lights) they drift apart slowly, so the separation can be
+    // seen; once the upper stage is firing, the spent stage falls back quickly
+    lower.userData.velocity.addScaledVector(back, dt * (ascent.engineOff > 0 ? 1.2 : 9));
     lower.position.addScaledVector(lower.userData.velocity, dt);
     lower.rotateZ(dt * lower.userData.spin);
     lower.rotateX(dt * lower.userData.tumble);
@@ -2297,13 +2375,31 @@ function updateAscent(t, dt) {
     const step = steps[ascent.step];
     captionBox.textContent = step[1] + " · " + step[2];
     blink();
-    if (ascent.step === 2 && boosters.length > 0) separateBoosters();
-    if (ascent.step === 3 && ascent.split) { ascent.engineOff = 1.4; play("event"); }
-    if (ascent.step === 4 && ascent.split) { separateStage(); ascent.secondStage = true; }
-    if (ascent.step === 5) separateNose();
-    if (ascent.step === 6) { ascent.engineOff = 99; play("success"); }
+    if (ascent.step === 2 && boosters.length > 0) { separateBoosters(); markStage("boosters", "separated"); }
+    if (ascent.step === 3 && ascent.split) {
+      // MECO: the first stage's engines stop; the stages part a moment later, then the upper engine lights
+      ascent.engineOff = 99;
+      ascent.sepIn = 0.7;
+      markStage("first", "off");
+      play("event");
+    }
+    if (ascent.step === 4 && ascent.split) {
+      if (!ascent.lower) stageApart();            // (when the clock jumped past the separation)
+      ascent.engineOff = 0;
+      ascent.secondStage = true;
+      markStage("upper", "burning");
+      play("ignition");
+    }
+    if (ascent.step === 5) { separateNose(); markStage("nose", "separated"); }
+    if (ascent.step === 6) { ascent.engineOff = 99; markStage(ascent.split ? "upper" : "core", "off"); play("success"); }
   }
-  ascent.engineOff = Math.max(0, ascent.engineOff - dt);
+  if (ascent.sepIn > 0) {
+    ascent.sepIn -= dt;
+    if (ascent.sepIn <= 0) stageApart();
+  }
+  // between separation and ignition: small thrusters settle the upper stage's fuel (ullage), seen as puffs
+  if (ascent.lower && ascent.engineOff > 0 && ascent.step === 3) ullagePuffs(dt);
+  if (ascent.engineOff < 90) ascent.engineOff = Math.max(0, ascent.engineOff - dt);
   const throttle = ascent.step === 1 ? 0.7 : 1;
   if (ascent.engineOff <= 0) emitAscentFire(throttle, altitude, dt);
   if (ascent.step === 1) vaporCone(dt);
@@ -2342,7 +2438,7 @@ function updateAscent(t, dt) {
   // Chase camera beside and a little below the rocket; it slowly swings round
   const fullSize = rocketModel.userData.height * ROCKET_SCALE;
   // after staging the camera eases in on the upper stage (the part still flying)
-  if (ascent.lower) ascent.frame = Math.min(1, (ascent.frame || 0) + dt / 3);
+  if (ascent.lower && ascent.lower.userData.age > 1.8) ascent.frame = Math.min(1, (ascent.frame || 0) + dt / 3.5);
   const f = ascent.frame ? ascent.frame * ascent.frame * (3 - 2 * ascent.frame) : 0;
   const splitAt = ascent.split * ROCKET_SCALE;
   const size = fullSize - f * splitAt * 0.7;
@@ -2361,7 +2457,9 @@ function updateAscent(t, dt) {
   // System), with the path flown traced on it and a glow on the rocket
   const away = smoothstep(16.5, 25, t); // slow and steady (team feedback: no fast zooms)
   const earthCenter = earthBall.position;
-  const farPos = earthCenter.clone().add(new THREE.Vector3(-0.35, 0.78, 0.92).normalize().multiplyScalar(EARTH_R * 2.6));
+  const linger = Math.max(0, t - 25);
+  const farPos = earthCenter.clone().add(new THREE.Vector3(-0.35, 0.78, 0.92).normalize().applyAxisAngle(UPV, linger * 0.05).multiplyScalar(EARTH_R * 2.6));
+  if (t > 24) hideStageHud();
   const farTarget = earthCenter.clone().lerp(new THREE.Vector3(0, 0, 0), 0.4);
   if (away > 0) {
     const nearDir = offset.clone().normalize();
@@ -2422,7 +2520,7 @@ function frame(now) {
     renderer.render(scene, camera);
     return;
   }
-  // Faster playback (2x or 4x from the mission player): move the start time back so the clock runs faster
+  // Playback speed (0.5x or 2x from the mission player): move the start time so the clock runs slower or faster
   const speed = getPlaybackSpeed();
   if (speed !== 1) startTime -= (now - lastTime) * (speed - 1);
   const time = (now - startTime) / 1000;
@@ -2430,8 +2528,16 @@ function frame(now) {
   lastTime = now;
 
   if (time >= totalTime) {
-    finish();
-    return;
+    if (!canLinger()) {
+      finish();
+      return;
+    }
+    if (!lingering) {
+      lingering = true;
+      const callback = finishCallback;
+      finishCallback = null;
+      if (callback) setTimeout(callback, 0);
+    }
   }
 
   let index = 0;
@@ -2460,6 +2566,13 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 
+// In a mission the last view (the whole Earth) keeps moving after the scene ends, under the next scene's
+// card; the mission player stops it when the next scene starts
+let lingering = false;
+function canLinger() {
+  return Boolean(lastOptions && lastOptions.mission && activeScenes.length && activeScenes[activeScenes.length - 1].id === "ascent");
+}
+
 // ----- Functions that main.js uses -----
 function finish() {
   if (!running) return;
@@ -2474,6 +2587,7 @@ function finish() {
 //   rocket: which real rocket to show ("saturn-v", "titan-3e", "titan-4b", "delta-4-heavy", "atlas-v-541", "shuttle")
 let lastOptions = null;
 export function startCinematic(onFinish, options) {
+  lingering = false;
   options = options || {};
   lastOptions = options;
   finishCallback = onFinish;
@@ -2559,6 +2673,7 @@ export function startCinematic(onFinish, options) {
 export function stopCinematic() {
   running = false;
   hideLaunchSite();
+  hideStageHud();
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;

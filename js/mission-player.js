@@ -9,7 +9,7 @@
 import { startCinematic, stopCinematic, pauseCinematic, nextCinematicScene, cinematicInfo, seekCinematic } from "./launch-cinematic.js";
 import { startFilm, stopFilm, pauseFilm, filmProgress, seekFilm } from "./space-film.js";
 import { startLanding, stopLanding, pauseLanding, landingProgress, seekLanding } from "./landing-scene.js";
-import { speak, stopSpeaking, speechSupported, getVoices, getChosenVoice, onVoicesChange, voiceQuality } from "./narrator.js";
+import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking, speechSupported, getVoices, getChosenVoice, onVoicesChange, voiceQuality } from "./narrator.js";
 import { getSetting, setSetting } from "./settings.js";
 import { getPlaybackSpeed, setPlaybackSpeed } from "./playback.js";
 import { play, isSoundOn, isGroupOn, setGroupOn } from "./sounds.js";
@@ -205,19 +205,23 @@ function startChapter(i, natural) {
   // Between scenes: a cross-dissolve. The last picture of the old scene is held on top and melts away
   // while the new scene starts underneath (with a slow push in). If the picture can't be taken, a soft
   // dip is used instead.
-  holdLastFrame(function (held) {
+  // When the story moves on by itself, a short bridge comes first: a card says what happens next and
+  // when, while the scene that just ended keeps moving behind it (the rocket, the planet and the stars
+  // carry on; nothing freezes). Then the old picture melts into the new scene.
+  const bridgeTime = natural && !firstScene ? 3200 / Math.max(1, getPlaybackSpeed()) : 0; // long enough to read
+  if (bridgeTime > 0) showBridge(c, i, false);
+  setTimeout(function () {
     if (my !== token) return;
-    if (!held) fade.classList.add("on");
-    // When the story moves on by itself, a short bridge comes first: the last picture stays (dimmed)
-    // while a card says what happens next and when, so each scene follows from the one before
-    const bridgeTime = natural ? 3200 / Math.max(1, getPlaybackSpeed()) : 0; // long enough to read
-    if (bridgeTime > 0) showBridge(c, i, held);
-    setTimeout(function () {
+    holdLastFrame(function (held) {
       if (my !== token) return;
       hideBridge();
-      beginChapter(my, c, held);
-    }, held ? bridgeTime : 320 + bridgeTime);
-  });
+      if (!held) fade.classList.add("on");
+      setTimeout(function () {
+        if (my !== token) return;
+        beginChapter(my, c, held);
+      }, held ? 0 : 320);
+    });
+  }, bridgeTime);
 }
 
 const bridge = document.createElement("div");
@@ -237,10 +241,12 @@ function showBridge(c, i, held) {
   bridge.querySelector(".mp-bridge-line").textContent = firstSentence(c.caption);
   dissolve.classList.toggle("dim", Boolean(held));
   bridge.classList.add("on");
+  root.classList.add("bridging"); // a soft dark wash over the live scene, so the card can be read
 }
 function hideBridge() {
   bridge.classList.remove("on");
   dissolve.classList.remove("dim");
+  root.classList.remove("bridging");
 }
 
 // The cross-dissolve picture: drawn into a 2D canvas inside an animation frame, right after the 3D
@@ -282,6 +288,7 @@ function meltHeldFrame() {
 let firstScene = true;
 function beginChapter(my, c, held) {
   firstScene = false;
+  stopEngines(); // the scene that just ended kept moving under the bridge card; one render loop at a time
   {
     hooks.show(c.engine);
     if (c.engine === "launch") {
@@ -432,7 +439,7 @@ function setPreText(c, approach) {
 // Move on when the scene has ended and the narrator has finished the thought (but never wait forever)
 function tryAdvance(my, force) {
   if (my !== token || !engineDone || paused) return;
-  if (voiceDone || force || !voiceOn() || getPlaybackSpeed() > 1) {
+  if (voiceDone || force || !voiceOn()) {
     clearTimeout(advanceTimer);
     advanceTimer = setTimeout(function () { if (my === token && !paused) advance(); }, force ? 0 : 900);
     return;
@@ -591,10 +598,9 @@ export function togglePause() {
   pauseCinematic(paused);
   pauseFilm(paused);
   pauseLanding(paused);
-  if (typeof window !== "undefined" && window.speechSynthesis) {
-    if (paused && window.speechSynthesis.pause) window.speechSynthesis.pause();
-    if (!paused && window.speechSynthesis.resume) window.speechSynthesis.resume();
-  }
+  // the narrator stops with the picture and picks up again at the same sentence (subtitle included)
+  if (paused) pauseSpeaking();
+  else resumeSpeaking();
   play(paused ? "pause" : "resume");
   if (!paused) tryAdvance(token, false);
 }
@@ -645,7 +651,7 @@ export function playerState() {
   return { active: active, index: index, paused: paused, plan: plan, chapter: plan ? plan.chapters[index] : null, engineDone: engineDone };
 }
 
-// ----- Speed: 1x (default), 2x, 4x -----
+// ----- Speed: 0.5x, 1x (default), 2x -----
 function setSpeed(value) {
   setPlaybackSpeed(value);
   const speed = getPlaybackSpeed();
@@ -654,7 +660,7 @@ function setSpeed(value) {
     button.classList.toggle("active", on);
     button.setAttribute("aria-pressed", String(on));
   });
-  if (speed > 1) { stopSpeaking(); voiceDone = true; tryAdvance(token, false); }
+  // (the narrator keeps talking at its normal pace at every speed)
   timeText.title = speed === 1 ? "" : "Playing at " + speed + "x";
   showSceneLabel();
 }
@@ -664,8 +670,8 @@ function setSpeed(value) {
 function showSceneLabel() {
   const c = plan && plan.chapters[index];
   const speed = getPlaybackSpeed();
-  timeText.textContent = (c ? c.label : "") + (speed > 1 ? " · " + speed + "× speed" : "");
-  timeText.classList.toggle("fast", speed > 1);
+  timeText.textContent = (c ? c.label : "") + (speed !== 1 ? " · " + speed + "× speed" : "");
+  timeText.classList.toggle("fast", speed !== 1);
 }
 speedButtons.forEach(function (button) {
   button.addEventListener("click", function () { play("tick"); setSpeed(Number(button.dataset.speed)); });
@@ -742,7 +748,7 @@ captionsButton.addEventListener("click", function () {
 window.addEventListener("keydown", function (event) {
   if (!active) return;
   const k = event.key;
-  if (k === "1" || k === "2" || k === "4") { setSpeed(Number(k)); play("tick"); return; }
+  if (k === "0" || k === "1" || k === "2") { setSpeed(k === "0" ? 0.5 : Number(k)); play("tick"); return; } // 0 = half speed
   if (k === " " || k === "ArrowRight" || k === "ArrowLeft" || k === "Escape") {
     if (event.preventDefault) event.preventDefault();
     if (event.stopImmediatePropagation) event.stopImmediatePropagation();
