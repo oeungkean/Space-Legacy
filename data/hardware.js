@@ -42,9 +42,9 @@ export const hardwareList = [
     status: {
       text:
         "The descent stage and the experiments were left at Tranquility Base. NASA has described the laser reflector as the only Apollo experiment still returning data, and observatories have continued to use Apollo-era reflectors for laser ranging.",
-      asOf: "NASA NSSDCA catalog, checked November 2026.",
-      sourceLabel: "NASA NSSDCA: Apollo 11 Lunar Module / EASEP",
-      sourceUrl: "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1969-059C"
+      asOf: "Sources from about 2019. Not re-checked for 2026.",
+      sourceLabel: "Space.com: Apollo reflector experiment, 50 years later",
+      sourceUrl: "https://www.space.com/apollo-retroreflector-experiment-still-going-50-years-later.html"
     },
     markerNote: "The marker shows the landing site where this hardware was left.",
     coordinateNote:
@@ -52,8 +52,6 @@ export const hardwareList = [
     sources: [
       { label: "NASA: Aldrin Gazes at Tranquility Base (image and caption)", url: "https://www.nasa.gov/image-article/aldrin-gazes-tranquility-base" },
       { label: "NASA NSSDC: Apollo landing site coordinates", url: "https://nssdc.gsfc.nasa.gov/planetary/lunar/lunar_sites.html" },
-      // NLC-2: NSSDCA Master Catalog line added (checked November 14, 2026)
-      { label: "NASA NSSDCA: Apollo 11 Lunar Module / EASEP", url: "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1969-059C" },
       { label: "LROC: Coordinates of human features (PDF)", url: "https://www.lroc.asu.edu/data/support/downloads/2016_LROC_Coordinates_of_Human_Features.pdf" },
       { label: "APS Physics: Lunar laser ranging turns 50", url: "https://physics.aps.org/articles/v12/84" },
       { label: "Space Center Houston: Apollo 11 facts (not NASA)", url: "https://spacecenter.org/apollo-11-three-steps-one-giant-leap/" }
@@ -505,9 +503,7 @@ export const hardwareList = [
     sources: [
       { label: "NASA Science: Viking 1", url: "https://science.nasa.gov/mission/viking-1/" },
       { label: "NASA Science: How We Land on Mars", url: "https://science.nasa.gov/planetary-science/programs/mars-exploration/mission-timeline/how-we-land-on-mars/" },
-      { label: "NASA GISS Mars24: Mars lander locations", url: "https://www.giss.nasa.gov/tools/mars24/help/landers.html" },
-      // NLC-2: NSSDCA Master Catalog line added (checked November 14, 2026)
-      { label: "NASA NSSDCA: Viking 1 Orbiter/Lander", url: "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1975-075C" }
+      { label: "NASA GISS Mars24: Mars lander locations", url: "https://www.giss.nasa.gov/tools/mars24/help/landers.html" }
     ],
     landing: {
       style: "retro", lander: "viking-lander", scale: 1.2, parachute: true, shellRadius: 1.75, chuteRadius: 8,
@@ -538,7 +534,7 @@ export const hardwareList = [
     history: [
       { date: "December 4, 1996", text: "Launches on a Delta II rocket from Cape Canaveral." },
       { date: "July 4, 1997", text: "Lands in Ares Vallis, bouncing on airbags more than 15 times before stopping." },
-      { date: "July 5, 1997", text: "Sojourner rolls onto the surface (on the mission's second sol). NSSDCA places the egress in the early hours of July 6 UTC." }, // NLC-2: egress note added
+      { date: "July 5, 1997", text: "Sojourner rolls onto the surface (on the mission's second sol)." },
       { date: "September 27, 1997", text: "Final data transmission from the lander." }
     ],
     contributions: [
@@ -557,10 +553,7 @@ export const hardwareList = [
     sources: [
       { label: "NASA Science: Mars Pathfinder", url: "https://science.nasa.gov/mission/mars-pathfinder/" },
       { label: "NASA Science: How We Land on Mars", url: "https://science.nasa.gov/planetary-science/programs/mars-exploration/mission-timeline/how-we-land-on-mars/" },
-      { label: "NASA GISS Mars24: Mars lander locations", url: "https://www.giss.nasa.gov/tools/mars24/help/landers.html" },
-      // NLC-2: NSSDCA Master Catalog line added (checked November 14, 2026); Sojourner's own
-      // NSSDCA entry (1996-068C) does not load, so the parent Pathfinder spacecraft is cited.
-      { label: "NASA NSSDCA: Mars Pathfinder", url: "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1996-068A" }
+      { label: "NASA GISS Mars24: Mars lander locations", url: "https://www.giss.nasa.gov/tools/mars24/help/landers.html" }
     ],
     landing: {
       style: "airbag", rover: "sojourner", roverScale: 1, scale: 1.2, airbagScale: 1.6,
@@ -612,9 +605,7 @@ export const hardwareList = [
     sources: [
       { label: "NASA Science: Spirit", url: "https://science.nasa.gov/mission/mer-spirit/" },
       { label: "NASA/JPL: Mars Rovers Head for Exciting Landings in January", url: "https://www.jpl.nasa.gov/news/mars-rovers-head-for-exciting-landings-in-january/" },
-      { label: "NASA GISS Mars24: Mars lander locations", url: "https://www.giss.nasa.gov/tools/mars24/help/landers.html" },
-      // NLC-2: NSSDCA Master Catalog line added (checked November 14, 2026)
-      { label: "NASA NSSDCA: Spirit (MER-A)", url: "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=2003-027A" }
+      { label: "NASA GISS Mars24: Mars lander locations", url: "https://www.giss.nasa.gov/tools/mars24/help/landers.html" }
     ],
     landing: {
       style: "airbag", rover: "mer-rover", roverScale: 1, scale: 1.4, airbagScale: 1.7,
@@ -664,9 +655,7 @@ export const hardwareList = [
     sources: [
       { label: "NASA Science: Opportunity", url: "https://science.nasa.gov/mission/mer-opportunity/" },
       { label: "NASA Science: How We Land on Mars", url: "https://science.nasa.gov/planetary-science/programs/mars-exploration/mission-timeline/how-we-land-on-mars/" },
-      { label: "NASA GISS Mars24: Mars lander locations", url: "https://www.giss.nasa.gov/tools/mars24/help/landers.html" },
-      // NLC-2: NSSDCA Master Catalog line added (checked November 14, 2026)
-      { label: "NASA NSSDCA: Opportunity (MER-B)", url: "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=2003-032A" }
+      { label: "NASA GISS Mars24: Mars lander locations", url: "https://www.giss.nasa.gov/tools/mars24/help/landers.html" }
     ],
     landing: {
       style: "airbag", rover: "mer-rover", roverScale: 1, scale: 1.4, airbagScale: 1.7,
@@ -687,7 +676,7 @@ export const hardwareList = [
     location: "Green Valley, Vastitas Borealis (the arctic plains of Mars)",
     lat: 68.22,
     lon: -125.75,
-    landingDate: "May 25, 2008 (23:53 UTC)", // NLC-2: UTC time added from NSSDCA
+    landingDate: "May 25, 2008",
     image: null,
     summary:
       "A lander in the Martian arctic that dug into the ground and confirmed water ice just under the surface.",
@@ -714,8 +703,6 @@ export const hardwareList = [
     coordinateNote: "Coordinates from NASA's Mars24 lander list (68.22 N, 234.25 E). The marker position on the globe is approximate.",
     sources: [
       { label: "NASA Science: Mars Phoenix", url: "https://science.nasa.gov/mission/mars-phoenix/" },
-      // NLC-2: NSSDCA Master Catalog line added (checked November 14, 2026)
-      { label: "NASA NSSDCA: Phoenix", url: "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=2007-034A" },
       { label: "NASA Science: How We Land on Mars", url: "https://science.nasa.gov/planetary-science/programs/mars-exploration/mission-timeline/how-we-land-on-mars/" },
       { label: "NASA GISS Mars24: Mars lander locations", url: "https://www.giss.nasa.gov/tools/mars24/help/landers.html" }
     ],
@@ -768,9 +755,7 @@ export const hardwareList = [
     sources: [
       { label: "NASA: NASA Retires InSight Mars Lander Mission After Years of Science", url: "https://www.nasa.gov/missions/insight/nasa-retires-insight-mars-lander-mission-after-years-of-science/" },
       { label: "NASA Science: How We Land on Mars", url: "https://science.nasa.gov/planetary-science/programs/mars-exploration/mission-timeline/how-we-land-on-mars/" },
-      { label: "NASA GISS Mars24: Mars lander locations", url: "https://www.giss.nasa.gov/tools/mars24/help/landers.html" },
-      // NLC-2: NSSDCA Master Catalog line added (checked November 14, 2026)
-      { label: "NASA NSSDCA: InSight", url: "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=2018-042A" }
+      { label: "NASA GISS Mars24: Mars lander locations", url: "https://www.giss.nasa.gov/tools/mars24/help/landers.html" }
     ],
     landing: {
       style: "retro", lander: "insight", scale: 1, parachute: true, shellRadius: 1.33, chuteRadius: 6,
