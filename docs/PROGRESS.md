@@ -321,6 +321,21 @@ The first countdown caption describes each pad, and rockets that were stacked on
 - Venus texture 404 fixed.
 - `docs/ASSETS.md` lists the Venus files by their real names.
 
+## Completed (2026-11-14): Kampu Space Master Doc (15)
+- **Solar System view buttons (Labels, Orbits, Shadows, Pause, speed) moved down** into the space the Controls button left: 18 px from the bottom instead of 58 px. The speed menu still opens 10 px above them.
+- **Bug fix (phones): the Solar System list no longer flashes over the screen and the bottom bar.** As the opening flight ended, the list's "slide in" animation briefly moved the closed drawer on screen for about a second, covering all five bar buttons. On phones the closed drawer now skips that animation. Measured during the intro: it stays off-screen, and the bar buttons can be clicked.
+- **Controls button removed from the Solar System screen (the main board).** Its instructions ("Pick a world… drag to rotate, scroll to zoom") are still in Help (?). The globe, exploration and landing screens keep their Controls button.
+- **Each scene waits for the narrator to finish before the next part of the progress bar starts.**
+  - Cause: when a new scene started, the app switched screens and the Solar System screen's shutdown stopped all speech, including the mission narrator. The line was cut off mid-sentence, and the scene then waited silently, up to 2 minutes, for a "finished" signal that never came.
+  - Fix: the Solar System screen no longer stops speech while the mission player is running.
+  - Safety net: if anything else ever stops the voice, the player moves on after about 3 seconds of silence (longer than any pause between sentences). Pause still holds everything.
+- Tested: a full Gemini III replay (launch to Mission complete) with every spoken line logged. Every line finished before the next began, nothing was cancelled, and the console had no errors.
+- **Splashdown narration in the order it happens** (`js/mission-plan.js`):
+  - Before: the general line "Parachutes open in stages…" was added after the mission's own line, so it came after "…recovers the crew".
+  - Now it goes before the sentence about the splashdown or recovery (Gemini III).
+  - It's left out when the mission's own line already mentions its parachutes (Artemis I, Apollo 11).
+  - Checked by building every replay's plan and reading every splashdown line.
+
 ## Completed (2026-11-14): Kampu Space Master Doc (14)
 - **NASA 3D models in every mode.** NASA's list was checked on science.nasa.gov and its GitHub mirror; the Chrome DevTools MCP failed to connect, so the built-in browser was used.
   - Added: Hubble, James Webb, Voyager, Cassini-Huygens, LRO, MESSENGER, OSIRIS-REx and Stardust. Where NASA offers two files, the lighter one is used.

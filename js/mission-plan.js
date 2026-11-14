@@ -68,7 +68,16 @@ const SAY = {
       : "The engine fires against the direction of travel, just enough to lower the orbit into the atmosphere. Then the service module separates, and the capsule turns its heat shield forward.");
   },
   splashdown: function (e) {
-    return join(e ? e.narration || e.caption : "", "Parachutes open in stages: small drogues first to steady the capsule, then the big mains to slow it right down.");
+    // In the order it happens: the parachutes open before the capsule splashes down and is recovered
+    // (the general parachute line used to come after "...recovers the crew")
+    const text = e ? e.narration || e.caption || "" : "";
+    const chutes = "Parachutes open in stages: small drogues first to steady the capsule, then the big mains to slow it right down.";
+    if (/parachute/i.test(text)) return join(text); // the mission's own line already tells it in order
+    const sentences = text.match(/[^.!?]+[.!?]+["']?/g) || (text ? [text] : []);
+    const at = sentences.findIndex(function (s) { return /splash|recover/i.test(s); });
+    if (at === -1) return join(text, chutes);
+    sentences.splice(at, 0, chutes);
+    return join.apply(null, sentences);
   },
   finale: function (outcome) {
     return join(outcome && outcome.text, "And that's the mission.");

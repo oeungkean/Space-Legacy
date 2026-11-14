@@ -2945,7 +2945,10 @@ export function stopSolarSystem() {
     animationId = null;
   }
   if (!keepReplay) stopReplay(true);
-  stopSpeaking();
+  // Only this screen's own narration stops here. While the mission player runs, its narrator keeps going
+  // (Master Doc 15: a scene change used to cut the narrator off mid-line, and the scene then waited
+  // silently for a line that never finished)
+  if (!document.body.classList.contains("player-on")) stopSpeaking();
   closeSearch();
   closeSpeedPanel();
   bodyTooltip.classList.add("hidden");

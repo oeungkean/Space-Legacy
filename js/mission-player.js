@@ -10,7 +10,7 @@ import { startCinematic, stopCinematic, pauseCinematic, nextCinematicScene, cine
 import { startFilm, stopFilm, pauseFilm, filmProgress, seekFilm } from "./space-film.js";
 import { startLanding, stopLanding, pauseLanding, landingProgress, seekLanding } from "./landing-scene.js";
 import { missionPhoto } from "../data/mission-photos.js";
-import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking, speechSupported, getVoices, getChosenVoice, onVoicesChange, voiceQuality } from "./narrator.js";
+import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking, isSpeechHeld, speechSupported, getVoices, getChosenVoice, onVoicesChange, voiceQuality } from "./narrator.js";
 import { getSetting, setSetting } from "./settings.js";
 import { getPlaybackSpeed, setPlaybackSpeed } from "./playback.js";
 import { play, isSoundOn, isGroupOn, setGroupOn, stopLoops } from "./sounds.js";
@@ -467,7 +467,22 @@ function tryAdvance(my, force) {
   }
   clearTimeout(waitTimer);
   waitTimer = setTimeout(function () { if (my === token && !paused) advance(); }, 120000);
+  // The scene holds until the narrator has finished the line (Master Doc 15). If the voice was stopped
+  // by something else (so its "finished" signal never comes), move on once it has gone quiet.
+  clearInterval(quietTimer);
+  let quiet = 0;
+  quietTimer = setInterval(function () {
+    if (my !== token || voiceDone) { clearInterval(quietTimer); return; }
+    if (paused || isSpeechHeld()) { quiet = 0; return; }
+    quiet = window.speechSynthesis && window.speechSynthesis.speaking ? 0 : quiet + 1;
+    if (quiet >= 6) { // about 3 seconds of silence (longer than any pause between sentences)
+      clearInterval(quietTimer);
+      voiceDone = true;
+      tryAdvance(my, false);
+    }
+  }, 500);
 }
+let quietTimer = null;
 
 function advance() {
   if (!plan) return;

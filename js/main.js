@@ -450,6 +450,8 @@ document.getElementById("welcome-credits").addEventListener("click", function ()
   hints.forEach(function (hint) {
     const screen = hint.closest ? hint.closest(".screen") : null;
     if (!screen) return;
+    // The main board (Solar System) has no Controls button (Master Doc 15); its controls are in Help (?)
+    if (screen.id === "solar-system-screen") { hint.classList.add("hidden"); hint.setAttribute("aria-hidden", "true"); return; }
     if (hint.parentElement !== screen) screen.appendChild(hint);
     hint.classList.add("hint-pop");
     const button = document.createElement("button");
