@@ -20,7 +20,10 @@ import { missions } from "../data/missions.js";
 import { catalog } from "../data/catalog.js";
 import { openExplorer, startExplorer, stopExplorer, backInExplorer } from "./explorer.js";
 import { startSimulator, stopSimulator, showResults, setMode as setSimMode, showSimStep } from "./simulator.js";
-import { startExploration, stopExploration, loadSite } from "./exploration.js";
+import { startExploration, stopExploration, loadSite, getExplorationState } from "./exploration.js";
+import { collectiblesForSite } from "../data/collectibles.js";
+import { isRecorded, getPhotos, getSamples } from "./progress.js";
+import { modelIcon } from "./explorer.js";
 import { startCollection, stopCollection } from "./collection.js";
 import {
   startMission, getMission, completeObjective, setMissionState, setHudVisible, closeInfoCard, isInfoCardOpen, endMission
@@ -42,6 +45,7 @@ import { startCinematic, stopCinematic, skipCinematic, isCinematicRunning } from
 import { startLanding, stopLanding, hasLanding } from "./landing-scene.js";
 import { hardwareList } from "../data/hardware.js";
 import { missionBriefing } from "./briefing.js";
+import { createRocket } from "./rockets.js";
 
 // Find the elements on the page
 const welcomeScreen = document.getElementById("welcome-screen");
@@ -454,8 +458,8 @@ function buildJourney(config) {
     const arrive = Object.assign({ gap: destination.gap }, destination.target === "deep" ? { radius: destination.radius, angle: destination.angle, body: destination.body } : {},
       destination.target === "outbound" ? { far: destination.far } : {}, destination.around ? { around: destination.around } : {});
     events = [
-      eventFromTuple(["A", "Launch", "Free Build", "Liftoff on the " + (findItem(config.rocket) ? findItem(config.rocket).name : config.rocket) + ". " + (config.fictional ? "This combination never flew: it is a fictional Free Build mission." : "This combination really flew."), "Earth", { isLaunch: true }], config),
-      eventFromTuple(["C", "Arrival: " + destination.name, "Free Build", "The spacecraft reaches " + destination.name + ". Real missions took: " + destination.travel + ".", destination.target, Object.assign({ action: "orbit" }, arrive)], config)
+      eventFromTuple(["A", "Launch", "Free Build", "Liftoff on the " + rocketTitle(config.rocket) + ". " + (config.fictional ? "This combination never flew: it is a fictional Free Build mission." : "This combination really flew."), "Earth", { isLaunch: true }], config),
+      eventFromTuple(["C", "Arrival: " + destination.name, "Free Build", "The spacecraft reaches " + destination.name.replace(/^The /, "the ") + ". Real missions took: " + destination.travel + ".", destination.target, Object.assign({ action: "orbit" }, arrive)], config)
     ];
     if (craft.type === "crewed" && destination.target !== "outbound") {
       events.push(eventFromTuple(["D", "Return to Earth", "Free Build", "The crew comes home under parachutes.", "Earth", { gap: 0.02, model: RETURN_MODEL[config.spacecraft] || craft.model, action: "splashdown" }], config));
@@ -500,6 +504,59 @@ function planForSim(config) {
 
 let missionReturn = null; // the trip home, played after exploring
 
+// The landing for a Free Build site (fictional): the descent from orbit (a space shot) and then the
+// touchdown scene, with a lander that fits the spacecraft
+function freeDescentChapter(config, site) {
+  if (!site || (site.world !== "moon" && site.world !== "mars")) return null;
+  const craft = SPACECRAFT[config.spacecraft];
+  const moon = site.world === "moon";
+  const world = moon ? "Moon" : "Mars";
+  const toWorld = moon ? "the Moon" : "Mars"; // for sentences
+  let landing;
+  if (craft && craft.type === "rover" && !moon) {
+    landing = { style: "skycrane", rover: config.spacecraft === "curiosity" ? "curiosity" : "perseverance", roverScale: 1, shellRadius: 2.25, chuteRadius: 10.5 };
+  } else if (config.spacecraft === "viking") {
+    landing = { style: "retro", lander: "viking-lander", scale: 1.2, parachute: !moon, shellRadius: 1.75, chuteRadius: 8 };
+  } else if (config.spacecraft === "blue-ghost") {
+    landing = { style: "retro", lander: "blue-ghost", scale: 1, parachute: !moon, shellRadius: 1.9, chuteRadius: 9 };
+  } else {
+    // crewed spacecraft (and anything else) land in a lunar-module style lander
+    landing = { style: "retro", lander: "lunar-module", scale: 2.6, crew: craft && craft.type === "crewed", parachute: !moon, shellRadius: 3, chuteRadius: 12 };
+  }
+  landing.captions = {
+    braking: moon ? "There is no air on the Moon, so the lander slows down with its engine alone, firing against its direction of travel. (A fictional Free Build landing.)" : undefined,
+    approach: "The lander turns upright and slows down, looking for a safe, flat spot.",
+    touchdown: "Engines stir up the dust as the lander settles onto its footpads at " + site.name + "."
+  };
+  const preShot = { kind: "descend", world: site.world, craft: craft ? craft.model : "lunar-module", style: landing.lander === "lunar-module" ? "lm" : undefined, cruiseStage: !moon };
+  return {
+    engine: "landing",
+    label: "Descent & Landing",
+    title: "Landing at " + site.name,
+    date: "",
+    caption: "The craft comes down from orbit step by step, engines burning, to " + site.name + ". (Fictional Free Build landing.)",
+    narration: "Now the descent. From orbit, the craft slows down and drops toward " + toWorld + (moon ? ", with nothing but its engine to brake it, because the Moon has no air." : ", first through the thin air, then on its engines.") + " Bit by bit it comes down, until it settles gently on the surface.",
+    part: "out",
+    landing: true,
+    lm: landing.lander === "lunar-module" && moon,
+    item: { id: "free-landing-" + site.world, name: site.name, destination: world, mission: "Free Build (fictional)", location: site.name, landing: landing },
+    pre: {
+      shot: preShot,
+      title: "Descent from orbit",
+      caption: "Leaving orbit: the engine fires to slow down, and the long fall toward " + toWorld + " begins.",
+      narration: "The engine fires against the direction of travel, and the craft starts its long fall toward the surface."
+    }
+  };
+}
+
+// A rocket's name for captions (rockets missing from the catalog, like the shuttle flights, are named by their model)
+function rocketTitle(key) {
+  const item = findItem(key);
+  if (item) return item.name;
+  const model = createRocket(key);
+  return model && model.userData.name ? model.userData.name : key;
+}
+
 // The mission briefing (where from, where to, how long, possible or not) for a Mission Builder mission
 function briefOf(config) {
   try {
@@ -520,6 +577,10 @@ document.addEventListener("sim-launch", function (event) {
   if (site) {
     // Fly there and land; the mission continues at the exploration site
     const parts = splitForSite(plan, site);
+    // No landing in the journey (Free Build sites): add one, so the craft comes down step by step from
+    // orbit with its engine burning, instead of appearing on the ground
+    const descent = freeDescentChapter(config, site);
+    if (descent && !parts.outbound.some(function (c) { return c.engine === "landing"; })) parts.outbound.push(descent);
     const craft = SPACECRAFT[config.spacecraft] ? SPACECRAFT[config.spacecraft].model : null;
     const capsule = RETURN_MODEL[config.spacecraft] || null;
     missionReturn = parts.ret.some(function (c) { return c.engine === "landing"; }) ? { title: plan.title, chapters: parts.ret }
@@ -706,15 +767,50 @@ function endMissionQuietly() {
   endMission();
 }
 document.getElementById("explore-sites-close").addEventListener("click", function () { sitesDialog.classList.add("hidden"); });
+// "My Collection" in the results: what you collected at this site, as small pictures (like a planet's
+// missions in the Solar System). The full Collection page is one link away.
 document.getElementById("results-collection").addEventListener("click", function () {
+  const panel = document.getElementById("results-found");
+  const open = panel.classList.toggle("hidden") === false;
+  this.setAttribute("aria-expanded", String(open));
+  if (open) fillResultsCollection();
+});
+document.getElementById("results-full-collection").addEventListener("click", function () {
   document.getElementById("explore-results").classList.add("hidden");
   showScreen(collectionScreen);
 });
-document.getElementById("results-simulator").addEventListener("click", function () {
-  document.getElementById("explore-results").classList.add("hidden");
-  showResults(getMission());
-  showScreen(simulatorScreen);
-});
+function fillResultsCollection() {
+  const grid = document.getElementById("results-found-grid");
+  const note = document.getElementById("results-found-note");
+  grid.innerHTML = "";
+  const state = getExplorationState();
+  const siteId = state && state.siteId;
+  const site = siteId ? SITES[siteId] : null;
+  const found = siteId ? collectiblesForSite(siteId).filter(function (c) { return isRecorded(c.id); }) : [];
+  found.forEach(function (c) {
+    const tile = document.createElement("div");
+    tile.className = "related-tile";
+    tile.innerHTML = '<span class="rt-pic"><img alt="" decoding="async"></span><b class="rt-name"></b><span class="rt-year"></span>';
+    tile.querySelector(".rt-name").textContent = c.card ? c.card.name : c.id;
+    tile.querySelector(".rt-year").textContent = c.kind === "target" ? "Science target" : c.kind === "observe" ? "Observed" : "Hardware";
+    if (c.model) modelIcon({ type: "model", key: c.model }, tile.querySelector("img"));
+    grid.appendChild(tile);
+  });
+  // photos you took here (their own small pictures)
+  const photos = site ? getPhotos().filter(function (p) { return p.site === site.name && p.image; }) : [];
+  photos.slice(0, 6).forEach(function (p) {
+    const tile = document.createElement("div");
+    tile.className = "related-tile";
+    tile.innerHTML = '<span class="rt-pic"><img alt=""></span><b class="rt-name"></b><span class="rt-year">Photo</span>';
+    tile.querySelector("img").src = p.image;
+    tile.querySelector(".rt-name").textContent = p.name;
+    grid.appendChild(tile);
+  });
+  const samples = site ? getSamples().filter(function (s) { return s.site === site.name; }).length : 0;
+  note.textContent = found.length || photos.length
+    ? found.length + " recorded · " + photos.length + " photo" + (photos.length === 1 ? "" : "s") + " · " + samples + " sample" + (samples === 1 ? "" : "s")
+    : "Nothing recorded here yet. Walk up to an object and press F to record it.";
+}
 document.getElementById("results-continue").addEventListener("click", function () {
   document.getElementById("explore-results").classList.add("hidden");
 });

@@ -321,6 +321,35 @@ The first countdown caption describes each pad, and rockets that were stacked on
 - Venus texture 404 fixed.
 - `docs/ASSETS.md` lists the Venus files by their real names.
 
+## Completed (2026-11-14): Kampu Space Master Doc (7)
+- **Two separate builder buildings.**
+  - Real Missions: the rectangular assembly hall, now with a forklift, a tow tractor with carts, rolling stairs, an engineers' desk row, pallets, tool chests and safety barriers.
+  - On its walls:
+    - A "Missions that really flew" wall with the three NASA photos (credits under each).
+    - An achievement plaque for every real mission in the project (name and year from `data/simulator.js`).
+  - Free Build: a new round, domed engineering lab, with:
+    - a ring wall and a ribbed dome with an open top (oculus)
+    - ring catwalks, a polar crane and a round door
+    - a turntable pad
+    - workbenches with screens, server racks, a holo table, drones, a tool wall, crates and charging pods
+- **Agena Target Vehicle exhibit** in the Real Missions hall. It is NASA's official 3D model, loaded from NASA 3D Resources. The plaque fact comes from NASA's Gemini VIII page. It is labelled "shown enlarged", and the credits and `docs/ASSETS.md` are updated.
+- **Briefing redesign**
+  - Clear From / To / Journey rows with more spacing.
+  - An amber "!" instead of a big red X.
+  - A reach meter (how far this rocket really went compared with where this trip goes).
+  - "Show more" is a short labelled bullet list, and rockets are shown by name, never by their key.
+- **Launch**
+  - Natural Florida light. The leftover cloud layer that caused the white haze is fixed.
+  - Each rocket uses its real pad (LC-39A/B, SLC-41, SLC-37B, SLC-40, Kourou ELA-3, Baikonur Site 81), with a launch-site card and map in `data/launch-sites.js`.
+- **Subtitles** now show exactly the sentence the narrator is saying.
+- **Free Build landings**: a descent-from-orbit shot, then a powered landing scene, before exploring (Moon and Mars).
+- **Exploration HUD** chips have more space.
+- **Results**: "New mission" removed. "My Collection" opens picture tiles of what you recorded at that site, with a link to the full Collection.
+- **Splashdown**
+  - Dragon is upright without its trunk.
+  - Released parachutes fall and lie flat on the water.
+  - The recovery ships are ship-shaped: a carrier (Apollo/Gemini), a dock ship (Orion) and a recovery vessel (Dragon), shown side-on.
+
 ## How it was tested
 - Local server at `http://localhost:8000`, in the Claude desktop browser pane.
 - The pane was usually hidden, which stops `requestAnimationFrame`. Animations were driven by a timer shim injected into the page **for testing only** (not part of the site).
@@ -330,6 +359,8 @@ The first countdown caption describes each pad, and rockets that were stacked on
 - No console errors and no failed network requests.
 
 ## Current issues
+- `js/results.js` imports `saveMissionRecord`, which `js/progress.js` does not export, so the module cannot load. Nothing imports it (the results panel lives in `main.js`), so the site is unaffected. This was already the case before Doc (7). It can be deleted or fixed later (ask first).
+- The builder equipment is drawn larger than real life, scaled with the hall, so it can be seen in a hall built to hold a 110 m rocket.
 - `space-film.js` (the space shots after launch) draws the departure-burn plume as a large flat orange blob. A real vacuum burn plume is faint. Not changed in this pass.
 - The launch Earth is still a little soft at low altitude (now a 4096px map; a real photo map can't be sharper than that that close).
 - Real-GPU frame rate was not measured here. Shadows (2048px) and up to 1200 smoke sprites are the main costs, so please check on the oldest computer you'll present on.

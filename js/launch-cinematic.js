@@ -14,6 +14,7 @@ import { createRocket } from "./rockets.js";
 import { createParticleSystem } from "./particles.js";
 import { planetMaterial, cloudMaterial, addSurfaceDetail } from "./planet-look.js";
 import { createGlow } from "./glow.js";
+import { launchPad, formatLatLon } from "../data/launch-sites.js";
 import { play, isSoundOn, setSoundOn, onSoundChange, isGroupOn } from "./sounds.js";
 import { wantsReducedMotion } from "./settings.js";
 import { getPlaybackSpeed } from "./playback.js";
@@ -911,6 +912,24 @@ function updatePadProcess(t) {
   if (padProps.erector) padProps.erector.rotation.z = (Math.PI / 2) * k;
 }
 
+// ----- The launch site card: which pad, where, with a dot on a map of Earth -----
+const siteCard = document.getElementById("cinema-site");
+function showLaunchSite(rocket) {
+  if (!siteCard) return;
+  const pad = rocket ? launchPad(rocket) : null;
+  if (!pad) { hideLaunchSite(); return; }
+  document.getElementById("cinema-site-pad").textContent = pad.pad;
+  document.getElementById("cinema-site-place").textContent = pad.place;
+  document.getElementById("cinema-site-coords").textContent = "About " + formatLatLon(pad.lat, pad.lon);
+  const dot = siteCard.querySelector(".cs-dot");
+  dot.style.left = ((pad.lon + 180) / 360 * 100).toFixed(2) + "%";
+  dot.style.top = ((90 - pad.lat) / 180 * 100).toFixed(2) + "%";
+  siteCard.classList.remove("hidden");
+}
+function hideLaunchSite() {
+  if (siteCard) siteCard.classList.add("hidden");
+}
+
 // ----- Rollout rigs -----
 let rollout = null;
 
@@ -1060,7 +1079,7 @@ function updateRollout(t, dt) {
 const SITE_LOOKS = {
   florida: {
     name: "Florida", lat: 28.6, lon: -80.6, land: 0xffffff, sea: true, plants: [1, 1], plantTint: null, cloudy: 0,
-    horizon: 0xd6e7f6, mid: 0x86b6ea, zenith: 0x2c64c4, fog: 0xcfe0f2
+    horizon: 0xb7cde3, mid: 0x7fa9d8, zenith: 0x2a5ead, fog: 0xb4c8dc
   },
   // Guiana Space Centre: tropical rainforest close to the Atlantic, often under big cumulus clouds
   kourou: {
@@ -1128,8 +1147,8 @@ function setLaunchSite(coast) {
   skyMaterial.uniforms.uZenith.value.set(coast ? 0x2c64c4 : 0x14214f);
   scene.fog = coast ? new THREE.Fog(0xcfe0f2, 400, 5200) : new THREE.Fog(0xf0b98a, 120, 2600);
   sunLight.color.set(coast ? 0xfff6e8 : 0xffc48a);
-  sunLight.intensity = coast ? 2.2 : 2.4; // natural daylight (3.0 washed the pad out to white)
-  if (renderer) renderer.toneMappingExposure = coast ? 0.95 : 1.2;
+  sunLight.intensity = coast ? 1.9 : 2.4; // natural daylight (3.0 washed the pad out to white)
+  if (renderer) renderer.toneMappingExposure = coast ? 0.82 : 1.2;
   sunLight.position.set(coast ? -200 : -300, coast ? 320 : 70, coast ? 400 : 500);
   sunSprite.visible = !coast;
 }
@@ -1539,6 +1558,8 @@ function enterScene(index) {
   // scene sets itself up. (Jumping straight to the climb skipped the countdown, so the crawler and
   // its tower stayed beside the rocket and flew up into space with it.)
   if (id !== "rollout") endRollout();
+  if (id !== "ascent" && cloudDeck) cloudDeck.visible = false;
+  if (id === "ascent") hideLaunchSite();
 
   captionBox.textContent =
     id === "liftoff" && captionOverride ? captionOverride : activeScenes[index].caption;
@@ -1806,6 +1827,7 @@ function emitDeluge(power, dt) {
 }
 
 function updateMissionLaunch(t, dt) {
+  if (t > LAUNCH_LIFTOFF + 1) hideLaunchSite();
   updatePadProcess(t);
   const waves = coastGroup && coastGroup.userData.waves;
   if (waves) { waves.offset.x += dt * 0.012; waves.offset.y += dt * 0.005; }
@@ -2476,6 +2498,12 @@ export function startCinematic(onFinish, options) {
     earthBall.visible = false;
     sunLight.castShadow = true; // switched off during the climb to orbit
     setLaunchSite(Boolean(options.mission));
+    // the climb's cloud layer, path and rocket glow belong to the climb only: hidden until it starts
+    // (left over from an earlier launch, the clouds hung around the pad as a bright white haze)
+    if (cloudDeck) cloudDeck.visible = false;
+    if (ascentTrail) ascentTrail.material.opacity = 0;
+    if (ascentMarker) ascentMarker.material.opacity = 0;
+    showLaunchSite(options.mission ? rocketKey : null);
     if (!options.mission && coastGroup.userData.padStyles) applyPadStyle("lc39");
     missionSeed = seedFrom((options.caption || "") + "|" + (rocketKey || ""));
     missionSun = null;
@@ -2530,6 +2558,7 @@ export function startCinematic(onFinish, options) {
 
 export function stopCinematic() {
   running = false;
+  hideLaunchSite();
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;

@@ -9435,3 +9435,341 @@ body.reduce-motion .mp-swap { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   .mp-brief { transition: none; }
 }
+
+/* =========================================================================================
+   Kampu Space Master Doc (7), 2026-11-14
+   ========================================================================================= */
+
+/* ---- Launch: where this launch really happened (pad, place, coordinates, a dot on Earth) ---- */
+.cinema-site {
+  position: absolute;
+  left: 20px;
+  top: 80px;
+  z-index: 6;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  width: min(400px, calc(100% - 40px));
+  padding: 12px 14px 12px 12px;
+  background: rgba(8, 12, 22, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-left: 3px solid #5aa9ff;
+  border-radius: 12px;
+}
+.cs-map {
+  position: relative;
+  flex: 0 0 120px;
+  aspect-ratio: 2 / 1;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #0b1626;
+}
+.cs-map img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: fill;
+}
+.cs-dot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: #ff3b30;
+  border: 1.5px solid #fff;
+  animation: ls-ping 1.8s ease-out infinite;
+}
+.cs-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.cs-text em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8fc4ff;
+}
+.cs-text b {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+}
+.cs-text span {
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.85);
+}
+.cs-text .cs-coords {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: #a9cdff;
+}
+/* in the mission player: on the right, above the controls, so it never covers the briefing card (left) */
+body.player-on .cinema-site {
+  top: auto;
+  left: auto;
+  right: 20px;
+  bottom: 190px;
+  width: min(360px, calc(100% - 40px));
+}
+@media (max-width: 600px) {
+  .cinema-site, body.player-on .cinema-site { left: 10px; right: 10px; width: auto; }
+  /* on a phone: under the title (clear of the subtitles), and not while the briefing card is open,
+     because the briefing already shows where the mission launches from */
+  body.player-on .cinema-site { top: 120px; bottom: auto; }
+  body.player-on:has(#mp-brief:not(.hidden):not(.collapsed)) .cinema-site { display: none; }
+  .cs-map { flex-basis: 90px; }
+}
+
+/* ---- Briefing (Master Doc 7): clear rows like the earlier version, in the short glass card, with room
+   to breathe; a reach meter instead of a big red cross; Show more as a bullet summary ---- */
+.mb-body {
+  width: min(350px, calc(100vw - 80px));
+  padding: 16px 18px 16px 22px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+.mp-brief.collapsed {
+  transform: translateX(calc(-1 * min(350px, calc(100vw - 80px))));
+}
+.mp-brief h4 {
+  margin: 2px 0 14px;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+}
+.mb-rows {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 10px 12px;
+  margin: 0 0 14px;
+}
+.mb-rows dt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding-top: 1px;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #9cc6ff;
+}
+.mb-rows dt .mb-dot {
+  width: 9px;
+  height: 9px;
+  border-width: 1.5px;
+  box-shadow: none;
+  flex: 0 0 9px;
+}
+.mb-dot.time {
+  background: #9aa4b5;
+}
+.mb-rows dd {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+}
+.mb-rows dd b {
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #fff;
+}
+.mb-rows dd span {
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.02em;
+  color: #a9cdff;
+}
+.mb-verdict {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  gap: 3px 12px;
+}
+.mb-verdict span {
+  line-height: 1.45;
+}
+.mb-verdict.unlikely i {
+  background: #f0a35a;
+}
+.mb-verdict.unlikely {
+  border-color: rgba(240, 163, 90, 0.5);
+  background: rgba(240, 163, 90, 0.1);
+}
+/* reach meter */
+.mb-meter {
+  margin: 0 0 14px;
+}
+.mb-meter.hidden {
+  display: none;
+}
+.mb-track {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: visible;
+}
+.mb-reach {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #3f7fd8, #5cc8a0);
+}
+.mb-gap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 0 5px 5px 0;
+  background: repeating-linear-gradient(-45deg, rgba(240, 163, 90, 0.75) 0 5px, rgba(240, 163, 90, 0.2) 5px 10px);
+}
+.mb-flag {
+  position: absolute;
+  top: -6px;
+  width: 3px;
+  height: 22px;
+  margin-left: -1.5px;
+  background: #fff;
+  border-radius: 2px;
+}
+.mb-flag::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0;
+  border-left: 10px solid #e0a46a;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+.mb-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+}
+.mb-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 6px 0 0;
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+.mb-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.mb-legend i {
+  display: inline-block;
+  width: 14px;
+  height: 6px;
+  border-radius: 3px;
+}
+.lg-reach {
+  background: linear-gradient(90deg, #3f7fd8, #5cc8a0);
+}
+.lg-flag {
+  background: #e0a46a;
+}
+/* Show more: bullet summary */
+.mb-reasons {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: grid;
+  gap: 8px;
+}
+.mb-reasons li {
+  display: grid;
+  gap: 1px;
+  padding-left: 14px;
+  position: relative;
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+.mb-reasons li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5aa9ff;
+}
+.mb-reasons li b {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9cc6ff;
+  font-weight: 500;
+}
+.mb-reasons li span {
+  color: #fff;
+}
+.mb-reasons li + li {
+  margin-top: 0;
+}
+
+/* ---- Exploring: the mission panel's chips get room to breathe ---- */
+.hud-chips {
+  gap: 8px;
+  margin-top: 4px;
+}
+.hud-chip {
+  padding: 5px 11px;
+  line-height: 1.45;
+  letter-spacing: 0.03em;
+}
+
+/* ---- Results: what you collected here, as pictures ---- */
+.results-found {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.results-found.hidden {
+  display: none;
+}
+#results-found-grid.results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 8px 0;
+}
+.results-found .related-tile {
+  cursor: default;
+}
+.results-found-note {
+  margin: 4px 0 8px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.results-found .link-button {
+  padding: 0;
+  font-size: 0.78rem;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}

@@ -502,6 +502,128 @@ function buildDesert() {
   return { group: group, heightAt: function () { return 0; } };
 }
 
+// A ship's outline seen from above: a pointed bow at +x, a square stern at -x
+function hullShape(length, beam) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-length / 2, -beam / 2);
+  shape.lineTo(length * 0.22, -beam / 2);
+  shape.quadraticCurveTo(length * 0.45, -beam * 0.35, length / 2, 0);
+  shape.quadraticCurveTo(length * 0.45, beam * 0.35, length * 0.22, beam / 2);
+  shape.lineTo(-length / 2, beam / 2);
+  shape.lineTo(-length / 2, -beam / 2);
+  return shape;
+}
+function shipSlab(length, beam, height, material, y) {
+  const geometry = new THREE.ExtrudeGeometry(hullShape(length, beam), { depth: height, bevelEnabled: false });
+  geometry.rotateX(-Math.PI / 2);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.y = y || 0;
+  return mesh;
+}
+function buildShip(kind) {
+  const ship = new THREE.Group();
+  const haze = new THREE.MeshStandardMaterial({ color: 0x737b85, roughness: 0.75, metalness: 0.25 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x3a3f46, roughness: 0.8, metalness: 0.2 });
+  const deckMat = new THREE.MeshStandardMaterial({ color: 0x4c5158, roughness: 0.9 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xe8ebee, roughness: 0.6 });
+  const red = new THREE.MeshStandardMaterial({ color: 0x7a2a22, roughness: 0.8 });
+  if (kind === "carrier") {
+    // waterline stripe, hull, a wide flight deck that overhangs, and the island on the starboard side
+    ship.add(shipSlab(250, 30, 3, red, -1));
+    ship.add(shipSlab(250, 30, 16, haze, 2));
+    const flightDeck = shipSlab(262, 40, 1.2, deckMat, 18);
+    ship.add(flightDeck);
+    const island = new THREE.Mesh(new THREE.BoxGeometry(32, 14, 7), haze);
+    island.position.set(10, 25, -17);
+    ship.add(island);
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 7.5), haze);
+    bridge.position.set(12, 35, -17);
+    ship.add(bridge);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 18, 8), dark);
+    mast.position.set(12, 47, -17);
+    ship.add(mast);
+    const radar = new THREE.Mesh(new THREE.BoxGeometry(6, 2, 0.6), dark);
+    radar.position.set(12, 52, -17);
+    ship.add(radar);
+    // deck markings and helicopters on deck
+    const line = new THREE.Mesh(new THREE.PlaneGeometry(220, 0.8), new THREE.MeshBasicMaterial({ color: 0xd8d8d0 }));
+    line.rotation.x = -Math.PI / 2;
+    line.position.set(0, 19.3, 4);
+    ship.add(line);
+    [-60, -20, 40].forEach(function (x) {
+      const heli = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(1.6, 7, 4, 8) : new THREE.BoxGeometry(3, 3, 10), dark);
+      body.rotation.z = Math.PI / 2;
+      heli.add(body);
+      const rotor = new THREE.Mesh(new THREE.BoxGeometry(16, 0.2, 0.6), dark);
+      rotor.position.y = 2.2;
+      heli.add(rotor);
+      heli.position.set(x, 21, 8);
+      ship.add(heli);
+    });
+  } else if (kind === "dock") {
+    // an amphibious transport dock: a long grey hull, a big block superstructure forward, a flight deck aft
+    ship.add(shipSlab(200, 32, 3, red, -1));
+    ship.add(shipSlab(200, 32, 14, haze, 2));
+    const block = new THREE.Mesh(new THREE.BoxGeometry(70, 16, 26), haze);
+    block.position.set(30, 24, 0);
+    ship.add(block);
+    const mastA = new THREE.Mesh(new THREE.CylinderGeometry(3, 4, 22, 8), haze);
+    mastA.position.set(40, 43, 0);
+    ship.add(mastA);
+    const pad = new THREE.Mesh(new THREE.PlaneGeometry(80, 26), deckMat);
+    pad.rotation.x = -Math.PI / 2;
+    pad.position.set(-50, 16.2, 0);
+    ship.add(pad);
+  } else {
+    // a recovery vessel: dark hull, white superstructure forward, a helipad and a crane over the stern
+    ship.add(shipSlab(90, 18, 2, red, -1));
+    ship.add(shipSlab(90, 18, 8, dark, 1));
+    const house = new THREE.Mesh(new THREE.BoxGeometry(26, 10, 15), white);
+    house.position.set(18, 14, 0);
+    ship.add(house);
+    const wheelhouse = new THREE.Mesh(new THREE.BoxGeometry(12, 5, 15.5), white);
+    wheelhouse.position.set(22, 21.5, 0);
+    ship.add(wheelhouse);
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 0.6, 24), deckMat);
+    pad.position.set(18, 19.4, 0);
+    ship.add(pad);
+    const crane = new THREE.Mesh(new THREE.BoxGeometry(1.2, 18, 1.2), new THREE.MeshStandardMaterial({ color: 0xe6a21c, roughness: 0.6 }));
+    crane.position.set(-34, 16, 0);
+    crane.rotation.z = 0.5;
+    ship.add(crane);
+    // bridge windows, a mast with radar, a funnel and two orange lifeboats
+    const glass = new THREE.MeshStandardMaterial({ color: 0x16202c, roughness: 0.2, metalness: 0.5 });
+    const windows = new THREE.Mesh(new THREE.BoxGeometry(12.2, 1.6, 15.8), glass);
+    windows.position.set(22, 22.4, 0);
+    ship.add(windows);
+    const front = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.6, 13), glass);
+    front.position.set(28.1, 22.4, 0);
+    ship.add(front);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 10, 8), white);
+    mast.position.set(20, 29, 0);
+    ship.add(mast);
+    const radar = new THREE.Mesh(new THREE.BoxGeometry(5, 0.6, 0.8), dark);
+    radar.position.set(20, 32, 0);
+    ship.add(radar);
+    const funnel = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.2, 6, 12), dark);
+    funnel.position.set(8, 21, 0);
+    ship.add(funnel);
+    const lifeboatMat = new THREE.MeshStandardMaterial({ color: 0xf06a1c, roughness: 0.5 });
+    [-1, 1].forEach(function (side) {
+      const boat = new THREE.Mesh(new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(1.1, 4, 4, 8) : new THREE.BoxGeometry(6, 2, 2), lifeboatMat);
+      boat.rotation.z = Math.PI / 2;
+      boat.position.set(14, 15, side * 8.4);
+      ship.add(boat);
+    });
+    // a white band along the hull and a row of portholes
+    const band = shipSlab(90.4, 18.4, 0.8, white, 7);
+    ship.add(band);
+  }
+  ship.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return ship;
+}
+
 // ----- Earth: an ocean with moving waves and a recovery ship -----
 function buildOcean() {
   const group = new THREE.Group();
@@ -514,20 +636,13 @@ function buildOcean() {
   far.rotation.x = -Math.PI / 2;
   far.position.y = -0.4;
   group.add(far);
-  // A recovery ship (simple shape) waiting nearby
-  const ship = new THREE.Group();
-  const gray = new THREE.MeshStandardMaterial({ color: 0x7c848e, roughness: 0.7, metalness: 0.3 });
-  const hull = new THREE.Mesh(new THREE.BoxGeometry(70, 9, 14), gray);
-  hull.position.y = 3;
-  ship.add(hull);
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(20, 10, 10), gray);
-  deck.position.set(-12, 12, 0);
-  ship.add(deck);
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 14, 6), gray);
-  mast.position.set(-12, 24, 0);
-  ship.add(mast);
-  ship.position.set(140, 0, -260);
-  ship.rotation.y = 0.5;
+  // The recovery ship waiting nearby, shaped like a ship (a pointed bow, a deck, a superstructure):
+  // an aircraft carrier for Apollo and Gemini (USS Hornet, USS Intrepid), a grey dock ship for Orion,
+  // a recovery vessel with a helipad for Dragon. Simplified shapes, not detailed models.
+  const capsuleKey = item && item.landing ? item.landing.capsule : "apollo-cm";
+  const ship = buildShip(capsuleKey === "dragon" ? "recovery" : capsuleKey === "orion-cm" ? "dock" : "carrier");
+  ship.position.set(150, 0, -280);
+  ship.rotation.y = -0.6; // side-on to the camera, so its shape reads as a ship
   group.add(ship);
   const position = geometry.attributes.position;
   function wave(x, z, t) {
@@ -1746,7 +1861,8 @@ function splashdownPhases() {
   const landing = item.landing;
   const key = CAPSULE_FACTS[landing.capsule] ? landing.capsule : "apollo-cm";
   const facts = CAPSULE_FACTS[key];
-  const capsule = makeModel(landing.capsule || "apollo-cm", 1);
+  // Crew Dragon's flying model points nose-forward; for the splashdown the upright capsule (no trunk) is used
+  const capsule = makeModel(landing.capsule === "dragon" ? "dragon-cm" : (landing.capsule || "apollo-cm"), 1);
   fitSize(capsule, landing.size || 4);
   const R = landing.size || 4;
   let mains = capsule.userData.chutes;
@@ -1780,6 +1896,7 @@ function splashdownPhases() {
   const mainAt = V(-30, 75, -16);
   const sea = V(0, R * 0.25, 0);
   let splashed = false;
+  let released = []; // the main parachutes after release: each one settles flat on the water
 
   function placeLoose() {
     if (mains.userData.loose) {
@@ -1873,16 +1990,31 @@ function splashdownPhases() {
             const speed = random(3, 12);
             particles.emit(false, V(Math.cos(angle) * R * 0.5, 0.3, Math.sin(angle) * R * 0.5), V(Math.cos(angle) * speed, random(3, 11), Math.sin(angle) * speed), random(0.4, 1.1), random(2, 4), random(1.2, 2.4), 0.8, 0xffffff, 0.5);
           }
+          // The crew releases the main parachutes: each one is taken off the capsule (keeping where it
+          // is) so it can fall and lie flat on the water
+          released = mains.children.slice().map(function (chute, i) {
+            actorRoot.attach(chute);
+            return { chute: chute, i: i, pos: chute.position.clone(), quat: chute.quaternion.clone(), scale: chute.scale.clone() };
+          });
         }
         // Bobbing on the waves; the parachutes are released and fall onto the water
         capsule.position.set(0, R * 0.15 + Math.sin(u * 9) * 0.25, 0);
         pointUp(capsule, V(Math.sin(u * 6) * 0.08, 1, Math.cos(u * 5) * 0.06));
-        const fall = Math.min(1, u * 1.6);
-        if (mains.userData.loose) {
-          mains.position.copy(capsule.position).add(V(R * 3 * fall, -R * 4 * fall, R * 2 * fall));
-        } else {
-          mains.scale.set(1, Math.max(0.05, 1 - fall), 1);
-        }
+        // The released parachutes fall over and settle flat on the water behind the capsule (away from
+        // the camera), going limp: lines toward the capsule, the canopy spread out like a wet sheet
+        const fall = easeOut(Math.min(1, u * 1.3));
+        const away = Math.atan2(1, 1.4);                       // direction away from the camera, on the water
+        const lieQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, away, -Math.PI / 2, "YXZ"));
+        released.forEach(function (r) {
+          const k = r.i - (released.length - 1) / 2;
+          const along = R * 0.9 + Math.abs(k) * R * 0.5;
+          const side = k * R * 2.6;
+          const lie = V(Math.cos(away) * along + Math.sin(away) * side, 0.35, -Math.sin(away) * along + Math.cos(away) * side);
+          r.chute.position.lerpVectors(r.pos, lie, fall);
+          r.chute.quaternion.slerpQuaternions(r.quat, lieQuat, fall);
+          r.chute.scale.set(r.scale.x * (1 - 0.94 * fall), r.scale.y * (1 - 0.25 * fall), r.scale.z);
+        });
+        if (drogues.visible && u > 0.2) drogues.visible = false;
         if (u < 0.5 && Math.random() < 0.5) {
           particles.emit(false, V(random(-R, R), 0.2, random(-R, R)), V(random(-1, 1), random(0.5, 2), random(-1, 1)), random(0.6, 1.4), random(2, 5), random(1.5, 3), 0.5, 0xffffff, 0.8);
         }

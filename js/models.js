@@ -1994,6 +1994,23 @@ function createDragon() {
   return forward(inner, 8);
 }
 
+// Crew Dragon coming home: the capsule alone, standing upright (heat shield down). Before re-entry the
+// trunk is jettisoned, so it is not drawn here.
+function createDragonCapsule() {
+  const m = getMaterials();
+  const capsule = new THREE.Group();
+  capsule.add(put(cyl(1.85, 1.85, 0.12, m.heat, 36), 0, 0.05, 0));          // heat shield
+  capsule.add(put(cyl(1.15, 1.85, 2.0, m.white, 36), 0, 1.1, 0));           // capsule
+  capsule.add(put(cyl(1.16, 1.86, 0.25, m.black, 36), 0, 0.6, 0));          // dark band with the Draco thrusters
+  [0, 1, 2, 3].forEach(function (i) {
+    const a = (i / 4) * Math.PI * 2 + 0.3;
+    capsule.add(put(box(0.36, 0.22, 0.1, m.black), Math.cos(a) * 1.45, 1.0, Math.sin(a) * 1.45));
+  });
+  capsule.add(put(cyl(0.3, 1.1, 0.6, m.white, 36), 0, 2.4, 0));             // nose cone (closed for landing)
+  capsule.userData.size = 4.2;
+  return capsule;
+}
+
 // ---------- Choose a model by name ----------
 export function createModel(name) {
   switch (name) {
@@ -2050,6 +2067,7 @@ export function createModel(name) {
     case "moxie": return createMoxie();
     case "seis": return createSeis();
     case "dragon": return createDragon();
+    case "dragon-cm": return createDragonCapsule();
     default: return createCapsule();
   }
 }

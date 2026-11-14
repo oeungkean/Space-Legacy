@@ -10,6 +10,8 @@
 import { TEMPLATES, DESTINATIONS, SPACECRAFT, SITES } from "../data/simulator.js";
 import { hardwareList } from "../data/hardware.js";
 import { findItem } from "../data/catalog.js";
+import { launchPad, formatLatLon } from "../data/launch-sites.js";
+import { createRocket } from "./rockets.js";
 
 // Where each rocket launched from (rounded; the exact pad differs between missions)
 const KSC = { name: "Kennedy Space Center, Florida", lat: 28.6, lon: -80.6 };
@@ -80,18 +82,24 @@ function farthest(rocket) {
 // config: { rocket, rocketName, spacecraft, destination, siteId, title }
 export function missionBriefing(config) {
   if (!config || !config.rocket) return null;
-  const from = LAUNCH_SITES[config.rocket] || KSC;
+  const pad = launchPad(config.rocket);
+  const from = pad ? { name: pad.pad + ", " + pad.place.split(",")[0], lat: pad.lat, lon: pad.lon } : (LAUNCH_SITES[config.rocket] || KSC);
   const to = destinationPlace(config.destination, config.siteId);
   const craft = SPACECRAFT[config.spacecraft];
   const craftName = craft ? craft.name : "The spacecraft";
   const rocketItem = findItem(config.rocket);
-  const rocketName = config.rocketName || (rocketItem && rocketItem.name) || config.rocket;
+  let rocketName = config.rocketName || (rocketItem && rocketItem.name);
+  if (!rocketName) {
+    // rockets that are not in the catalog (the shuttle flights) are named by their model
+    const model = createRocket(config.rocket);
+    rocketName = model && model.userData.name ? model.userData.name : config.rocket;
+  }
   const exact = TEMPLATES.filter(function (t) { return t.rocket === config.rocket && t.spacecraft === config.spacecraft && t.destination === config.destination; });
   const dest = DESTINATIONS[config.destination];
   const destName = place(config.destination);
   const brief = {
     title: config.title || (exact[0] ? exact[0].name : "Mission"),
-    from: { name: from.name, coords: "About " + coords(from.lat, from.lon) },
+    from: { name: from.name, coords: "About " + formatLatLon(from.lat, from.lon) },
     to: to,
     journey: exact[0] ? exact[0].duration : dest ? dest.travel : "",
     verdict: null
@@ -103,6 +111,14 @@ export function missionBriefing(config) {
       kind: "possible",
       label: "Possible: it really flew",
       tagline: "Flew for real: " + t.name + ", " + t.year + ".",
+      meter: { reach: DIFFICULTY[t.destination] || 0, need: DIFFICULTY[t.destination] || 0 },
+      bullets: [
+        ["Real mission", t.name + " (" + t.year + ")"],
+        ["Rocket", rocketName],
+        ["Spacecraft", craftName],
+        ["Journey", t.duration],
+        ["Crew", t.crew ? String(t.crew) : "None"]
+      ],
       short: t.name + " (" + t.year + ") used this exact rocket, spacecraft and destination.",
       reasons: [
         rocketName + " launched " + craftName + " to " + destName + " on the real " + t.name + " mission in " + t.year + ".",
@@ -154,10 +170,19 @@ export function missionBriefing(config) {
     reasons.push(craftName + " really flew to " + tripsText(craftTrips) + ".");
   }
   reasons.push("Simplified check: real mission planning compares the rocket's performance with the spacecraft's mass for the energy the trip needs. This project does not have verified numbers for that, so this is a guide, not a calculation.");
+  const bullets = [];
+  bullets.push(["Rocket's record", record ? place(record.destination) + " (" + record.name + ")" : "No real mission in this project"]);
+  bullets.push(["This trip needs", destName + (record && recordRank < rank ? ": farther than the rocket ever went" : record ? ": within the rocket's record" : "")]);
+  if (craftTrips.length) bullets.push(["Spacecraft built for", tripsText(craftTrips)]);
+  if (craft && craft.type === "crewed" && rank >= 2) bullets.push(["Crew record", "No crew has gone beyond the Moon"]);
+  if (craft && (craft.type === "rover" || craft.type === "lander") && NO_SURFACE[config.destination]) bullets.push(["Landing", "A " + craft.type + " needs a surface, and " + destName + " has none"]);
+  bullets.push(["Note", "Simplified guide, not a performance calculation"]);
   brief.verdict = {
     kind: kind,
     label: label,
     tagline: tagline,
+    meter: { reach: record ? recordRank : -1, need: rank, crew: craft && craft.type === "crewed" ? 1 : null },
+    bullets: bullets,
     short: kind === "unproven" ? "Each part is real, but they never flew together: this mission is fictional." : reasons[0],
     reasons: reasons
   };

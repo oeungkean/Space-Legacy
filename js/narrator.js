@@ -73,7 +73,7 @@ onSettingChange(function (key) {
   if (live && live.token === token && live.index < live.list.length) {
     const resume = live;
     stopSpeaking();
-    speakList(resume.list, resume.index, resume.onDone);
+    speakList(resume.list, resume.index, resume.onDone, resume.onSentence, resume.shown);
   }
 });
 let live = null; // what is being spoken now: { list, index, onDone, token }
@@ -120,21 +120,48 @@ export function stopSpeaking() {
 }
 
 // Speak text sentence by sentence, with natural pauses. onDone runs after the last sentence (or on an error).
-export function speak(text, onDone) {
+// Split the text as written into sentences, without breaking at "a.m.", "p.m.", "e.g.", "i.e.", "No. 3",
+// "U.S." or decimals. Each sentence is then said in its spoken form (humanize), and the same written
+// sentence can be shown as the subtitle, so what you read is exactly what you hear.
+const KEEP = [/\ba\.m\./g, /\bp\.m\./g, /\be\.g\./g, /\bi\.e\./g, /\bNo\.(?= ?\d)/g, /\bU\.S\./g, /\bvs\./g, /\bSt\./g, /\bMt\./g, /(\d)\.(\d)/g];
+function writtenSentences(text) {
+  let protectedText = String(text || "");
+  const saved = [];
+  KEEP.forEach(function (pattern) {
+    protectedText = protectedText.replace(pattern, function (match) {
+      saved.push(match);
+      return "\u0000" + (saved.length - 1) + "\u0001";
+    });
+  });
+  const parts = protectedText.match(/[^.!?]+[.!?]*["'\u201D]?/g) || [protectedText];
+  return parts.map(function (part) {
+    return part.replace(/\u0000(\d+)\u0001/g, function (m, i) { return saved[Number(i)]; }).trim();
+  }).filter(Boolean);
+}
+
+// onSentence (optional): called with each written sentence just before it is spoken (for subtitles)
+export function speak(text, onDone, onSentence) {
   stopSpeaking();
   if (!speechSupported) {
     if (onDone) onDone();
     return;
   }
-  speakList(sentences(humanize(text)), 0, onDone);
+  const written = writtenSentences(text);
+  const list = [];
+  const shown = [];
+  written.forEach(function (w) {
+    // long sentences are said in two breaths, but shown whole
+    sentences(humanize(w)).forEach(function (spoken) { list.push(spoken); shown.push(w); });
+  });
+  speakList(list, 0, onDone, onSentence, shown);
 }
 
-function speakList(list, start, onDone) {
+function speakList(list, start, onDone, onSentence, shown) {
   if (!chosen) refreshVoices();
   const myToken = token;
   const baseRate = Math.max(0.6, Math.min(1.4, getSetting("narratorRate") || 1));
   let index = start || 0;
-  live = { list: list, index: index, onDone: onDone, token: myToken };
+  live = { list: list, index: index, onDone: onDone, token: myToken, onSentence: onSentence, shown: shown };
 
   function finish() {
     if (myToken === token && onDone) onDone();
@@ -147,6 +174,7 @@ function speakList(list, start, onDone) {
       return;
     }
     const sentence = list[index];
+    if (onSentence && shown && shown[index] && (index === 0 || shown[index] !== shown[index - 1])) onSentence(shown[index]);
     const utterance = new SpeechSynthesisUtterance(sentence);
     if (chosen) {
       utterance.voice = chosen;

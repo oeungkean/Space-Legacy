@@ -352,14 +352,39 @@ function showBriefing(b) {
   el("mp-brief-time").textContent = b.journey || "Unknown";
   const verdict = el("mp-brief-verdict");
   verdict.className = "mb-verdict " + (b.verdict ? b.verdict.kind : "");
-  verdict.querySelector("i").textContent = !b.verdict ? "" : b.verdict.kind === "possible" ? "\u2713" : b.verdict.kind === "unlikely" ? "\u2715" : "?";
+  // a small sign, not a big red cross: the reach meter below shows why
+  verdict.querySelector("i").textContent = !b.verdict ? "" : b.verdict.kind === "possible" ? "\u2713" : b.verdict.kind === "unlikely" ? "!" : "?";
+  // Reach meter: four steps (Earth orbit, Moon, planets, far out); the bar is how far this rocket
+  // really sent anything, the flag is where this trip goes, and a gap means it would need more
+  const meter = el("mp-brief-meter");
+  const m = b.verdict && b.verdict.meter;
+  meter.classList.toggle("hidden", !m);
+  if (m) {
+    const at = function (rank) { return (Math.max(0, Math.min(4, rank)) / 4) * 100; };
+    const reach = m.reach < 0 ? 0 : at(m.reach + 0.5);
+    const need = at(m.need + 0.5);
+    meter.querySelector(".mb-reach").style.width = reach.toFixed(1) + "%";
+    const gap = meter.querySelector(".mb-gap");
+    gap.style.left = reach.toFixed(1) + "%";
+    gap.style.width = Math.max(0, need - reach).toFixed(1) + "%";
+    meter.querySelector(".mb-flag").style.left = need.toFixed(1) + "%";
+    meter.classList.toggle("short", need > reach + 0.1);
+  }
   verdict.querySelector("b").textContent = b.verdict ? b.verdict.label : "";
   verdict.querySelector("span").textContent = b.verdict ? (b.verdict.tagline || b.verdict.short) : "";
   const list = el("mp-brief-reasons");
   list.innerHTML = "";
-  (b.verdict ? b.verdict.reasons : []).forEach(function (text) {
+  // Show more: a short bullet summary (a label and a few words), not paragraphs
+  (b.verdict ? (b.verdict.bullets || b.verdict.reasons.map(function (r) { return ["", r]; })) : []).forEach(function (pair) {
     const li = document.createElement("li");
-    li.textContent = text;
+    if (pair[0]) {
+      const k = document.createElement("b");
+      k.textContent = pair[0];
+      li.appendChild(k);
+    }
+    const v = document.createElement("span");
+    v.textContent = pair[1];
+    li.appendChild(v);
     list.appendChild(li);
   });
   list.classList.add("hidden");
@@ -389,7 +414,12 @@ function sayLine(my, text) {
   if (voiceOn() && text && getPlaybackSpeed() === 1) { // at 2x and 4x the captions tell the story
     voiceDone = false;
     stopSpeaking();
-    speak(text, function () { if (my === token) { voiceDone = true; tryAdvance(my, false); } });
+    // the subtitle shows exactly the sentence being spoken
+    speak(text, function () { if (my === token) { voiceDone = true; tryAdvance(my, false); } }, function (sentence) {
+      if (my !== token || !captionsOn) return;
+      captionText.textContent = sentence;
+      captionText.classList.remove("hidden");
+    });
   }
 }
 

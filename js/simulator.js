@@ -20,6 +20,8 @@ import {
 } from "../data/simulator.js";
 import { buildObjectives, getPoints, getUpgrades, spendPoint, onProgressChange } from "./progress.js";
 import { play } from "./sounds.js";
+import { loadNasaModel } from "./nasa-models.js";
+import { hardwareList } from "../data/hardware.js";
 
 const el = function (id) { return document.getElementById(id); };
 const stepButtons = document.querySelectorAll ? document.querySelectorAll("[data-sim-step]") : [];
@@ -771,7 +773,7 @@ function addLabEquipment(g, roomR, box, wallH, size) {
   const cyanGlow = new THREE.MeshBasicMaterial({ color: 0x56d4f0 });
   const orange = new THREE.MeshStandardMaterial({ color: 0xf07a2a, roughness: 0.45, metalness: 0.3 });
   // a blueprint grid on the floor
-  const gridLines = new THREE.GridHelper(size * 0.9, 36, 0x56d4f0, 0x2b6f80);
+  const gridLines = new THREE.PolarGridHelper(roomR * 0.94, 24, 10, 96, 0x56d4f0, 0x2b6f80);
   gridLines.position.y = 0.012;
   gridLines.material.transparent = true;
   gridLines.material.opacity = 0.35;
@@ -847,6 +849,565 @@ function addLabEquipment(g, roomR, box, wallH, size) {
   }
 }
 
+// ----- Free Build: the domed engineering lab (fictional) -----
+// A round building: a ring wall, a ribbed dome with an opening at the top (an oculus) letting in daylight,
+// two ring catwalks, a polar crane that turns on a rail around the room, and a round airlock-style door.
+function hexTexture() {
+  const c = document.createElement("canvas");
+  c.width = 128; c.height = 111;
+  const ctx = c.getContext("2d");
+  if (!ctx || !ctx.fillRect) return null;
+  ctx.fillStyle = "#2a3442";
+  ctx.fillRect(0, 0, 128, 111);
+  ctx.strokeStyle = "rgba(140,200,230,0.22)";
+  ctx.lineWidth = 2;
+  const r = 128 / 6;
+  for (let row = -1; row < 8; row++) {
+    for (let col = -1; col < 3; col++) {
+      const cx = col * r * 3 + (row % 2 ? r * 1.5 : 0);
+      const cy = row * r * 0.866;
+      ctx.beginPath();
+      for (let k = 0; k <= 6; k++) {
+        const a = (k / 6) * Math.PI * 2;
+        const x = cx + Math.cos(a) * r;
+        const y = cy + Math.sin(a) * r;
+        if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      }
+      ctx.stroke();
+    }
+  }
+  const texture = new THREE.CanvasTexture(c);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function buildDomeLab(g, roomR, wallH, size, box) {
+  const R = roomR;
+  const ringH = wallH * 0.45;      // the straight ring wall
+  const domeH = wallH * 0.55;      // the dome on top of it
+  const person = 0.23;
+  const wallMap = hexTexture();
+  if (wallMap) wallMap.repeat.set(28, Math.max(2, ringH / 6));
+  const domeMap = hexTexture();
+  if (domeMap) domeMap.repeat.set(36, 10);
+  const shell = new THREE.MeshStandardMaterial({ color: 0x8a9ab0, map: wallMap, roughness: 0.6, metalness: 0.35, side: THREE.BackSide });
+  const domeMat = new THREE.MeshStandardMaterial({ color: 0x9fb0c8, map: domeMap, roughness: 0.7, metalness: 0.15, emissive: 0x1a2636, emissiveIntensity: 1, side: THREE.BackSide });
+  const steel = new THREE.MeshStandardMaterial({ color: 0x9aa6b6, roughness: 0.35, metalness: 0.8 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xdfe5ec, roughness: 0.5, metalness: 0.3 });
+  const cyan = new THREE.MeshBasicMaterial({ color: 0x56d4f0 });
+  const orange = new THREE.MeshStandardMaterial({ color: 0xf07a2a, roughness: 0.45, metalness: 0.3 });
+
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(R, R, ringH, 96, 1, true), shell);
+  ring.position.y = ringH / 2;
+  ring.receiveShadow = true;
+  g.add(ring);
+  // the dome, with an oculus (a round opening) at the top
+  const oculusAngle = 0.13;
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(R, 96, 32, 0, Math.PI * 2, oculusAngle, Math.PI / 2 - oculusAngle), domeMat);
+  dome.scale.y = domeH / R;
+  dome.position.y = ringH;
+  g.add(dome);
+  const sky = new THREE.Mesh(new THREE.CircleGeometry(R * Math.sin(oculusAngle) * 1.02, 48), new THREE.MeshBasicMaterial({ color: 0xcfe6ff }));
+  sky.rotation.x = Math.PI / 2;
+  sky.position.y = ringH + domeH * Math.cos(oculusAngle) + 0.05;
+  g.add(sky);
+  const oculusRim = new THREE.Mesh(new THREE.TorusGeometry(R * Math.sin(oculusAngle), size * 0.005, 8, 64), steel);
+  oculusRim.rotation.x = Math.PI / 2;
+  oculusRim.position.y = ringH + domeH * Math.cos(oculusAngle);
+  g.add(oculusRim);
+  // dome ribs (meridians) and rings, inside a group squashed to the dome's height
+  const ribs = new THREE.Group();
+  ribs.position.y = ringH;
+  ribs.scale.y = domeH / R;
+  for (let i = 0; i < 12; i++) {
+    const rib = new THREE.Mesh(new THREE.TorusGeometry(R * 0.985, size * 0.004, 6, 64, Math.PI), steel);
+    rib.rotation.y = (i / 12) * Math.PI;
+    ribs.add(rib);
+  }
+  [0.35, 0.7, 1.05].forEach(function (phi) {
+    const hoop = new THREE.Mesh(new THREE.TorusGeometry(R * 0.985 * Math.cos(phi), size * 0.003, 6, 96), steel);
+    hoop.rotation.x = Math.PI / 2;
+    hoop.position.y = R * 0.985 * Math.sin(phi);
+    ribs.add(hoop);
+  });
+  g.add(ribs);
+  // columns around the ring wall
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    const col = new THREE.Mesh(new THREE.BoxGeometry(size * 0.012, ringH, size * 0.014), steel);
+    col.position.set(Math.cos(a) * R * 0.99, ringH / 2, Math.sin(a) * R * 0.99);
+    col.rotation.y = -a;
+    g.add(col);
+  }
+  // light strips: one along the floor, one high on the ring wall
+  [[0.25, 0.03], [ringH * 0.86, 0.02]].forEach(function (l) {
+    const strip = new THREE.Mesh(new THREE.TorusGeometry(R * 0.975, Math.max(0.04, size * l[1] * 0.08), 6, 128), cyan);
+    strip.rotation.x = Math.PI / 2;
+    strip.position.y = l[0];
+    g.add(strip);
+  });
+  // two ring catwalks with railings
+  [0.42, 0.8].forEach(function (f) {
+    const y = ringH * f;
+    const walk = new THREE.Mesh(new THREE.RingGeometry(R * 0.93, R * 0.99, 96), new THREE.MeshStandardMaterial({ color: 0x5c6878, roughness: 0.6, metalness: 0.6, side: THREE.DoubleSide }));
+    walk.rotation.x = -Math.PI / 2;
+    walk.position.y = y;
+    g.add(walk);
+    const rail = new THREE.Mesh(new THREE.TorusGeometry(R * 0.93, size * 0.002 + 0.02, 6, 128), white);
+    rail.rotation.x = Math.PI / 2;
+    rail.position.y = y + person * 4.5;
+    g.add(rail);
+  });
+  // a polar crane: a bridge across the room that runs on a round rail at the top of the ring wall
+  const craneRail = new THREE.Mesh(new THREE.TorusGeometry(R * 0.9, size * 0.006, 8, 128), orange);
+  craneRail.rotation.x = Math.PI / 2;
+  craneRail.position.y = ringH * 0.97;
+  g.add(craneRail);
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(R * 1.8, size * 0.022, size * 0.03), orange);
+  bridge.position.y = ringH * 0.95;
+  bridge.rotation.y = 0.55;
+  g.add(bridge);
+  const trolley = new THREE.Mesh(new THREE.BoxGeometry(size * 0.04, size * 0.03, size * 0.05), white);
+  trolley.position.set(Math.cos(0.55) * R * 0.35, ringH * 0.93, -Math.sin(0.55) * R * 0.35);
+  trolley.rotation.y = 0.55;
+  g.add(trolley);
+  // a round airlock-style door at the back, with a lit frame
+  const doorR = Math.min(ringH * 0.42, Math.max(box * 0.7, 6));
+  const doorZ = -Math.sqrt(Math.max(0, R * R - doorR * doorR)) + 0.2;
+  const door = new THREE.Mesh(new THREE.CircleGeometry(doorR, 64), new THREE.MeshStandardMaterial({ color: 0x46566a, roughness: 0.45, metalness: 0.7 }));
+  door.position.set(0, doorR + 0.3, doorZ);
+  g.add(door);
+  const doorFrame = new THREE.Mesh(new THREE.TorusGeometry(doorR, size * 0.008, 8, 64), cyan);
+  doorFrame.position.copy(door.position);
+  doorFrame.position.z += 0.05;
+  g.add(doorFrame);
+  const split = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.004, doorR * 2), new THREE.MeshBasicMaterial({ color: 0x0c1118 }));
+  split.position.copy(door.position);
+  split.position.z += 0.06;
+  g.add(split);
+  // a lit sign above the door
+  const signCanvas = document.createElement("canvas");
+  signCanvas.width = 512; signCanvas.height = 96;
+  const ctx = signCanvas.getContext && signCanvas.getContext("2d");
+  if (ctx && ctx.fillRect) {
+    ctx.fillStyle = "#061a22"; ctx.fillRect(0, 0, 512, 96);
+    ctx.strokeStyle = "#56d4f0"; ctx.lineWidth = 4; ctx.strokeRect(4, 4, 504, 88);
+    ctx.fillStyle = "#bff3ff"; ctx.font = "bold 40px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("FREE BUILD LAB", 256, 52);
+    ctx.font = "18px sans-serif"; ctx.fillStyle = "#7fe6ff";
+    ctx.fillText("Fictional designs: try any combination", 256, 80);
+  }
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(doorR * 1.8, doorR * 0.34), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(signCanvas) }));
+  sign.position.set(0, doorR * 2 + 0.3 + doorR * 0.3, doorZ + 0.1);
+  g.add(sign);
+}
+
+// Small helper: add a box/cylinder mesh at a spot
+function addMesh(g, geometry, material, x, y, z, rotationY) {
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(x, y, z);
+  if (rotationY) mesh.rotation.y = rotationY;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  g.add(mesh);
+  return mesh;
+}
+// Equipment groups are drawn larger in bigger halls (the hall is sized to fit a rocket up to 110 m tall,
+// so desks and carts at true size would be too small to see from the camera). Set in buildHangar.
+let stationScale = 1;
+// A group standing at an angle around the room, turned to face the middle
+function station(g, roomR, box, angle, fraction) {
+  const p = placeAround(roomR, box, angle, fraction);
+  const group = new THREE.Group();
+  group.position.copy(p);
+  group.scale.setScalar(stationScale);
+  group.rotation.y = -angle - Math.PI / 2;
+  g.add(group);
+  return group;
+}
+function screenTexture(lines, bg, fg) {
+  const c = document.createElement("canvas");
+  c.width = 128; c.height = 80;
+  const ctx = c.getContext && c.getContext("2d");
+  if (!ctx || !ctx.fillRect) return null;
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, 128, 80);
+  ctx.strokeStyle = fg; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let x = 0; x <= 128; x += 4) ctx.lineTo(x, 40 + Math.sin(x * 0.12 + lines) * 14 + Math.sin(x * 0.4) * 4);
+  ctx.stroke();
+  ctx.fillStyle = fg;
+  for (let i = 0; i < 4; i++) ctx.fillRect(6, 6 + i * 7, 20 + ((i * 37 + lines * 13) % 60), 3);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// Free Build lab: workbenches with screens, server racks, a holo table, drones, a tool wall, crates and pods
+function addLabExtras(g, roomR, box, wallH, size) {
+  const person = 0.23;
+  const dark = new THREE.MeshStandardMaterial({ color: 0x232a35, roughness: 0.5, metalness: 0.6 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0x8792a3, roughness: 0.35, metalness: 0.8 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xdfe5ec, roughness: 0.5, metalness: 0.2 });
+  const orange = new THREE.MeshStandardMaterial({ color: 0xf07a2a, roughness: 0.45, metalness: 0.3 });
+  const cyan = new THREE.MeshBasicMaterial({ color: 0x56d4f0 });
+  const green = new THREE.MeshBasicMaterial({ color: 0x6ff0a8 });
+  const holo = new THREE.MeshBasicMaterial({ color: 0x7fe6ff, wireframe: true, transparent: true, opacity: 0.55 });
+  // workbenches, each with two screens, a tool case and an engineer
+  [0.55, 2.7, 3.75, 5.6, 1.95].forEach(function (angle, n) {
+    const s = station(g, roomR, box, angle, 0.72);
+    for (let k = -1; k <= 1; k += 2) {
+      const bx = k * 0.75;
+      addMesh(s, new THREE.BoxGeometry(1.2, 0.03, 0.4), white, bx, person * 0.42, 0);
+      [[-0.55, -0.17], [0.55, -0.17], [-0.55, 0.17], [0.55, 0.17]].forEach(function (l) {
+        addMesh(s, new THREE.BoxGeometry(0.03, person * 0.42, 0.03), steel, bx + l[0], person * 0.21, l[1]);
+      });
+      [-0.25, 0.25].forEach(function (sx, i) {
+        const tex = screenTexture(n * 3 + i + k, "#061a22", i ? "#6ff0a8" : "#56d4f0");
+        addMesh(s, new THREE.BoxGeometry(0.32, 0.2, 0.02), dark, bx + sx, person * 0.42 + 0.14, -0.12);
+        const face = new THREE.Mesh(new THREE.PlaneGeometry(0.29, 0.17), new THREE.MeshBasicMaterial({ map: tex, color: tex ? 0xffffff : 0x56d4f0 }));
+        face.position.set(bx + sx, person * 0.42 + 0.14, -0.105);
+        s.add(face);
+      });
+      addMesh(s, new THREE.BoxGeometry(0.22, 0.08, 0.14), orange, bx + 0.42, person * 0.42 + 0.055, 0.06);
+    }
+  });
+  // server racks with blinking-light strips
+  [1.2, 4.6].forEach(function (angle) {
+    const s = station(g, roomR, box, angle, 0.95);
+    for (let i = 0; i < 6; i++) {
+      const x = (i - 2.5) * 0.24;
+      addMesh(s, new THREE.BoxGeometry(0.22, person * 1.1, 0.3), dark, x, person * 0.55, 0);
+      for (let j = 0; j < 6; j++) {
+        const led = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.012, 0.005), (i + j) % 3 ? cyan : green);
+        led.position.set(x, 0.04 + j * person * 0.17, 0.152);
+        s.add(led);
+      }
+    }
+  });
+  // a holo table showing a wireframe planet
+  const ht = station(g, roomR, box, 2.35, 0.3);
+  addMesh(ht, new THREE.CylinderGeometry(0.6, 0.7, person * 0.45, 40), dark, 0, person * 0.225, 0);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.58, 0.01, 40), new THREE.MeshBasicMaterial({ color: 0x1b6a80 }));
+  top.position.y = person * 0.45 + 0.005;
+  ht.add(top);
+  const planet = new THREE.Mesh(new THREE.SphereGeometry(0.4, 18, 12), holo);
+  planet.position.y = person * 0.45 + 0.6;
+  ht.add(planet);
+  const orbit = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.006, 4, 64), cyan);
+  orbit.position.y = planet.position.y;
+  orbit.rotation.x = 1.25;
+  ht.add(orbit);
+  // test drones hovering over the floor
+  [[0.1, 0.5, 1.6], [2.55, 0.55, 2.4], [4.35, 0.45, 1.2], [5.3, 0.65, 3.0]].forEach(function (d) {
+    const p = placeAround(roomR, box, d[0], d[1]);
+    const drone = new THREE.Group();
+    drone.position.set(p.x, d[2] * stationScale, p.z);
+    drone.scale.setScalar(stationScale);
+    addMesh(drone, new THREE.BoxGeometry(0.16, 0.05, 0.16), white, 0, 0, 0);
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
+      addMesh(drone, new THREE.BoxGeometry(0.16, 0.012, 0.02), dark, c[0] * 0.08, 0, c[1] * 0.08, Math.PI / 4 * c[0] * c[1]);
+      const rotor = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.006, 4, 20), cyan);
+      rotor.rotation.x = Math.PI / 2;
+      rotor.position.set(c[0] * 0.13, 0.015, c[1] * 0.13);
+      drone.add(rotor);
+    });
+    g.add(drone);
+  });
+  // a tool wall (pegboard with tools) against the ring wall
+  const tw = station(g, roomR, box, 5.95, 1.08);
+  addMesh(tw, new THREE.BoxGeometry(3, person * 2.2, 0.05), dark, 0, person * 1.3, 0);
+  for (let i = 0; i < 14; i++) {
+    const x = -1.35 + (i % 7) * 0.45;
+    const y = person * 0.6 + Math.floor(i / 7) * person * 0.9 + 0.1;
+    addMesh(tw, new THREE.BoxGeometry(0.05, person * (0.4 + (i % 3) * 0.15), 0.03), i % 4 ? steel : orange, x, y, 0.05);
+  }
+  addMesh(tw, new THREE.BoxGeometry(1.2, person * 0.5, 0.35), new THREE.MeshStandardMaterial({ color: 0xb8432a, roughness: 0.5 }), -0.8, person * 0.25, 0.3);
+  // stacks of crates and a pallet
+  const cr = station(g, roomR, box, 1.0, 0.55);
+  [[0, 0, 0], [0.32, 0, 0], [0.16, 1, 0], [0, 0, 0.32], [0.7, 0, 0.1]].forEach(function (c, i) {
+    addMesh(cr, new THREE.BoxGeometry(0.3, 0.22, 0.3), i % 2 ? orange : steel, c[0], 0.11 + c[1] * 0.22 + 0.04, c[2]);
+  });
+  addMesh(cr, new THREE.BoxGeometry(1.0, 0.04, 0.7), new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: 0.9 }), 0.35, 0.02, 0.16);
+  // charging pods for the test rovers
+  const pods = station(g, roomR, box, 3.45, 0.78);
+  for (let i = 0; i < 4; i++) {
+    const x = (i - 1.5) * 0.7;
+    addMesh(pods, new THREE.CylinderGeometry(0.28, 0.3, 0.05, 32), dark, x, 0.025, 0);
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.01, 6, 32), i === 1 ? green : cyan);
+    halo.rotation.x = Math.PI / 2;
+    halo.position.set(x, 0.06, 0);
+    pods.add(halo);
+    // a small test rover on each pod
+    addMesh(pods, new THREE.BoxGeometry(0.3, 0.08, 0.2), white, x, 0.14, 0);
+    [[-0.12, -0.11], [0.12, -0.11], [-0.12, 0.11], [0.12, 0.11]].forEach(function (w) {
+      const wheel = addMesh(pods, new THREE.CylinderGeometry(0.045, 0.045, 0.03, 12), dark, x + w[0], 0.075, w[1]);
+      wheel.rotation.x = Math.PI / 2;
+    });
+    addMesh(pods, new THREE.BoxGeometry(0.02, 0.12, 0.02), steel, x + 0.1, 0.24, 0);
+  }
+}
+
+// Real Missions hall: more of what fills a real assembly building (forklift, tow tractor with carts,
+// rolling stairs, engineers' desks, pallets, safety barriers and tool chests)
+function addAssemblyExtras(g, roomR, box, wallH, size) {
+  const person = 0.23;
+  const yellowPaint = new THREE.MeshStandardMaterial({ color: 0xe9a91c, roughness: 0.5, metalness: 0.2 });
+  const grey = new THREE.MeshStandardMaterial({ color: 0x6b727c, roughness: 0.6, metalness: 0.5 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2f343b, roughness: 0.7, metalness: 0.4 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.55, metalness: 0.2 });
+  const red = new THREE.MeshStandardMaterial({ color: 0xb8322a, roughness: 0.5, metalness: 0.3 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: 0.9 });
+  const blue = new THREE.MeshStandardMaterial({ color: 0x2f5fa8, roughness: 0.55, metalness: 0.2 });
+  // a forklift carrying a crate
+  const fl = station(g, roomR, box, 0.25, 0.55);
+  addMesh(fl, new THREE.BoxGeometry(0.42, 0.16, 0.26), yellowPaint, 0, 0.12, 0);
+  addMesh(fl, new THREE.BoxGeometry(0.2, 0.2, 0.24), dark, -0.08, 0.3, 0);
+  [-0.12, 0.12].forEach(function (z) { addMesh(fl, new THREE.BoxGeometry(0.02, 0.45, 0.02), dark, 0.22, 0.24, z); });
+  [-0.07, 0.07].forEach(function (z) { addMesh(fl, new THREE.BoxGeometry(0.26, 0.01, 0.03), grey, 0.36, 0.05, z); });
+  addMesh(fl, new THREE.BoxGeometry(0.24, 0.16, 0.22), wood, 0.36, 0.14, 0);
+  [[-0.14, -0.13], [0.14, -0.13], [-0.14, 0.13], [0.14, 0.13]].forEach(function (w) {
+    const wheel = addMesh(fl, new THREE.CylinderGeometry(0.05, 0.05, 0.04, 12), dark, w[0], 0.05, w[1]);
+    wheel.rotation.x = Math.PI / 2;
+  });
+  // a tow tractor pulling three flat carts with hardware boxes
+  const tt = station(g, roomR, box, 1.85, 0.62);
+  addMesh(tt, new THREE.BoxGeometry(0.34, 0.14, 0.22), white, 0, 0.1, 0);
+  addMesh(tt, new THREE.BoxGeometry(0.14, 0.12, 0.2), blue, -0.06, 0.23, 0);
+  for (let i = 0; i < 3; i++) {
+    const x = -0.45 - i * 0.5;
+    addMesh(tt, new THREE.BoxGeometry(0.42, 0.03, 0.24), grey, x, 0.06, 0);
+    addMesh(tt, new THREE.BoxGeometry(0.3, 0.14 + (i % 2) * 0.06, 0.18), i === 1 ? white : blue, x, 0.15 + (i % 2) * 0.03, 0);
+  }
+  // rolling stairs (like the ones beside a spacecraft)
+  [[1.05, 0.3], [4.9, 0.28]].forEach(function (pos) {
+    const st = station(g, roomR, box, pos[0], pos[1]);
+    for (let i = 0; i < 8; i++) addMesh(st, new THREE.BoxGeometry(0.2, 0.02, 0.3), grey, i * 0.07, 0.05 + i * 0.06, 0);
+    addMesh(st, new THREE.BoxGeometry(0.3, 0.02, 0.34), grey, 0.62, 0.53, 0);
+    [-0.16, 0.16].forEach(function (z) {
+      const rail = addMesh(st, new THREE.BoxGeometry(0.75, 0.015, 0.015), yellowPaint, 0.27, 0.42, z);
+      rail.rotation.z = 0.7;
+      addMesh(st, new THREE.BoxGeometry(0.02, 0.55, 0.02), yellowPaint, 0.75, 0.28, z);
+    });
+  });
+  // engineers' desks with monitors, in a row (a work area on the floor)
+  const desks = station(g, roomR, box, 3.25, 0.82);
+  for (let i = 0; i < 5; i++) {
+    const x = (i - 2) * 0.5;
+    addMesh(desks, new THREE.BoxGeometry(0.42, 0.02, 0.22), white, x, person * 0.33, 0);
+    addMesh(desks, new THREE.BoxGeometry(0.4, person * 0.32, 0.02), grey, x, person * 0.16, -0.1);
+    const tex = screenTexture(i, "#0b1624", "#9fc6ea");
+    addMesh(desks, new THREE.BoxGeometry(0.16, 0.1, 0.01), dark, x, person * 0.33 + 0.07, -0.06);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.09), new THREE.MeshBasicMaterial({ map: tex, color: tex ? 0xffffff : 0x9fc6ea }));
+    face.position.set(x, person * 0.33 + 0.07, -0.054);
+    desks.add(face);
+    // a chair at each desk
+    addMesh(desks, new THREE.BoxGeometry(0.1, 0.02, 0.1), dark, x, person * 0.2, 0.14);
+    addMesh(desks, new THREE.BoxGeometry(0.1, 0.1, 0.02), dark, x, person * 0.2 + 0.05, 0.19);
+  }
+  // pallets of supplies
+  const pal = station(g, roomR, box, 5.95, 0.6);
+  [0, 0.45, 0.9].forEach(function (x, i) {
+    addMesh(pal, new THREE.BoxGeometry(0.4, 0.03, 0.4), wood, x, 0.015, 0);
+    addMesh(pal, new THREE.BoxGeometry(0.34, 0.12 + i * 0.05, 0.34), i === 1 ? white : grey, x, 0.03 + (0.12 + i * 0.05) / 2, 0);
+  });
+  // tool chests
+  const tc = station(g, roomR, box, 2.95, 0.45);
+  [0, 0.3].forEach(function (x) {
+    addMesh(tc, new THREE.BoxGeometry(0.26, 0.2, 0.14), red, x, 0.1, 0);
+    for (let k = 0; k < 4; k++) addMesh(tc, new THREE.BoxGeometry(0.22, 0.006, 0.005), grey, x, 0.04 + k * 0.045, 0.072);
+  });
+  // safety barriers (yellow and black posts with a chain) around the pad's work area
+  const postMat = new THREE.MeshStandardMaterial({ color: 0xf2b01e, roughness: 0.5 });
+  const chainMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.6 });
+  const n = 20;
+  const r = box * 1.1;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    if (Math.abs(Math.sin(a)) > 0.92 && Math.cos(a) < 0.5 && Math.sin(a) < 0) continue; // gap toward the door
+    addMesh(g, new THREE.CylinderGeometry(0.025 * stationScale, 0.03 * stationScale, 0.14 * stationScale, 8), postMat, Math.cos(a) * r, 0.07 * stationScale, Math.sin(a) * r);
+    const b = ((i + 1) / n) * Math.PI * 2;
+    const ax = Math.cos(a) * r, az = Math.sin(a) * r, bx = Math.cos(b) * r, bz = Math.sin(b) * r;
+    const len = Math.hypot(bx - ax, bz - az);
+    const chain = addMesh(g, new THREE.BoxGeometry(len, 0.012 * stationScale, 0.012 * stationScale), chainMat, (ax + bx) / 2, 0.12 * stationScale, (az + bz) / 2);
+    chain.rotation.y = -Math.atan2(bz - az, bx - ax);
+  }
+}
+
+// ----- Pictures and achievements on the walls of the Real Missions hall -----
+// Three NASA photos (the local copies credited in data/hardware.js, with their credit under each one) and
+// a row of plaques, one for each real mission in this project (name and year from data/simulator.js).
+function plaqueTexture(title, line, sub) {
+  const c = document.createElement("canvas");
+  c.width = 256; c.height = 320;
+  const ctx = c.getContext && c.getContext("2d");
+  if (!ctx || !ctx.fillRect) return null;
+  const grad = ctx.createLinearGradient(0, 0, 0, 320);
+  grad.addColorStop(0, "#1b2a4a"); grad.addColorStop(1, "#0e1628");
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, 256, 320);
+  ctx.strokeStyle = "#c9a54a"; ctx.lineWidth = 8; ctx.strokeRect(8, 8, 240, 304);
+  ctx.lineWidth = 2; ctx.strokeRect(20, 20, 216, 280);
+  // a simple star-and-orbit emblem (not any agency's logo)
+  ctx.strokeStyle = "#e9d28a"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(128, 100, 58, 22, -0.35, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = "#e9d28a";
+  ctx.beginPath();
+  for (let k = 0; k < 10; k++) {
+    const a = -Math.PI / 2 + (k / 10) * Math.PI * 2;
+    const rr = k % 2 ? 11 : 26;
+    ctx.lineTo(128 + Math.cos(a) * rr, 100 + Math.sin(a) * rr);
+  }
+  ctx.fill();
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#f4e7bd";
+  let size = 30;
+  ctx.font = "bold " + size + "px sans-serif";
+  while (ctx.measureText(title).width > 210 && size > 14) { size -= 2; ctx.font = "bold " + size + "px sans-serif"; }
+  ctx.fillText(title, 128, 190);
+  ctx.font = "bold 40px sans-serif";
+  ctx.fillStyle = "#e9d28a";
+  ctx.fillText(line, 128, 240);
+  ctx.font = "18px sans-serif";
+  ctx.fillStyle = "#c9d4e6";
+  ctx.fillText(sub, 128, 278);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function captionTexture(text, sub) {
+  const c = document.createElement("canvas");
+  c.width = 512; c.height = 96;
+  const ctx = c.getContext && c.getContext("2d");
+  if (!ctx || !ctx.fillRect) return null;
+  ctx.fillStyle = "#f2f0ea"; ctx.fillRect(0, 0, 512, 96);
+  ctx.fillStyle = "#1c2230"; ctx.font = "bold 28px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText(text, 256, 40);
+  ctx.font = "17px sans-serif"; ctx.fillStyle = "#4a5263";
+  let size = 17;
+  while (ctx.measureText(sub).width > 490 && size > 10) { size -= 1; ctx.font = size + "px sans-serif"; }
+  ctx.fillText(sub, 256, 74);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+// Puts a flat thing on a wall: wall = [x, z, rotation] (facing into the room), along = position along it
+function onWall(g, mesh, wall, along, y, inset) {
+  const ax = Math.cos(wall[2]), az = -Math.sin(wall[2]);
+  const nx = Math.sin(wall[2]), nz = Math.cos(wall[2]);
+  mesh.position.set(wall[0] + ax * along + nx * inset, y, wall[1] + az * along + nz * inset);
+  mesh.rotation.y = wall[2];
+  g.add(mesh);
+}
+function addWallGallery(g, roomR, wallH, size) {
+  const inset = size * 0.024;
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: 0.5, metalness: 0.5 });
+  const front = [0, roomR, Math.PI];
+  const left = [-roomR, 0, Math.PI / 2];
+  const right = [roomR, 0, -Math.PI / 2];
+  // Laid out from the floor up: credit cards, then the photos, then a banner over them
+  const photoH = size * 0.1;
+  const labelH = photoH * 0.27;
+  const labelY = Math.max(1.4, wallH * 0.07) + labelH / 2;
+  const photoY = labelY + labelH / 2 + photoH * 0.6;
+  const bannerW = size * 0.5;
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(bannerW, bannerW * 0.1), new THREE.MeshBasicMaterial({ map: captionTexture("MISSIONS THAT REALLY FLEW", "Photos: NASA, NASA/JPL-Caltech/MSSS. Plaques: the real missions in Space Legacy."), color: 0xffffff }));
+  onWall(g, banner, front, 0, photoY + photoH * 0.6 + bannerW * 0.07, inset);
+  // the three photos, with a frame and a credit card under each
+  const loader = new THREE.TextureLoader();
+  hardwareList.slice(0, 3).forEach(function (h, i) {
+    if (!h.image || !h.image.src) return;
+    const along = (i - 1) * size * 0.17;
+    const y = photoY;
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(photoH * 1.42, photoH * 1.1, size * 0.004), frameMat);
+    onWall(g, frame, front, along, y, inset);
+    const photoMat = new THREE.MeshBasicMaterial({ color: 0x3a4250 });
+    const photo = new THREE.Mesh(new THREE.PlaneGeometry(photoH * 1.33, photoH), photoMat);
+    onWall(g, photo, front, along, y, inset + size * 0.0025);
+    // the photo loads in the background; if it fails, the frame stays with a plain grey picture
+    loader.load(h.image.src, function (texture) {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      photoMat.map = texture;
+      photoMat.color.set(0xffffff);
+      photoMat.needsUpdate = true;
+    }, undefined, function () {});
+    const label = new THREE.Mesh(new THREE.PlaneGeometry(photoH * 1.42, labelH), new THREE.MeshBasicMaterial({ map: captionTexture(h.breadcrumbName || h.mission, h.image.credit), color: 0xffffff }));
+    onWall(g, label, front, along, labelY, inset);
+  });
+  // achievement plaques: one per real mission, along both side walls under the first gallery
+  const missions = TEMPLATES.filter(function (t) { return !t.hidden && t.name; });
+  const perSide = Math.ceil(missions.length / 2);
+  const spacing = (size * 0.84) / perSide;
+  const plaqueH = Math.min(wallH * 0.16, (spacing * 0.86) / 0.8);
+  missions.forEach(function (t, i) {
+    const wall = i < perSide ? left : right;
+    const k = i < perSide ? i : i - perSide;
+    const along = (k - (perSide - 1) / 2) * spacing;
+    const dest = DESTINATIONS[t.destination];
+    const tex = plaqueTexture(t.name, String(t.year), dest ? dest.name : "");
+    const plaque = new THREE.Mesh(new THREE.PlaneGeometry(plaqueH * 0.8, plaqueH), new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : 0x1b2a4a, roughness: 0.45, metalness: 0.2 }));
+    onWall(g, plaque, wall, along, wallH * 0.12, inset + size * 0.006);
+  });
+}
+
+// ----- The Agena Target Vehicle exhibit (an official NASA 3D model) -----
+// Model: NASA 3D Resources, https://science.nasa.gov/3d-resources/agena-target-vehicle/
+// Fact on the plaque: https://www.nasa.gov/mission/gemini-viii/ (first docking in space, March 16, 1966)
+function addAgenaExhibit(g, roomR, box, size) {
+  const ex = station(g, roomR, box, 3.95, 0.5);
+  ex.scale.setScalar(Math.min(stationScale, 2)); // enlarged a little, not as much as the equipment
+  const plinthMat = new THREE.MeshStandardMaterial({ color: 0x2b3038, roughness: 0.4, metalness: 0.6 });
+  addMesh(ex, new THREE.CylinderGeometry(1.3, 1.4, 0.12, 48), plinthMat, 0, 0.06, 0);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(1.3, 0.015, 6, 64), new THREE.MeshBasicMaterial({ color: 0xffd28a }));
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.121;
+  ex.add(rim);
+  // stand-in shape until NASA's model arrives (and the fallback if it can't be loaded)
+  const standIn = new THREE.Group();
+  addMesh(standIn, new THREE.CylinderGeometry(0.1, 0.1, 0.8, 24), new THREE.MeshStandardMaterial({ color: 0xd8d8d0, roughness: 0.5 }), 0, 0, 0).rotation.z = Math.PI / 2;
+  addMesh(standIn, new THREE.CylinderGeometry(0.05, 0.1, 0.16, 24), new THREE.MeshStandardMaterial({ color: 0x3a3f46, roughness: 0.5 }), 0.48, 0, 0).rotation.z = -Math.PI / 2;
+  standIn.position.y = 1.0;
+  ex.add(standIn);
+  // a display column it rests on (it is shown raised, at eye level)
+  addMesh(ex, new THREE.CylinderGeometry(0.06, 0.09, 0.75, 16), plinthMat, 0, 0.47, 0);
+  const lamp = new THREE.SpotLight(0xfff1d6, 3, 0, 0.5, 0.6);
+  lamp.position.set(0, 3.2, 1.2);
+  lamp.target.position.set(0, 1.0, 0);
+  ex.add(lamp);
+  ex.add(lamp.target);
+  loadNasaModel("agena").then(function (model) {
+    if (!model) return;
+    const measured = new THREE.Box3().setFromObject(model);
+    const dims = measured.getSize(new THREE.Vector3());
+    const scale = 1.6 / Math.max(dims.x, dims.y, dims.z, 1e-6);
+    model.scale.setScalar(scale);
+    const centre = measured.getCenter(new THREE.Vector3()).multiplyScalar(scale);
+    model.position.set(-centre.x, 1.0 - centre.y, -centre.z);
+    model.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    standIn.visible = false;
+    ex.add(model);
+  });
+  // the exhibit's sign
+  const c = document.createElement("canvas");
+  c.width = 512; c.height = 200;
+  const ctx = c.getContext && c.getContext("2d");
+  if (ctx && ctx.fillRect) {
+    ctx.fillStyle = "#f2f0ea"; ctx.fillRect(0, 0, 512, 200);
+    ctx.fillStyle = "#1c2230"; ctx.font = "bold 34px sans-serif";
+    ctx.fillText("Agena Target Vehicle", 20, 46);
+    ctx.font = "20px sans-serif"; ctx.fillStyle = "#353c4a";
+    ctx.fillText("The docking target for the Gemini program.", 20, 86);
+    ctx.fillText("Gemini VIII docked with an Agena on March 16, 1966:", 20, 116);
+    ctx.fillText("the first docking of two spacecraft in orbit.", 20, 142);
+    ctx.font = "16px sans-serif"; ctx.fillStyle = "#6a7282";
+    ctx.fillText("Official NASA 3D model (NASA 3D Resources), shown enlarged", 20, 182);
+  }
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.35), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c) }));
+  sign.position.set(0, 0.32, 1.42);
+  sign.rotation.x = -0.5;
+  ex.add(sign);
+  addMesh(ex, new THREE.BoxGeometry(0.04, 0.3, 0.04), plinthMat, 0, 0.15, 1.38);
+}
+
 // A person for scale (hard hat and coveralls): about 1.8 m tall
 function worker(height, color) {
   const g = new THREE.Group();
@@ -892,13 +1453,13 @@ function buildHangar(viewer, tallest, width) {
   const yellow = new THREE.MeshBasicMaterial({ color: freeBuild ? 0x56d4f0 : 0xffb020 });
   const lineW = Math.max(0.08, size * 0.003);
   const box = Math.max(width * 0.75, tallest * 0.45, 10);
-  [[0, box, box * 2, lineW], [0, -box, box * 2, lineW]].forEach(function (l) {
+  if (!freeBuild) [[0, box, box * 2, lineW], [0, -box, box * 2, lineW]].forEach(function (l) {
     const strip = new THREE.Mesh(new THREE.PlaneGeometry(l[2], l[3]), yellow);
     strip.rotation.x = -Math.PI / 2;
     strip.position.set(l[0], 0.01, l[1]);
     g.add(strip);
   });
-  [-box, box].forEach(function (x) {
+  if (!freeBuild) [-box, box].forEach(function (x) {
     const strip = new THREE.Mesh(new THREE.PlaneGeometry(lineW, box * 2), yellow);
     strip.rotation.x = -Math.PI / 2;
     strip.position.set(x, 0.01, 0);
@@ -909,8 +1470,25 @@ function buildHangar(viewer, tallest, width) {
   // (fill() lifts them to deckHeight()). It is long enough for everything on the pad.
   const mlpW = Math.max(width * 0.7, tallest * 0.22, 4);
   const deckH = deckHeight(tallest);
-  const mlp = new THREE.Mesh(new THREE.BoxGeometry(Math.max(mlpW * 1.6, width + 3), deckH, mlpW), darkSteel);
+  const mlpL = Math.max(mlpW * 1.6, width + 3);
+  const mlp = freeBuild
+    ? new THREE.Mesh(new THREE.CylinderGeometry(mlpL / 2, mlpL / 2 * 1.04, deckH, 72), new THREE.MeshStandardMaterial({ color: 0x2a3340, roughness: 0.35, metalness: 0.7 }))
+    : new THREE.Mesh(new THREE.BoxGeometry(mlpL, deckH, mlpW), darkSteel);
   mlp.position.y = deckH / 2;
+  if (freeBuild) {
+    // the turntable's glowing edge and a ring of markers on its top
+    const edge = new THREE.Mesh(new THREE.TorusGeometry(mlpL / 2, Math.max(0.03, size * 0.0012), 8, 96), new THREE.MeshBasicMaterial({ color: 0x56d4f0 }));
+    edge.rotation.x = Math.PI / 2;
+    edge.position.y = deckH + 0.01;
+    g.add(edge);
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      const tick = new THREE.Mesh(new THREE.BoxGeometry(mlpL * 0.04, 0.01, 0.04), new THREE.MeshBasicMaterial({ color: i % 6 ? 0x2b6f80 : 0x7fe6ff }));
+      tick.position.set(Math.cos(a) * mlpL * 0.46, deckH + 0.006, Math.sin(a) * mlpL * 0.46);
+      tick.rotation.y = -a;
+      g.add(tick);
+    }
+  }
   mlp.castShadow = true;
   mlp.receiveShadow = true;
   g.add(mlp);
@@ -919,132 +1497,137 @@ function buildHangar(viewer, tallest, width) {
   // inside it, like a game garage. Before, there was one wall and the camera circled outside the room.
   const roomR = size / 2;
   const wallH = Math.max(tallest * 1.6 + 4, deckH + tallest * 0.45 + roomR * 0.9);
-  const wallZ = -roomR;
-  const panelMap = wallPanelTexture();
-  const wallMat = new THREE.MeshStandardMaterial({ color: freeBuild ? 0x3b4656 : 0xa9afb8, map: panelMap, roughness: 0.7, metalness: 0.35 });
-  if (panelMap) panelMap.repeat.set(size / 6, wallH / 12);
-  // [x, z, rotation]: back, front, left, right, each facing into the room
-  const walls = [[0, -roomR, 0], [0, roomR, Math.PI], [-roomR, 0, Math.PI / 2], [roomR, 0, -Math.PI / 2]];
-  walls.forEach(function (w) {
-    const nx = Math.sin(w[2]);   // the wall's inward direction
-    const nz = Math.cos(w[2]);
-    const ax = Math.cos(w[2]);   // along the wall
-    const az = -Math.sin(w[2]);
-    const wall = new THREE.Mesh(new THREE.PlaneGeometry(size, wallH), wallMat);
-    wall.position.set(w[0], wallH / 2, w[1]);
-    wall.rotation.y = w[2];
-    wall.receiveShadow = true;
-    g.add(wall);
-    // tall steel columns along each wall
-    const ribs = 12;
-    for (let i = 0; i <= ribs; i++) {
-      const along = -roomR + (size / ribs) * i;
-      const rib = new THREE.Mesh(new THREE.BoxGeometry(size * 0.012, wallH, size * 0.014), steel);
-      rib.position.set(w[0] + ax * along + nx * size * 0.007, wallH / 2, w[1] + az * along + nz * size * 0.007);
-      rib.rotation.y = w[2];
-      g.add(rib);
-    }
-    // a band of high windows with daylight behind them
-    const band = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.92, wallH * 0.045), new THREE.MeshBasicMaterial({ color: 0xbcd4f5 }));
-    band.position.set(w[0] + nx * size * 0.016, wallH * 0.93, w[1] + nz * size * 0.016);
-    band.rotation.y = w[2];
-    g.add(band);
-    // a dark skirting band low on the wall (scuffed paint, cable trays)
-    const skirt = new THREE.Mesh(new THREE.PlaneGeometry(size, Math.max(1.2, wallH * 0.06)), skirtMat);
-    skirt.position.set(w[0] + nx * 0.05, Math.max(0.6, wallH * 0.03), w[1] + nz * 0.05);
-    skirt.rotation.y = w[2];
-    g.add(skirt);
-  });
-
-  // The high bay door in the back wall: tall stacked panels, with a thin line of daylight at its edges
-  const doorW = Math.max(width * 1.3, tallest * 0.55, 8);
-  const doorH = Math.min(wallH * 0.86, tallest * 1.35 + 3);
-  const doorMat = new THREE.MeshStandardMaterial({ color: 0x8c96a6, roughness: 0.5, metalness: 0.55 });
-  const door = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH), doorMat);
-  door.position.set(0, doorH / 2, wallZ + size * 0.02);
-  g.add(door);
-  for (let i = 1; i < 12; i++) {
-    const seam = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH * 0.006), darkSteel);
-    seam.position.set(0, (doorH / 12) * i, wallZ + size * 0.021);
-    g.add(seam);
-  }
-  const daylightMat = new THREE.MeshBasicMaterial({ color: 0xeaf2ff });
-  [-1, 1].forEach(function (side) {
-    const gap = new THREE.Mesh(new THREE.PlaneGeometry(doorW * 0.008, doorH), daylightMat);
-    gap.position.set(side * doorW / 2, doorH / 2, wallZ + size * 0.022);
-    g.add(gap);
-  });
-  const lintel = new THREE.Mesh(new THREE.BoxGeometry(doorW * 1.08, doorH * 0.04, size * 0.03), yellowPaint);
-  lintel.position.set(0, doorH * 1.02, wallZ + size * 0.02);
-  g.add(lintel);
-  // Crawler tracks on the floor, leading from the pad to the door
-  const trackMat = new THREE.MeshStandardMaterial({ color: 0x5a5f67, roughness: 0.9 });
-  [-1, 1].forEach(function (side) {
-    const track = new THREE.Mesh(new THREE.PlaneGeometry(doorW * 0.16, roomR), trackMat);
-    track.rotation.x = -Math.PI / 2;
-    track.position.set(side * doorW * 0.28, 0.006, -roomR / 2);
-    track.receiveShadow = true;
-    g.add(track);
-  });
-
-  // Work galleries along the side walls: three levels of catwalks with yellow railings and lamps
-  const galleryMat = new THREE.MeshStandardMaterial({ color: 0x6d7581, roughness: 0.6, metalness: 0.6 });
-  const galleryDepth = Math.max(1.2, size * 0.03);
-  const galleryLampMat = new THREE.MeshBasicMaterial({ color: 0xfff0d6 });
-  [-1, 1].forEach(function (side) {
-    [0.22, 0.42, 0.62].forEach(function (f) {
-      const y = wallH * f;
-      const walk = new THREE.Mesh(new THREE.BoxGeometry(galleryDepth, size * 0.006 + 0.08, size * 0.86), galleryMat);
-      walk.position.set(side * (roomR - galleryDepth / 2), y, 0);
-      walk.receiveShadow = true;
-      g.add(walk);
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(size * 0.004 + 0.03, size * 0.004 + 0.03, size * 0.86), yellowPaint);
-      rail.position.set(side * (roomR - galleryDepth), y + person * 4.5, 0);
-      g.add(rail);
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, size * 0.7), galleryLampMat);
-      lamp.position.set(side * (roomR - galleryDepth * 0.5), y - 0.15, 0);
-      g.add(lamp);
+  // Real Missions: the rectangular high bay. Free Build: a round, domed engineering lab (buildDomeLab).
+  if (!freeBuild) {
+    const wallZ = -roomR;
+    const panelMap = wallPanelTexture();
+    const wallMat = new THREE.MeshStandardMaterial({ color: freeBuild ? 0x3b4656 : 0xa9afb8, map: panelMap, roughness: 0.7, metalness: 0.35 });
+    if (panelMap) panelMap.repeat.set(size / 6, wallH / 12);
+    // [x, z, rotation]: back, front, left, right, each facing into the room
+    const walls = [[0, -roomR, 0], [0, roomR, Math.PI], [-roomR, 0, Math.PI / 2], [roomR, 0, -Math.PI / 2]];
+    walls.forEach(function (w) {
+      const nx = Math.sin(w[2]);   // the wall's inward direction
+      const nz = Math.cos(w[2]);
+      const ax = Math.cos(w[2]);   // along the wall
+      const az = -Math.sin(w[2]);
+      const wall = new THREE.Mesh(new THREE.PlaneGeometry(size, wallH), wallMat);
+      wall.position.set(w[0], wallH / 2, w[1]);
+      wall.rotation.y = w[2];
+      wall.receiveShadow = true;
+      g.add(wall);
+      // tall steel columns along each wall
+      const ribs = 12;
+      for (let i = 0; i <= ribs; i++) {
+        const along = -roomR + (size / ribs) * i;
+        const rib = new THREE.Mesh(new THREE.BoxGeometry(size * 0.012, wallH, size * 0.014), steel);
+        rib.position.set(w[0] + ax * along + nx * size * 0.007, wallH / 2, w[1] + az * along + nz * size * 0.007);
+        rib.rotation.y = w[2];
+        g.add(rib);
+      }
+      // a band of high windows with daylight behind them
+      const band = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.92, wallH * 0.045), new THREE.MeshBasicMaterial({ color: 0xbcd4f5 }));
+      band.position.set(w[0] + nx * size * 0.016, wallH * 0.93, w[1] + nz * size * 0.016);
+      band.rotation.y = w[2];
+      g.add(band);
+      // a dark skirting band low on the wall (scuffed paint, cable trays)
+      const skirt = new THREE.Mesh(new THREE.PlaneGeometry(size, Math.max(1.2, wallH * 0.06)), skirtMat);
+      skirt.position.set(w[0] + nx * 0.05, Math.max(0.6, wallH * 0.03), w[1] + nz * 0.05);
+      skirt.rotation.y = w[2];
+      g.add(skirt);
     });
-  });
 
-  // Roof: a dark ceiling with a steel truss grid, rows of high bay lamps, and a bridge crane on rails
-  const roofY = wallH;
-  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ color: 0x23272e, roughness: 0.9, metalness: 0.2 }));
-  ceiling.rotation.x = Math.PI / 2;
-  ceiling.position.y = roofY;
-  g.add(ceiling);
-  for (let i = -4; i <= 4; i++) {
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(size, size * 0.016, size * 0.012), steel);
-    beam.position.set(0, roofY - size * 0.012, i * size * 0.11);
-    g.add(beam);
-    const cross = new THREE.Mesh(new THREE.BoxGeometry(size * 0.012, size * 0.012, size), darkSteel);
-    cross.position.set(i * size * 0.11, roofY - size * 0.026, 0);
-    g.add(cross);
-  }
-  const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff6e4 });
-  const lampGeo = new THREE.CylinderGeometry(size * 0.012, size * 0.016, size * 0.008, 12);
-  for (let i = -3; i <= 3; i++) {
-    for (let j = -3; j <= 3; j++) {
-      const lamp = new THREE.Mesh(lampGeo, lampMat);
-      lamp.position.set(i * size * 0.13, roofY - size * 0.04, j * size * 0.13);
-      g.add(lamp);
+    // The high bay door in the back wall: tall stacked panels, with a thin line of daylight at its edges
+    const doorW = Math.max(width * 1.3, tallest * 0.55, 8);
+    const doorH = Math.min(wallH * 0.86, tallest * 1.35 + 3);
+    const doorMat = new THREE.MeshStandardMaterial({ color: 0x8c96a6, roughness: 0.5, metalness: 0.55 });
+    const door = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH), doorMat);
+    door.position.set(0, doorH / 2, wallZ + size * 0.02);
+    g.add(door);
+    for (let i = 1; i < 12; i++) {
+      const seam = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH * 0.006), darkSteel);
+      seam.position.set(0, (doorH / 12) * i, wallZ + size * 0.021);
+      g.add(seam);
     }
+    const daylightMat = new THREE.MeshBasicMaterial({ color: 0xeaf2ff });
+    [-1, 1].forEach(function (side) {
+      const gap = new THREE.Mesh(new THREE.PlaneGeometry(doorW * 0.008, doorH), daylightMat);
+      gap.position.set(side * doorW / 2, doorH / 2, wallZ + size * 0.022);
+      g.add(gap);
+    });
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(doorW * 1.08, doorH * 0.04, size * 0.03), yellowPaint);
+    lintel.position.set(0, doorH * 1.02, wallZ + size * 0.02);
+    g.add(lintel);
+    // Crawler tracks on the floor, leading from the pad to the door
+    const trackMat = new THREE.MeshStandardMaterial({ color: 0x5a5f67, roughness: 0.9 });
+    [-1, 1].forEach(function (side) {
+      const track = new THREE.Mesh(new THREE.PlaneGeometry(doorW * 0.16, roomR), trackMat);
+      track.rotation.x = -Math.PI / 2;
+      track.position.set(side * doorW * 0.28, 0.006, -roomR / 2);
+      track.receiveShadow = true;
+      g.add(track);
+    });
+
+    // Work galleries along the side walls: three levels of catwalks with yellow railings and lamps
+    const galleryMat = new THREE.MeshStandardMaterial({ color: 0x6d7581, roughness: 0.6, metalness: 0.6 });
+    const galleryDepth = Math.max(1.2, size * 0.03);
+    const galleryLampMat = new THREE.MeshBasicMaterial({ color: 0xfff0d6 });
+    [-1, 1].forEach(function (side) {
+      [0.22, 0.42, 0.62].forEach(function (f) {
+        const y = wallH * f;
+        const walk = new THREE.Mesh(new THREE.BoxGeometry(galleryDepth, size * 0.006 + 0.08, size * 0.86), galleryMat);
+        walk.position.set(side * (roomR - galleryDepth / 2), y, 0);
+        walk.receiveShadow = true;
+        g.add(walk);
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(size * 0.004 + 0.03, size * 0.004 + 0.03, size * 0.86), yellowPaint);
+        rail.position.set(side * (roomR - galleryDepth), y + person * 4.5, 0);
+        g.add(rail);
+        const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, size * 0.7), galleryLampMat);
+        lamp.position.set(side * (roomR - galleryDepth * 0.5), y - 0.15, 0);
+        g.add(lamp);
+      });
+    });
+
+    // Roof: a dark ceiling with a steel truss grid, rows of high bay lamps, and a bridge crane on rails
+    const roofY = wallH;
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ color: 0x23272e, roughness: 0.9, metalness: 0.2 }));
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.y = roofY;
+    g.add(ceiling);
+    for (let i = -4; i <= 4; i++) {
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(size, size * 0.016, size * 0.012), steel);
+      beam.position.set(0, roofY - size * 0.012, i * size * 0.11);
+      g.add(beam);
+      const cross = new THREE.Mesh(new THREE.BoxGeometry(size * 0.012, size * 0.012, size), darkSteel);
+      cross.position.set(i * size * 0.11, roofY - size * 0.026, 0);
+      g.add(cross);
+    }
+    const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff6e4 });
+    const lampGeo = new THREE.CylinderGeometry(size * 0.012, size * 0.016, size * 0.008, 12);
+    for (let i = -3; i <= 3; i++) {
+      for (let j = -3; j <= 3; j++) {
+        const lamp = new THREE.Mesh(lampGeo, lampMat);
+        lamp.position.set(i * size * 0.13, roofY - size * 0.04, j * size * 0.13);
+        g.add(lamp);
+      }
+    }
+    [-1, 1].forEach(function (side) {
+      const railBeam = new THREE.Mesh(new THREE.BoxGeometry(size * 0.02, size * 0.02, size), yellowPaint);
+      railBeam.position.set(side * roomR * 0.7, roofY - size * 0.06, 0);
+      g.add(railBeam);
+    });
+    const crane = new THREE.Mesh(new THREE.BoxGeometry(roomR * 1.4, size * 0.03, size * 0.035), yellowPaint);
+    crane.position.set(0, roofY - size * 0.08, -box * 0.5);
+    g.add(crane);
+    const hookLength = Math.max(1, roofY - size * 0.08 - (deckH + tallest * 1.1));
+    const hook = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, hookLength, 6), darkSteel);
+    hook.position.set(box * 0.3, roofY - size * 0.08 - hookLength / 2, -box * 0.5);
+    g.add(hook);
+  } else {
+    buildDomeLab(g, roomR, wallH, size, box);
   }
-  [-1, 1].forEach(function (side) {
-    const railBeam = new THREE.Mesh(new THREE.BoxGeometry(size * 0.02, size * 0.02, size), yellowPaint);
-    railBeam.position.set(side * roomR * 0.7, roofY - size * 0.06, 0);
-    g.add(railBeam);
-  });
-  const crane = new THREE.Mesh(new THREE.BoxGeometry(roomR * 1.4, size * 0.03, size * 0.035), yellowPaint);
-  crane.position.set(0, roofY - size * 0.08, -box * 0.5);
-  g.add(crane);
-  const hookLength = Math.max(1, roofY - size * 0.08 - (deckH + tallest * 1.1));
-  const hook = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, hookLength, 6), darkSteel);
-  hook.position.set(box * 0.3, roofY - size * 0.08 - hookLength / 2, -box * 0.5);
-  g.add(hook);
 
   // Service tower (red lattice) with an access arm, beside the pad
-  const towerMat = new THREE.MeshStandardMaterial({ color: 0xb8432a, roughness: 0.55, metalness: 0.55 });
+  const towerMat = new THREE.MeshStandardMaterial({ color: freeBuild ? 0xd9e0e8 : 0xb8432a, roughness: 0.55, metalness: 0.55 });
   const towerH = tallest * 1.05;
   const tw = Math.max(1.2, tallest * 0.05);
   const tx = -box * 0.78;
@@ -1090,8 +1673,16 @@ function buildHangar(viewer, tallest, width) {
   });
 
   // Big equipment around the hall (sized for a hall that holds a 110 m rocket, so it can be seen)
-  if (freeBuild) addLabEquipment(g, roomR, box, wallH, size);
-  else addAssemblyEquipment(g, roomR, box, wallH, size);
+  stationScale = Math.min(4, Math.max(1.5, size * 0.035));
+  if (freeBuild) {
+    addLabEquipment(g, roomR, box, wallH, size);
+    addLabExtras(g, roomR, box, wallH, size);
+  } else {
+    addAssemblyEquipment(g, roomR, box, wallH, size);
+    addAssemblyExtras(g, roomR, box, wallH, size);
+    addWallGallery(g, roomR, wallH, size);
+    addAgenaExhibit(g, roomR, box, size);
+  }
 
   // Carts, crates and people on the floor, for scale
   const crateMat = new THREE.MeshStandardMaterial({ color: 0x55606e, roughness: 0.7, metalness: 0.3 });

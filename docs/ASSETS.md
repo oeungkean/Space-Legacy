@@ -39,5 +39,6 @@ Earth's day map, normal map, specular (ocean-shine) map and clouds load from the
 | `pioneer` | Pioneer 10 | 1.95 MB |
 | `viking-lander` | Viking Lander | 1.76 MB |
 | `perseverance` | Mars 2020 Perseverance Rover | 4.76 MB |
+| `agena` | Agena Target Vehicle (https://science.nasa.gov/3d-resources/agena-target-vehicle/) | 1.10 MB |
 
-Where they are used: the Missions page's 3D viewer and the landers in the landing scenes. The project's own model shows first and stays if NASA's server cannot be reached (offline). The launch rockets keep the project's models, because their stage separations are built from those models' parts. To work fully offline, these files could be saved in `assets/models/` and the base URL changed (ask first: that is downloading files).
+Where they are used: the Missions page's 3D viewer, the landers in the landing scenes, and the Agena exhibit in the Real Missions builder hall. The project's own model shows first and stays if NASA's server cannot be reached (offline). The launch rockets keep the project's models, because their stage separations are built from those models' parts. To work fully offline, these files could be saved in `assets/models/` and the base URL changed (ask first: that is downloading files).

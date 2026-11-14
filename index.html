@@ -130,6 +130,17 @@
       </div>
     </div>
 
+    <!-- Where this launch really happened (js/launch-cinematic.js, data/launch-sites.js) -->
+    <aside id="cinema-site" class="cinema-site hidden" aria-label="Launch site">
+      <div class="cs-map"><img alt="Map of Earth with the launch site marked" decoding="async" src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg"><span class="cs-dot" aria-hidden="true"></span></div>
+      <div class="cs-text">
+        <em>Launch site</em>
+        <b id="cinema-site-pad"></b>
+        <span id="cinema-site-place"></span>
+        <span id="cinema-site-coords" class="cs-coords"></span>
+      </div>
+    </aside>
+
     <div id="cinema-fade" class="cinema-fade"></div>
   </section>
 
@@ -803,9 +814,15 @@
         <ul id="results-body" class="detail-facts"></ul>
         <div class="detail-actions">
           <button id="results-return" class="primary hidden">Return to Earth &darr;</button>
-          <button id="results-collection" class="small-button">My Collection</button>
-          <button id="results-simulator" class="small-button">New mission</button>
+          <button id="results-collection" class="small-button" aria-expanded="false" aria-controls="results-found">My Collection</button>
           <button id="results-continue" class="small-button">Keep exploring</button>
+        </div>
+        <!-- What you collected at this site, as pictures (instead of leaving for the Collection page) -->
+        <div id="results-found" class="results-found hidden">
+          <p class="eyebrow">Collected here</p>
+          <div id="results-found-grid" class="related-chips results-grid"></div>
+          <p id="results-found-note" class="results-found-note"></p>
+          <button id="results-full-collection" class="link-button">See the full collection &rarr;</button>
         </div>
       </div>
     </div>
@@ -902,7 +919,7 @@
             <table class="credit-table">
               <thead><tr><th scope="col">Source</th><th scope="col">Used for</th><th scope="col">License / attribution</th></tr></thead>
               <tbody>
-              <tr><th scope="row"><a href="https://science.nasa.gov/3d-resources/" target="_blank" rel="noopener">NASA 3D Resources</a></th><td>Official 3D models (Saturn V, Apollo Lunar Module, Gemini, Galileo, Parker Solar Probe, Pioneer 10, Viking Lander, Perseverance), loaded from NASA in the Missions 3D viewer and the landing scenes.</td><td>NASA Images and Media Usage Guidelines (free to use; no endorsement implied)</td></tr>
+              <tr><th scope="row"><a href="https://science.nasa.gov/3d-resources/" target="_blank" rel="noopener">NASA 3D Resources</a></th><td>Official 3D models (Saturn V, Apollo Lunar Module, Gemini, Galileo, Parker Solar Probe, Pioneer 10, Viking Lander, Perseverance, Agena Target Vehicle), loaded from NASA in the Missions 3D viewer, the landing scenes and the Real Missions builder hall (Agena exhibit).</td><td>NASA Images and Media Usage Guidelines (free to use; no endorsement implied)</td></tr>
               <tr><th scope="row"><a href="https://threejs.org" target="_blank" rel="noopener">three.js r160</a></th><td>3D rendering, cameras, controls and the RoomEnvironment lighting in the Engineering Bay.</td><td>MIT License</td></tr>
               <tr><th scope="row"><a href="https://www.jsdelivr.com/" target="_blank" rel="noopener">jsDelivr CDN</a></th><td>Delivers three.js and the Earth/Moon textures.</td><td>Free public CDN</td></tr>
               <tr><th scope="row"><a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API" target="_blank" rel="noopener">Web Audio API and Web Speech API</a></th><td>All sounds are generated live in the browser; narration uses your browser’s own voices.</td><td>Built into the browser</td></tr>
@@ -1000,13 +1017,20 @@
       <div id="mp-brief-body" class="mb-body">
         <p class="mb-kicker">Mission briefing</p>
         <h4 id="mp-brief-title"></h4>
-        <div class="mb-route" aria-label="Route">
-          <div class="mb-end"><i class="mb-dot from" aria-hidden="true"></i><b id="mp-brief-from"></b><span id="mp-brief-from-coords"></span></div>
-          <div class="mb-line" aria-hidden="true"><span id="mp-brief-time-pill"></span></div>
-          <div class="mb-end"><i class="mb-dot to" aria-hidden="true"></i><b id="mp-brief-to"></b><span id="mp-brief-to-coords"></span></div>
-        </div>
-        <p class="mb-time"><span>Journey</span> <b id="mp-brief-time"></b></p>
+        <dl class="mb-rows">
+          <dt><i class="mb-dot from" aria-hidden="true"></i>From</dt>
+          <dd><b id="mp-brief-from"></b><span id="mp-brief-from-coords"></span></dd>
+          <dt><i class="mb-dot to" aria-hidden="true"></i>To</dt>
+          <dd><b id="mp-brief-to"></b><span id="mp-brief-to-coords"></span></dd>
+          <dt><i class="mb-dot time" aria-hidden="true"></i>Journey</dt>
+          <dd><b id="mp-brief-time"></b></dd>
+        </dl>
         <p id="mp-brief-verdict" class="mb-verdict"><i aria-hidden="true"></i><b></b><span></span></p>
+        <div id="mp-brief-meter" class="mb-meter" aria-hidden="true">
+          <div class="mb-track"><span class="mb-reach"></span><span class="mb-gap"></span><span class="mb-flag"></span></div>
+          <div class="mb-steps"><span>Earth orbit</span><span>Moon</span><span>Planets</span><span>Far out</span></div>
+          <p class="mb-legend"><span><i class="lg-reach"></i>How far this rocket really went</span><span><i class="lg-flag"></i>Where this trip goes</span></p>
+        </div>
         <button id="mp-brief-more" class="mb-more" data-silent aria-expanded="false" aria-controls="mp-brief-reasons">Show more</button>
         <ul id="mp-brief-reasons" class="mb-reasons hidden"></ul>
       </div>
