@@ -286,6 +286,34 @@ document.addEventListener("watch-landing", function (event) {
   startLanding(item);
 });
 
+// "Replay Mission" for a site without a full journey replay: the arrival, the landing, and what happened
+// after it (the site's real status and findings), in the mission player
+document.addEventListener("replay-landing", function (event) {
+  const item = hardwareList.find(function (entry) { return entry.id === event.detail.hardwareId; });
+  if (!hasLanding(item)) return;
+  playReplay(landingPlan(item));
+});
+const WORLD_KEY = { Moon: "moon", Mars: "mars", Venus: "venus", Mercury: "mercury", Jupiter: "jupiter", Saturn: "saturn", Titan: "titan" };
+function landingPlan(item) {
+  const world = WORLD_KEY[item.destination] || "mars";
+  const craft = item.landing.lander || item.landing.capsule || "capsule";
+  const verb = item.kind === "impact" ? "impact" : item.kind === "probe" ? "descent" : item.kind === "plunge" ? "final plunge" : "landing";
+  const after = [item.status && item.status.text].concat((item.contributions || []).slice(0, 2)).filter(Boolean);
+  return {
+    title: item.breadcrumbName || item.name,
+    source: { type: "landing", id: item.id },
+    chapters: [
+      { engine: "film", label: "Arrival", title: "Arriving at " + item.destination, date: item.landingDate, caption: item.summary,
+        narration: item.summary, part: "out", shot: { kind: "arrive", world: world, craft: craft } },
+      { engine: "landing", label: verb.charAt(0).toUpperCase() + verb.slice(1), title: item.name, date: item.landingDate,
+        caption: item.location, narration: (item.history || []).slice(1).map(function (h) { return h.text; }).join(" "),
+        part: "out", landing: true, item: item },
+      { engine: "film", label: "What happened next", title: "After the " + verb, date: "", caption: after.join(" "),
+        narration: "What happened next? " + after.join(" "), part: "end", finale: true, shot: { kind: "finale", world: world, craft: null } }
+    ]
+  };
+}
+
 // Back from the landing scene: return to the globe with the same marker selected
 function backFromLanding() {
   if (!landingItem) return;
@@ -820,18 +848,13 @@ document.getElementById("results-continue").addEventListener("click", function (
 void setSimMode;
 document.getElementById("explorer-help").addEventListener("click", function () { openHelp(); });
 
-// From a hardware profile on a globe: open the same item in the Explorer
-document.getElementById("hw-explorer").addEventListener("click", function () {
-  const id = getSelectedHardwareId();
-  const item = catalog.find(function (entry) { return entry.hardware === id && entry.landing === id; }) ||
-    catalog.find(function (entry) { return entry.hardware === id; });
-  showExplorer(item ? { itemId: item.id } : { body: getCurrentWorldName() || "" });
+// "Go back" on a globe (the site panel, the flyby panel and the site list): back to the Solar System
+// (Master Doc 10: these were "Open in Missions" and "All hardware from this world")
+["hw-explorer", "dest-explorer-link", "visit-back"].forEach(function (id) {
+  const button = document.getElementById(id);
+  if (button) button.addEventListener("click", function () { showScreen(solarSystemScreen); });
 });
-
-// From a globe's site list: every catalog item linked to this world
-document.getElementById("dest-explorer-link").addEventListener("click", function () {
-  showExplorer({ body: getCurrentWorldName() || "" });
-});
+void getSelectedHardwareId;
 
 // ----- Help dialog -----
 function openHelp() {

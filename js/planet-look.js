@@ -23,11 +23,16 @@ export const PLANET_LOOKS = {
     clouds: CDN + "earth_clouds_1024.png", colors: ["#1f4f8f", "#2f5d34", "#c9b98d"], earth: true, radius: 4, air: 0x6aa8ff, tilt: 23.4
   },
   Moon: { map: LOCAL + "moon.jpg", alt: CDN + "moon_1024.jpg", colors: ["#8f8c86", "#5f5d59", "#b4b1aa"], bands: false, radius: 1.1, air: null, tilt: 6.7 },
-  Mars: { map: LOCAL + "mars.jpg", colors: ["#b5562c", "#6e2f17", "#d99a6c"], bands: false, radius: 2.2, air: 0xe8a27a, tilt: 25.2 },
-  Jupiter: { map: LOCAL + "jupiter.jpg", colors: ["#d4b48a", "#9b6a47", "#efe2c8"], bands: true, radius: 13, air: null, tilt: 3.1 },
-  Saturn: { map: LOCAL + "saturn.jpg", ring: LOCAL + "saturn_ring.png", colors: ["#e2cd9e", "#b9995f", "#f3e6c4"], bands: true, radius: 11, air: null, tilt: 26.7 },
+  // sharp: a 4096 px map (Solar System Scope, CC BY 4.0) that replaces the 2048 px one once loaded (not on phones)
+  Mars: { map: LOCAL + "mars.jpg", sharp: LOCAL + "mars_4k.jpg", colors: ["#b5562c", "#6e2f17", "#d99a6c"], bands: false, radius: 2.2, air: 0xe8a27a, tilt: 25.2 },
+  Jupiter: { map: LOCAL + "jupiter.jpg", sharp: LOCAL + "jupiter_4k.jpg", colors: ["#d4b48a", "#9b6a47", "#efe2c8"], bands: true, radius: 13, air: null, tilt: 3.1 },
+  Saturn: { map: LOCAL + "saturn.jpg", sharp: LOCAL + "saturn_4k.jpg", ring: LOCAL + "saturn_ring.png", colors: ["#e2cd9e", "#b9995f", "#f3e6c4"], bands: true, radius: 11, air: null, tilt: 26.7 },
   Uranus: { map: LOCAL + "uranus.jpg", colors: ["#a6dbe3", "#86c3cf", "#c6eef3"], bands: true, soft: true, radius: 6.5, air: 0xbdeef5, tilt: 97.8 },
-  Neptune: { map: LOCAL + "neptune.jpg", colors: ["#3f63c9", "#2a46a0", "#7896ea"], bands: true, radius: 6.3, air: 0x86a6ff, tilt: 28.3 }
+  Neptune: { map: LOCAL + "neptune.jpg", colors: ["#3f63c9", "#2a46a0", "#7896ea"], bands: true, radius: 6.3, air: 0x86a6ff, tilt: 28.3 },
+  // Titan: NASA/JPL-Caltech/Space Science Institute global mosaic PIA22770 (Cassini ISS, near-infrared,
+  // 938 nm; public domain), tinted warm for display. Its 0 degrees longitude is at the left edge of the
+  // picture, so it is turned half a turn (offsetU) to line up with the other maps.
+  Titan: { map: LOCAL + "titan_4k.jpg", offsetU: 0.5, colors: ["#d29a4a", "#a86826", "#e2aa54"], bands: false, soft: true, radius: 1.2, air: 0xe0a050, tilt: 0 }
 };
 
 // ----- Seamless 3D value noise -----
@@ -209,14 +214,40 @@ export function planetMaterial(name, onReady, options) {
   const look = PLANET_LOOKS[name] || PLANET_LOOKS.Moon;
   const hd = Boolean(options && options.hd && look.hd);
   const material = new THREE.MeshStandardMaterial({ map: paintedMap(name, look.earth ? 1024 : 512), roughness: look.bands ? 0.95 : 0.88, metalness: 0 });
-  function useMap(texture) {
+  let useMap = function (texture) {
     if (texture) { material.map = texture; material.needsUpdate = true; if (onReady) onReady(true); }
-  }
+  };
   let sharp = false;
   loadMap(look.map, function (texture) {
     if (texture) { if (!sharp) useMap(texture); }
     else if (look.alt) loadMap(look.alt, useMap);
   });
+  // the sharper 4096 px map, where there is one (skipped on small screens to save memory)
+  if (look.sharp && !(typeof window !== "undefined" && window.innerWidth < 700)) {
+    loadMap(look.sharp, function (texture) { if (texture) { sharp = true; useMap(texture); } });
+  }
+  if (look.offsetU) {
+    const turn = function () {
+      if (!material.map || material.map.userData.turned) return;
+      material.map.wrapS = THREE.RepeatWrapping;
+      material.map.offset.x = look.offsetU;
+      material.map.userData.turned = true;
+      material.map.needsUpdate = true;
+    };
+    const plainUse = useMap;
+    useMap = function (texture) { plainUse(texture); turn(); };
+    turn(); // (when the map came straight from the cache, before this was set up)
+  }
+  // Gas giants and worlds under thick haze look darker toward their edges (limb darkening), which makes
+  // them read as round balls of gas rather than flat discs
+  if (look.bands || look.soft) {
+    material.onBeforeCompile = function (shader) {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <opaque_fragment>",
+        "outgoingLight *= mix(0.6, 1.0, pow(max(dot(normal, normalize(vViewPosition)), 0.0), 0.45));\n#include <opaque_fragment>"
+      );
+    };
+  }
   // the 4096 px map arrives later and replaces the 2048 px one (it stays on the smaller one if it fails)
   if (hd) loadMap(look.hd, function (texture) { if (texture) { sharp = true; useMap(texture); } });
   if (options && options.detail) addSurfaceDetail(material, options.detail === true ? {} : options.detail);

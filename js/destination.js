@@ -8,6 +8,8 @@ import { hardwareList } from "../data/hardware.js";
 import { hardwareReplays } from "../data/hardware-replays.js";
 import { play } from "./sounds.js";
 import { createGlow } from "./glow.js";
+import { WORLD_VISITS, VISIT_KIND_LABELS } from "../data/world-visits.js";
+import { catalog } from "../data/catalog.js";
 
 // ----- Find the page elements we need -----
 const canvas = document.getElementById("destination-canvas");
@@ -75,9 +77,9 @@ const worldSettings = {
     credit: "Moon map: Solar System Scope (CC BY 4.0), or the three.js example map if that file is missing."
   },
   Mars: {
-    baseColor: 0xb4532a, textures: [TEXTURE_FOLDER + "mars.jpg"], drawn: "mars",
+    baseColor: 0xb4532a, textures: [TEXTURE_FOLDER + "mars_4k.jpg", TEXTURE_FOLDER + "mars.jpg"], drawn: "mars",
     bump: 1.2, startLat: 8, startLon: 107, mapOffset: 0, halo: { color: 0xe39a6b, opacity: 0.12 },
-    credit: "Mars map: Solar System Scope (CC BY 4.0)."
+    credit: "Mars map: Solar System Scope (CC BY 4.0), 4096 px."
   },
   Mercury: {
     baseColor: 0x9a948e, textures: [TEXTURE_FOLDER + "mercury.jpg"], drawn: "gray",
@@ -92,13 +94,13 @@ const worldSettings = {
 
   // Giant planets: what you see is the top of the clouds. There is no solid surface.
   Jupiter: {
-    textures: [TEXTURE_FOLDER + "jupiter.jpg"], drawn: "jupiter", bump: 0,
+    textures: [TEXTURE_FOLDER + "jupiter_4k.jpg", TEXTURE_FOLDER + "jupiter.jpg"], drawn: "jupiter", bump: 0,
     startLat: 6.5, startLon: -4.4, mapOffset: 0, tilt: 3, halo: { color: 0xe8c9a0, opacity: 0.12 },
     credit: "Jupiter cloud map: Solar System Scope (CC BY 4.0). The clouds are always moving.",
     note: "Jupiter has no solid surface. Galileo's orbiter was also sent into Jupiter on September 21, 2003, but NASA does not give its entry point, so it has no marker."
   },
   Saturn: {
-    textures: [TEXTURE_FOLDER + "saturn.jpg"], drawn: "saturn", bump: 0,
+    textures: [TEXTURE_FOLDER + "saturn_4k.jpg", TEXTURE_FOLDER + "saturn.jpg"], drawn: "saturn", bump: 0,
     startLat: 20, startLon: -53, mapOffset: 0, tilt: 26.7, halo: { color: 0xf0dcae, opacity: 0.1 },
     rings: TEXTURE_FOLDER + "saturn_ring.png",
     credit: "Saturn cloud and ring maps: Solar System Scope (CC BY 4.0).",
@@ -117,10 +119,11 @@ const worldSettings = {
     note: "No spacecraft has entered Neptune's atmosphere. Voyager 2 is the only one to visit: it flew about 4,950 km above Neptune's north pole on August 25, 1989."
   },
   Titan: {
-    textures: [], drawn: "titan", bump: 0,
-    startLat: -10.3, startLon: 167.7, mapOffset: 0, halo: { color: 0xe0a050, opacity: 0.3 },
-    credit: "",
-    note: "Titan is hidden under a thick orange haze. This globe is an illustration, not a real map."
+    textures: [TEXTURE_FOLDER + "titan_4k.jpg"], drawn: "titan", bump: 0,
+    // the Cassini map starts at 0 degrees longitude on its left edge: turned half a turn to line up
+    startLat: -10.3, startLon: 167.7, mapOffset: 180, halo: { color: 0xe0a050, opacity: 0.3 },
+    credit: "Titan map: NASA/JPL-Caltech/Space Science Institute, Cassini global mosaic PIA22770 (public domain).",
+    note: "Titan is hidden under a thick orange haze. This map shows the surface as Cassini saw it in near-infrared light (938 nm), tinted orange for display."
   }
 };
 
@@ -141,7 +144,7 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.enablePan = false;
 controls.minDistance = 6.5;
-controls.maxDistance = 30;
+controls.maxDistance = 70; // (far enough to see the flyby paths around the giant planets)
 
 // ----- Lights -----
 // The main light is attached to the camera, so the side you are looking at is always lit.
@@ -391,7 +394,90 @@ function buildWorld(name) {
   world.group = group;
   world.globe = globe;
   world.markers = markers;
+  world.visits = buildVisits(name, group);
   return world;
+}
+
+// ----- Flybys and orbiters (data/world-visits.js): a path for each mission that came here without
+// landing, so every mission linked to this world shows on the globe. Not to scale. -----
+const VISIT_COLORS = [0x7ab8ff, 0x8fe3c0, 0xffd36e, 0xc9a8ff, 0xff9fb6, 0x86e1ff];
+function visitLabel(text, color) {
+  const c = document.createElement("canvas");
+  c.width = 512; c.height = 72;
+  const ctx = c.getContext && c.getContext("2d");
+  if (ctx && ctx.fillText) {
+    ctx.font = "600 30px sans-serif";
+    const w = Math.min(500, ctx.measureText(text).width + 36);
+    ctx.fillStyle = "rgba(6, 10, 20, 0.78)";
+    ctx.fillRect(0, 8, w, 56);
+    ctx.fillStyle = "#" + new THREE.Color(color).getHexString();
+    ctx.fillRect(0, 8, 6, 56);
+    ctx.fillStyle = "#eef3fa";
+    ctx.fillText(text, 18, 46);
+  }
+  const texture = new THREE.CanvasTexture(c);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+  sprite.scale.set(5.4, 0.76, 1);
+  sprite.center.set(0, 0.5);
+  return sprite;
+}
+function buildVisits(name, group) {
+  const list = WORLD_VISITS[name] || [];
+  const clear = name === "Saturn" ? GLOBE_RADIUS * 2.45 : GLOBE_RADIUS * 1.15; // outside Saturn's rings
+  return list.map(function (visit, i) {
+    const color = VISIT_COLORS[i % VISIT_COLORS.length];
+    const entry = { visit: visit, color: color, holder: null, line: null, label: null, mover: null, points: null };
+    if (visit.kind === "listed") return entry; // it did not visit: listed only, no path
+    const holder = new THREE.Group();
+    // each path in its own tilted plane, so they don't lie on top of each other
+    holder.rotation.set(0.3 + i * 0.47, i * 1.17 + 0.4, (i % 2 ? 0.28 : -0.22));
+    const near = clear + GLOBE_RADIUS * (0.3 + i * 0.09);
+    const points = [];
+    if (visit.kind === "orbit") {
+      for (let k = 0; k <= 128; k++) {
+        const t = (k / 128) * Math.PI * 2;
+        points.push(new THREE.Vector3(Math.cos(t) * near * 1.25, 0, Math.sin(t) * near));
+      }
+    } else {
+      // a flyby: in from far away, swinging past the world at its closest point, and out the other way
+      // (part of a hyperbola with the world at its focus: r = q(1 + e) / (1 + e cos(angle)))
+      const e = 1.6;
+      for (let k = 0; k <= 96; k++) {
+        const angle = (-0.5 + k / 96) * Math.PI;
+        const r = (near * (1 + e)) / (1 + e * Math.cos(angle));
+        points.push(new THREE.Vector3(r * Math.cos(angle), 0, r * Math.sin(angle)));
+      }
+    }
+    const material = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.55, depthWrite: false });
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), material);
+    holder.add(line);
+    // an arrow at the end of a flyby, showing the direction of travel
+    if (visit.kind !== "orbit") {
+      const end = points[points.length - 1];
+      const before = points[points.length - 4];
+      const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.45, 12), new THREE.MeshBasicMaterial({ color: color }));
+      arrow.position.copy(end);
+      arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), end.clone().sub(before).normalize());
+      holder.add(arrow);
+    }
+    // a small moving dot: the spacecraft
+    const mover = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    holder.add(mover);
+    // its name, at a point along the path (spread out, so the labels don't overlap)
+    const year = (visit.date || "").match(/\d{4}/);
+    const label = visitLabel(visit.name + " \u00B7 " + VISIT_KIND_LABELS[visit.kind] + (year ? " " + year[0] : ""), color);
+    label.position.copy(points[Math.floor(points.length * (0.62 + (i % 3) * 0.1))]);
+    holder.add(label);
+    group.add(holder);
+    entry.holder = holder;
+    entry.line = line;
+    entry.label = label;
+    entry.mover = mover;
+    entry.points = points;
+    entry.phase = i * 0.17;
+    return entry;
+  });
 }
 
 const worlds = {};
@@ -534,17 +620,16 @@ function showPanel(item) {
 
   panelKind.textContent = (KIND_LABELS[item.kind] || "NASA hardware") + " \u00B7 " + item.destination +
     (item.partner ? " \u00B7 Partner mission" : "");
-  landingButton.classList.toggle("hidden", !item.landing);
-  landingButton.textContent =
-    item.kind === "impact" ? "Watch the impact"
-      : item.kind === "probe" ? "Watch the descent"
-      : item.kind === "plunge" ? "Watch the final plunge"
-      : "Watch the landing";
+  // One "Replay Mission" button: the full journey when there is one (it includes the landing), otherwise
+  // a replay of the arrival, the landing and what happened after it
+  landingButton.classList.toggle("hidden", !item.landing || Boolean(hardwareReplays[item.id]));
+  landingButton.textContent = "Replay Mission";
   panel.scrollTop = 0;
   panel.classList.remove("hidden");
 }
 
 function selectMarker(marker) {
+  deselectVisit();
   if (selectedMarker !== marker) play("select");
   if (selectedMarker) {
     styleMarker(selectedMarker, false);
@@ -578,14 +663,16 @@ function buildSidebar() {
   sidebarTitle.textContent = currentWorld.name;
   sidebarList.innerHTML = "";
   sidebarRows = [];
+  visitRows = [];
 
   if (currentWorld.markers.length === 0) {
     const empty = document.createElement("p");
     empty.className = "sidebar-empty";
-    empty.textContent = "No spacecraft has landed on or entered this world. See the note at the bottom of the screen.";
+    empty.textContent = "No spacecraft has landed on or entered this world." + ((currentWorld.visits || []).length ? " These missions flew past or orbited it:" : " See the note at the bottom of the screen.");
     sidebarList.appendChild(empty);
-    return;
   }
+  buildVisitRows();
+  if (currentWorld.markers.length === 0) return;
 
   // Group the sites by kind: landings, impacts, probes, plunges
   Object.keys(KIND_LABELS).forEach(function (kind) {
@@ -620,6 +707,98 @@ function buildSidebar() {
   });
 }
 
+// Flybys and orbiters: listed under their own heading, with the path's colour
+let visitRows = [];
+let selectedVisit = null;
+function buildVisitRows() {
+  const visits = currentWorld.visits || [];
+  if (!visits.length) return;
+  const heading = document.createElement("p");
+  heading.className = "sidebar-heading";
+  heading.textContent = "Flybys and orbits";
+  const rows = [];
+  visits.forEach(function (entry) {
+    const row = document.createElement("button");
+    row.className = "sidebar-item" + (entry.visit.kind === "listed" ? " sb-listed" : "");
+    row.setAttribute("aria-label", entry.visit.name + ", " + VISIT_KIND_LABELS[entry.visit.kind]);
+    const year = (entry.visit.date || "").match(/\d{4}/);
+    row.innerHTML = '<span class="sb-num"></span><span class="sb-dot"></span><span class="sb-name"></span><span class="sb-meta"></span>';
+    if (row.querySelector) {
+      row.querySelector(".sb-num").textContent = entry.visit.kind === "orbit" ? "ORB" : entry.visit.kind === "listed" ? "\u2014" : "FLY";
+      row.querySelector(".sb-name").textContent = entry.visit.name;
+      row.querySelector(".sb-meta").textContent = year ? year[0] : "";
+      row.querySelector(".sb-dot").style.setProperty("--dot", "#" + new THREE.Color(entry.color).getHexString());
+    }
+    row.addEventListener("click", function () {
+      selectVisit(entry);
+      sidebar.classList.remove("open");
+    });
+    rows.push(row);
+    visitRows.push({ entry: entry, row: row });
+  });
+  // the landing sites come first; flybys are added after them (at the end of the list)
+  setTimeout(function () {
+    sidebarList.appendChild(heading);
+    rows.forEach(function (row) { sidebarList.appendChild(row); });
+  }, 0);
+}
+const visitPanel = document.getElementById("visit-panel");
+function selectVisit(entry) {
+  deselectMarker();
+  selectedVisit = entry;
+  play("select");
+  (currentWorld.visits || []).forEach(function (other) {
+    if (!other.line) return;
+    const on = other === entry;
+    other.line.material.opacity = on ? 1 : 0.18;
+    other.label.material.opacity = on ? 1 : 0.35;
+  });
+  visitRows.forEach(function (r) { r.row.classList.toggle("active", r.entry === entry); });
+  const v = entry.visit;
+  document.getElementById("visit-kind").textContent = VISIT_KIND_LABELS[v.kind] + " \u00B7 " + currentWorld.name;
+  document.getElementById("visit-name").textContent = v.name;
+  document.getElementById("visit-text").textContent = v.text;
+  const facts = document.getElementById("visit-facts");
+  facts.innerHTML = "";
+  [["When", v.date], ["Closest approach", v.distance]].forEach(function (f) {
+    if (!f[1]) return;
+    const li = document.createElement("li");
+    const b = document.createElement("b");
+    b.textContent = f[0];
+    li.appendChild(b);
+    li.appendChild(document.createTextNode(" " + f[1]));
+    facts.appendChild(li);
+  });
+  const item = catalog.find(function (c) { return c.id === v.id; });
+  const replay = item && item.replay;
+  const replayButtonV = document.getElementById("visit-replay");
+  replayButtonV.classList.toggle("hidden", !replay || v.kind === "listed");
+  replayButtonV.onclick = function () {
+    if (!replay) return;
+    if (replay.type === "mission") document.dispatchEvent(new CustomEvent("replay-mission", { detail: { missionId: replay.id } }));
+    else if (replay.type === "hardware") document.dispatchEvent(new CustomEvent("replay-hardware", { detail: { hardwareId: replay.id } }));
+    else if (replay.type === "spacecraft") document.dispatchEvent(new CustomEvent("replay-spacecraft", { detail: { name: replay.id } }));
+  };
+  visitPanel.classList.remove("hidden");
+  updateBreadcrumb();
+}
+function deselectVisit() {
+  if (!selectedVisit && visitPanel.classList.contains("hidden")) return;
+  selectedVisit = null;
+  if (currentWorld) (currentWorld.visits || []).forEach(function (other) {
+    if (!other.line) return;
+    other.line.material.opacity = 0.55;
+    other.label.material.opacity = 1;
+  });
+  visitRows.forEach(function (r) { r.row.classList.remove("active"); });
+  visitPanel.classList.add("hidden");
+}
+document.getElementById("visit-close").addEventListener("click", function () {
+  deselectVisit();
+  resetCamera();
+  play("close");
+});
+
 function updateSidebarActive() {
   sidebarRows.forEach(function (entry) {
     const active = entry.marker === selectedMarker;
@@ -630,7 +809,9 @@ function updateSidebarActive() {
 
 function resetCamera() {
   const settings = currentWorld.settings;
-  camera.position.copy(latLonToVector3(settings.startLat, settings.startLon, START_DISTANCE));
+  // worlds with flyby and orbit paths start farther out, so all the paths can be seen
+  const distance = (currentWorld.visits || []).some(function (e) { return e.line; }) ? (currentWorld.name === "Saturn" ? 52 : 40) : START_DISTANCE;
+  camera.position.copy(latLonToVector3(settings.startLat, settings.startLon, distance));
   controls.target.set(0, 0, 0);
   controls.update();
   flyDirection = null;
@@ -679,6 +860,7 @@ export function showDestination(name) {
   currentWorld.group.visible = true;
 
   deselectMarker();
+  deselectVisit();
   buildSidebar();
   resetCamera();
   updateBreadcrumb();
@@ -712,11 +894,19 @@ export function backInDestination() {
     deselectMarker();
     return true;
   }
+  if (selectedVisit) {
+    deselectVisit();
+    return true;
+  }
   return false;
 }
 
 // ----- Buttons -----
-panelClose.addEventListener("click", deselectMarker);
+// Closing the panel also puts the view back where it started (Master Doc 10)
+panelClose.addEventListener("click", function () {
+  deselectMarker();
+  resetCamera();
+});
 
 panelCollapse.addEventListener("click", function () {
   detailsHidden = !detailsHidden;
@@ -728,7 +918,7 @@ panelCollapse.addEventListener("click", function () {
 landingButton.addEventListener("click", function () {
   if (!selectedMarker) return;
   document.dispatchEvent(
-    new CustomEvent("watch-landing", { detail: { hardwareId: selectedMarker.item.id } })
+    new CustomEvent("replay-landing", { detail: { hardwareId: selectedMarker.item.id } })
   );
 });
 
@@ -785,6 +975,16 @@ canvas.addEventListener("pointerup", function (event) {
   const marker = getMarkerAtPointer(event);
   if (marker) {
     selectMarker(marker);
+    return;
+  }
+  // a flyby or orbit label
+  if (currentWorld && currentWorld.visits) {
+    const labels = currentWorld.visits.filter(function (e) { return e.label; }).map(function (e) { return e.label; });
+    const hit = raycaster.intersectObjects(labels)[0];
+    if (hit) {
+      const entry = currentWorld.visits.find(function (e) { return e.label === hit.object; });
+      if (entry) selectVisit(entry);
+    }
   }
 });
 
@@ -877,6 +1077,18 @@ function animate() {
     }
   }
 
+  // the planet turns slowly while nothing is selected (stops while you drag it or look at a site)
+  controls.autoRotate = !selectedMarker && !selectedVisit && !flyDirection;
+  controls.autoRotateSpeed = 0.35;
+  if (currentWorld && currentWorld.visits) {
+    currentWorld.visits.forEach(function (entry) {
+      if (!entry.mover) return;
+      const k = ((time * 0.05 + entry.phase) % 1) * (entry.points.length - 1);
+      const a = entry.points[Math.floor(k)];
+      const b = entry.points[Math.min(entry.points.length - 1, Math.floor(k) + 1)];
+      entry.mover.position.lerpVectors(a, b, k - Math.floor(k));
+    });
+  }
   controls.update();
   renderer.render(scene, camera);
 }

@@ -316,7 +316,7 @@
   </section>
 
   <!-- SCREEN 4: Moon / Mars exploration -->
-  <section id="destination-screen" class="screen hidden">
+  <section id="destination-screen" class="screen hidden can-hide-sidebar">
     <canvas id="destination-canvas"></canvas>
 
     <header class="top-bar">
@@ -357,11 +357,11 @@
       <div class="sidebar-head">
         <p class="sidebar-sub">Sites</p>
         <p class="sidebar-title" id="dest-sidebar-title"></p>
-        <button class="sidebar-close panel-close" data-sidebar="dest-sidebar" aria-label="Close the list">&times;</button>
+        <button class="sidebar-close panel-close sidebar-hide" data-sidebar="dest-sidebar" aria-label="Collapse the list" title="Collapse the list"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9 4.5v15"/></svg></button>
       </div>
       <div id="dest-sidebar-list" class="sidebar-list"></div>
-      <button id="dest-explorer-link" class="small-button sidebar-explorer-link">All hardware from this world &rarr;</button>
-      <p class="sidebar-foot">Positions approximate</p>
+      <button id="dest-explorer-link" class="small-button sidebar-explorer-link">&larr; Go back</button>
+      <p class="sidebar-foot">Positions approximate &middot; flyby and orbit paths not to scale</p>
     </nav>
 
     <!-- Hardware profile panel (hidden until a marker is clicked) -->
@@ -378,9 +378,9 @@
       <p id="hw-kind" class="kind-tag"></p>
       <h3 id="hw-name"></h3>
       <p id="hw-summary"></p>
-      <button id="hw-landing" class="hw-replay primary">Watch the landing</button>
+      <button id="hw-landing" class="hw-replay primary">Replay Mission</button>
       <button id="hw-replay" class="hw-replay accent">Replay Mission</button>
-      <button id="hw-explorer" class="small-button hw-explorer">Open in Missions</button>
+      <button id="hw-explorer" class="small-button hw-explorer">&larr; Go back</button>
 
       <div id="hw-details">
         <h4>Mission</h4>
@@ -405,6 +405,18 @@
         <h4>Sources</h4>
         <ul id="hw-sources"></ul>
       </div>
+    </aside>
+
+    <!-- A mission that came to this world without landing (flyby or orbiter), from data/world-visits.js -->
+    <aside id="visit-panel" class="info-panel hardware-panel visit-panel hidden" aria-label="Flyby or orbit">
+      <button id="visit-close" class="panel-close" aria-label="Close panel">&times;</button>
+      <p id="visit-kind" class="kind-tag"></p>
+      <h3 id="visit-name"></h3>
+      <p id="visit-text"></p>
+      <ul id="visit-facts" class="visit-facts"></ul>
+      <button id="visit-replay" class="hw-replay primary">Replay Mission</button>
+      <button id="visit-back" class="small-button hw-explorer">&larr; Go back</button>
+      <p class="source-note">The path on the globe shows that this mission came here; its shape and distance are not to scale. Facts from the Missions catalog and its NASA sources.</p>
     </aside>
 
     <div id="marker-tooltip" class="marker-tooltip hidden"></div>
@@ -884,7 +896,8 @@
             <table class="credit-table">
               <thead><tr><th scope="col">Source</th><th scope="col">Used for</th><th scope="col">License / attribution</th></tr></thead>
               <tbody>
-              <tr><th scope="row"><a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener">Solar System Scope — planet maps</a></th><td>Surface maps of Mercury, Venus, Mars, Jupiter, Saturn (and rings), Uranus, Neptune, the Sun and the Moon in the Solar System view, home tour and mission film. Files go in <code>assets/textures/</code>.</td><td>CC BY 4.0 — attribution: “Solar System Scope”</td></tr>
+              <tr><th scope="row"><a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener">Solar System Scope — planet maps</a></th><td>Surface maps of Mercury, Venus, Mars, Jupiter, Saturn (and rings), Uranus, Neptune, the Sun and the Moon in the Solar System view, home tour and mission film (Mars, Jupiter and Saturn also in 4096 px). Files go in <code>assets/textures/</code>.</td><td>CC BY 4.0 — attribution: “Solar System Scope”</td></tr>
+              <tr><th scope="row"><a href="https://images.nasa.gov/details/PIA22770" target="_blank" rel="noopener">Titan map: NASA/JPL-Caltech/Space Science Institute (PIA22770)</a></th><td>Cassini's global near-infrared mosaic of Titan's surface, tinted orange for display, on Titan in the Solar System, its globe and the mission films.</td><td>Public domain (NASA)</td></tr>
               <tr><th scope="row"><a href="https://github.com/mrdoob/three.js/tree/r160/examples/textures/planets" target="_blank" rel="noopener">three.js example textures (Earth and Moon)</a></th><td>Earth day map, normal map, ocean-shine (specular) map and clouds; the Moon map. Loaded from the jsDelivr CDN.</td><td>MIT License (three.js authors); Earth imagery based on NASA Blue Marble (public domain)</td></tr>
               <tr><th scope="row">Painted stand-ins</th><td>Seamless noise-painted planet maps shown while textures load or if a file is missing.</td><td>Made for this project</td></tr>
               </tbody>
@@ -1155,11 +1168,13 @@
       <p id="landing-caption" class="landing-caption" aria-live="polite"></p>
       <div class="landing-progress" aria-hidden="true"><span></span></div>
       <div class="landing-buttons">
+        <button id="landing-goback" class="small-button" title="Back to the globe (Esc)">&larr; Go back</button>
         <button data-silent id="landing-pause" class="small-button">Pause</button>
-        <button id="landing-again" class="small-button primary">Watch again</button>
+        <button id="landing-again" class="small-button primary icon-btn landing-replay" aria-label="Replay" title="Replay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg></button>
         <button data-silent id="landing-camera" class="small-button hidden">Auto camera</button>
         <button id="landing-continue" class="small-button primary hidden">Continue &rarr;</button>
       </div>
+      <div id="landing-after" class="landing-after hidden" aria-live="polite"></div>
       <p id="landing-hint" class="landing-hint"></p>
 
     </div>

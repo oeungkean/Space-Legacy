@@ -10215,3 +10215,159 @@ body.player-on .cinema-stages li {
     max-width: min(900px, calc(100vw - 600px));
   }
 }
+
+/* =========================================================================================
+   Kampu Space Master Doc (10), 2026-11-14
+   ========================================================================================= */
+/* Site globes: the left list collapses to a slim strip (like the Solar System's), and opens again with
+   the same button, so it is always there */
+@media (min-width: 761px) {
+  #destination-screen .sidebar-close.sidebar-hide {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    border: 1px solid var(--line-strong);
+    background: rgba(122, 184, 255, 0.05);
+    color: var(--muted);
+  }
+  #destination-screen .sidebar-hide svg { width: 18px; height: 18px; }
+  #destination-screen .sidebar { transition: width 0.3s var(--ease-journey); }
+  #destination-screen .sidebar-toggle { display: none; }
+  #destination-screen.sidebar-collapsed { --sidebar-w: 84px; }
+  #destination-screen.sidebar-collapsed .sidebar { width: 84px; transform: none; pointer-events: auto; }
+  #destination-screen.sidebar-collapsed .sidebar-head { display: flex; justify-content: center; padding: 14px 0 10px; }
+  #destination-screen.sidebar-collapsed .sidebar-head p,
+  #destination-screen.sidebar-collapsed .sidebar-foot,
+  #destination-screen.sidebar-collapsed .sidebar-empty,
+  #destination-screen.sidebar-collapsed .sb-num,
+  #destination-screen.sidebar-collapsed .sb-meta { display: none; }
+  #destination-screen.sidebar-collapsed .sidebar-hide { position: static; color: var(--accent); border-color: var(--accent-line); }
+  #destination-screen.sidebar-collapsed .sidebar-heading {
+    margin: 12px 6px 4px;
+    padding: 6px 0 0;
+    font-size: 0.5rem;
+    letter-spacing: 0.08em;
+    text-align: center;
+    color: var(--faint);
+    border-top: 1px solid var(--line);
+    white-space: normal;
+  }
+  #destination-screen.sidebar-collapsed .sidebar-heading::after { display: none; }
+  #destination-screen.sidebar-collapsed .sidebar-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 72px;
+    height: auto;
+    min-height: 50px;
+    margin: 2px auto;
+    padding: 6px 2px;
+    border-radius: 10px;
+  }
+  #destination-screen.sidebar-collapsed .sb-name {
+    display: -webkit-box;
+    max-width: 72px;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    font-size: 0.6rem;
+    line-height: 1.15;
+    text-align: center;
+  }
+  #destination-screen.sidebar-collapsed .sidebar-explorer-link {
+    width: 72px;
+    margin: 8px auto;
+    padding: 6px 4px;
+    font-size: 0.56rem;
+  }
+}
+/* flybys and orbits in the list: the "FLY" / "ORB" tag, and a dimmer row for a mission that did not visit */
+#dest-sidebar .sidebar-item .sb-num { font-size: 0.56rem; letter-spacing: 0.06em; }
+#dest-sidebar .sb-listed { opacity: 0.6; }
+/* the flyby / orbit panel */
+.visit-facts {
+  list-style: none;
+  margin: 10px 0 14px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.visit-facts b {
+  display: inline-block;
+  min-width: 128px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Landing scene: the replay icon button, "What happened next" after the landing, and the site card's
+   text with more room between its lines */
+.landing-replay svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.landing-after {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.landing-after .la-title {
+  margin: 0 0 6px;
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8fb8ff;
+}
+.landing-after ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+.landing-site .ls-text {
+  display: grid;
+  gap: 5px;
+}
+.landing-site .ls-text > * {
+  margin: 0;
+  line-height: 1.45;
+}
+/* Missions list: an icon for each choice, and more room between them in the slim strip */
+#explorer-categories .sb-icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--dot, var(--accent));
+}
+#explorer-categories .sb-icon svg { width: 100%; height: 100%; }
+#explorer-categories .sidebar-item.active .sb-icon { color: var(--accent); }
+@media (min-width: 761px) {
+  #explorer-screen.sidebar-collapsed #explorer-categories .sidebar-item {
+    gap: 6px;
+    min-height: 58px;
+    margin: 4px auto;
+    padding: 8px 2px;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-body .sidebar-item:first-child .sb-icon { width: 24px; height: 24px; }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-body .sidebar-item:not(:first-child) {
+    min-height: 50px;
+    margin: 4px 0 4px auto;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-body .sidebar-item:not(:first-child) .sb-icon { width: 18px; height: 18px; }
+}

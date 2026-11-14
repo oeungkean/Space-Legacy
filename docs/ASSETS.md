@@ -22,6 +22,15 @@ Download the 2K versions (8K also works, but loads slower). Rename them to these
 | `neptune.jpg` | Neptune |
 | `moon.jpg` | Moon (optional; the CDN copy is used first) |
 | `sun.jpg` | Sun |
+| `mars_4k.jpg` | Mars, 8K download resized to 4096 x 2048 (Master Doc 10, 2026-11-14) |
+| `jupiter_4k.jpg` | Jupiter, the "8K" download (4096 x 2048), re-saved at JPEG quality 86 |
+| `saturn_4k.jpg` | Saturn, the "8K" download (4096 x 2048), re-saved at JPEG quality 86 |
+
+The `_4k` maps replace the 2K ones once loaded (the 2K maps show first and stay as the fallback; phones keep the 2K maps to save memory). Solar System Scope has no sharper Uranus or Neptune map, so those keep their 2K maps, with darker edges (limb darkening) drawn by the shader.
+
+## Titan map
+
+`titan_4k.jpg`: NASA/JPL-Caltech/Space Science Institute, "Titan Mosaic: The Surface Under the Haze", PIA22770 (https://images.nasa.gov/details/PIA22770, https://photojournal.jpl.nasa.gov/catalog/PIA22770). A Cassini ISS global mosaic at 938 nm (near-infrared) built from 9,873 images; public domain (NASA). Resized from 5760 x 2880 to 4096 x 2048 and tinted warm orange for display (the original is greyscale). Its 0 degrees longitude is at the left edge, so the code turns it half a turn to line up with the other maps. Downloaded 2026-11-14.
 
 Earth's day map, normal map, specular (ocean-shine) map and clouds load from the three.js examples on jsDelivr. You do not need to add them.
 

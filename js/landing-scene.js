@@ -420,16 +420,22 @@ function buildTerrain(worldName) {
   geometry.rotateX(-Math.PI / 2);
   const position = geometry.attributes.position;
   for (let i = 0; i < position.count; i++) {
-    position.setY(i, heightAt(position.getX(i), position.getZ(i)));
+    const x = position.getX(i), z = position.getZ(i);
+    // near its edges the detailed ground slopes gently down into the wide, curved ground around it,
+    // so no edge can be seen (it used to end in a square edge floating in space)
+    const edge = smoothstep(320, 440, Math.max(Math.abs(x), Math.abs(z)));
+    position.setY(i, heightAt(x, z) * (1 - edge) + HORIZON_TOP * edge - 2.5 * edge);
   }
   geometry.computeVertexNormals();
 
+  const groundTexture = makeGroundTexture(world);
   const ground = new THREE.Mesh(
     geometry,
-    new THREE.MeshStandardMaterial({ map: makeGroundTexture(world), roughness: 1, metalness: 0 })
+    new THREE.MeshStandardMaterial({ map: groundTexture, roughness: 1, metalness: 0 })
   );
   ground.receiveShadow = true;
   group.add(ground);
+  group.add(buildHorizonGround(groundTexture));
 
   // Rocks: many small ones, a few big ones
   const rockGeometry = world.rockRound ? new THREE.SphereGeometry(1, 10, 8) : new THREE.DodecahedronGeometry(1, 1);
@@ -456,6 +462,29 @@ function buildTerrain(worldName) {
   group.add(rocks);
 
   return { group: group, heightAt: heightAt };
+}
+
+// The wide ground around the landing area, out to the horizon: it curves down like the surface of a
+// real planet (radius 40 km here, so the horizon is a few kilometres away, as seen from the descent),
+// with the same ground texture, so the world no longer looks like a flat square in space
+const HORIZON_TOP = -12;
+function buildHorizonGround(groundTexture) {
+  const R = 40000;
+  const outer = 26000;
+  const geometry = new THREE.RingGeometry(400, outer, 160, 72);
+  geometry.rotateX(-Math.PI / 2);
+  const position = geometry.attributes.position;
+  for (let i = 0; i < position.count; i++) {
+    const d = Math.hypot(position.getX(i), position.getZ(i));
+    position.setY(i, HORIZON_TOP - (d * d) / (2 * R));
+  }
+  geometry.computeVertexNormals();
+  const texture = groundTexture.clone();
+  texture.needsUpdate = true;
+  texture.repeat.set((outer * 2) / 12.9, (outer * 2) / 12.9); // the same scale as the detailed ground
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ map: texture, roughness: 1, metalness: 0 }));
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
 // ----- Moon and Mars: the realistic exploration terrain (js/terrain.js) -----
@@ -674,7 +703,7 @@ function applyEnvironment(worldName) {
   terrainGroup = terrain.group;
   scene.add(terrainGroup);
   controls.maxPolarAngle = env.gas ? Math.PI : Math.PI * 0.49; // no ground to hit in a gas giant
-  camera.far = env.gas || env.ocean ? 20000 : 9000;
+  camera.far = env.gas || env.ocean ? 20000 : 30000; // far enough to see the curved horizon
   camera.updateProjectionMatrix();
   sunLight.castShadow = !env.gas;
 
@@ -724,26 +753,64 @@ function makeCloudTexture(colors, seed) {
 
   const texture = new THREE.CanvasTexture(drawing);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
+  // mirrored tiling, so the tiles meet without seams (the plain repeat showed square joins)
+  texture.wrapS = THREE.MirroredRepeatWrapping;
+  texture.wrapT = THREE.MirroredRepeatWrapping;
   texture.repeat.set(6, 6);
   return texture;
 }
 
+// The real cloud bands of the giant planets (the same Solar System Scope maps as the globes), used as
+// the deepest, solid cloud deck under the moving cloud layers
+const CLOUD_MAPS = { Jupiter: "assets/textures/jupiter_4k.jpg", Saturn: "assets/textures/saturn_4k.jpg" };
 function buildCloudWorld(world) {
   const group = new THREE.Group();
+  const worldName = Object.keys(ENVIRONMENTS).find(function (k) { return ENVIRONMENTS[k] === world; });
+  if (CLOUD_MAPS[worldName]) {
+    const geometry = new THREE.PlaneGeometry(40000, 40000, 96, 96);
+    geometry.rotateX(-Math.PI / 2);
+    const position = geometry.attributes.position;
+    for (let i = 0; i < position.count; i++) {
+      const d = Math.hypot(position.getX(i), position.getZ(i));
+      position.setY(i, -(d * d) / (2 * 60000));
+    }
+    const deck = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }));
+    new THREE.TextureLoader().load(CLOUD_MAPS[worldName], function (texture) {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.wrapS = texture.wrapT = THREE.MirroredRepeatWrapping;
+      texture.repeat.set(1.5, 1.5);
+      texture.anisotropy = 8;
+      deck.material.map = texture;
+      deck.material.needsUpdate = true;
+    });
+    const lowest = world.layers[world.layers.length - 1].y;
+    deck.position.y = lowest - 40;
+    group.add(deck);
+  }
 
   world.layers.forEach(function (layer, index) {
     // Two sheets close together give each cloud layer some thickness
     [0, 14].forEach(function (offset, k) {
-      const sheet = new THREE.Mesh(
-        new THREE.PlaneGeometry(16000, 16000),
-        new THREE.MeshStandardMaterial({
-          map: makeCloudTexture(layer.colors, index * 7.3 + k * 3.1),
-          transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 1
-        })
-      );
-      sheet.rotation.x = -Math.PI / 2;
+      // a cloud sheet that curves down with distance (like the top of a planet-sized cloud deck) and
+      // fades out toward its edge, so no square edge or end can be seen
+      const geometry = new THREE.PlaneGeometry(16000, 16000, 64, 64);
+      geometry.rotateX(-Math.PI / 2);
+      const position = geometry.attributes.position;
+      for (let i = 0; i < position.count; i++) {
+        const d = Math.hypot(position.getX(i), position.getZ(i));
+        position.setY(i, -(d * d) / (2 * 60000));
+      }
+      const material = new THREE.MeshStandardMaterial({
+        map: makeCloudTexture(layer.colors, index * 7.3 + k * 3.1),
+        transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 1
+      });
+      material.onBeforeCompile = function (shader) {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <opaque_fragment>",
+          "diffuseColor.a *= 1.0 - smoothstep(0.3, 0.5, length(vMapUv / 6.0 - 0.5));\n#include <opaque_fragment>"
+        );
+      };
+      const sheet = new THREE.Mesh(geometry, material);
       sheet.position.y = layer.y - offset;
       sheet.renderOrder = 1;
       group.add(sheet);
@@ -774,8 +841,10 @@ function buildCloudWorld(world) {
       map: new THREE.CanvasTexture(ringTexture), transparent: true, side: THREE.DoubleSide,
       depthWrite: false, fog: false
     }));
-    ring.rotation.x = 0.35;
-    ring.position.set(0, -1800, -3000);
+    // far away and above the cloud tops, arching across the sky (it used to cut through the clouds)
+    ring.rotation.x = 0.22;
+    ring.scale.setScalar(2.2);
+    ring.position.set(0, -900, -11000);
     ring.renderOrder = -1;
     group.add(ring);
   }
@@ -2048,6 +2117,7 @@ function enterPhase(index) {
 
 function restart() {
   touchdownPlayed = false;
+  hideAfterLanding();
   if (terrainGroup) terrainGroup.visible = true;
   clearActors();
   dustCarry = 0;
@@ -2097,6 +2167,7 @@ function frame(now) {
       } else {
         finished = true;
         phaseBox.textContent = "Complete · " + phase.title;
+        showAfterLanding();
         document.dispatchEvent(new CustomEvent("landing-finished", { detail: { id: item ? item.id : null } }));
       }
     }
@@ -2117,8 +2188,11 @@ function frame(now) {
   // User camera: keep the angle and distance the user chose, but move along with the spacecraft.
   if (autoCamera) {
     if (finished && !paused) cameraGoal.sub(lookGoal).applyAxisAngle(UP_AXIS, dt * 0.06).add(lookGoal);
-    camera.position.lerp(cameraGoal, 1 - Math.exp(-2.2 * dt));
-    lookNow.lerp(lookGoal, 1 - Math.exp(-3.5 * dt)); // a steady camera: no jitter from small movements
+    // the farther behind the camera is, the faster it catches up, so the spacecraft stays in the picture
+    const behind = camera.position.distanceTo(cameraGoal);
+    const lookBehind = lookNow.distanceTo(lookGoal);
+    camera.position.lerp(cameraGoal, 1 - Math.exp(-(2.2 + Math.min(8, behind * 0.03)) * dt));
+    lookNow.lerp(lookGoal, 1 - Math.exp(-(3.5 + Math.min(10, lookBehind * 0.05)) * dt)); // steady, no jitter
     controls.target.copy(lookNow);
   } else {
     const moved = lookGoal.clone().sub(lastLookGoal);
@@ -2138,6 +2212,38 @@ function frame(now) {
 
   renderer.render(scene, camera);
 }
+
+// After the landing: what happened next (the site's real status and its main findings), so the scene
+// doesn't just stop. The pause button is not needed any more; "Go back" and the replay button stay.
+const afterBox = document.getElementById("landing-after");
+function showAfterLanding() {
+  pauseButton.classList.add("hidden");
+  if (!afterBox || !item) return;
+  const lines = [item.status && item.status.text].concat((item.contributions || []).slice(0, 2)).filter(Boolean);
+  afterBox.innerHTML = "";
+  if (!lines.length) return;
+  const title = document.createElement("p");
+  title.className = "la-title";
+  title.textContent = "What happened next";
+  afterBox.appendChild(title);
+  const list = document.createElement("ul");
+  lines.forEach(function (text) {
+    const li = document.createElement("li");
+    li.textContent = text;
+    list.appendChild(li);
+  });
+  afterBox.appendChild(list);
+  afterBox.classList.remove("hidden");
+}
+function hideAfterLanding() {
+  pauseButton.classList.remove("hidden");
+  if (afterBox) afterBox.classList.add("hidden");
+}
+const goBackButton = document.getElementById("landing-goback");
+if (goBackButton) goBackButton.addEventListener("click", function () {
+  const back = document.getElementById("landing-back");
+  if (back) back.click();
+});
 
 pauseButton.addEventListener("click", function () {
   if (finished) return;

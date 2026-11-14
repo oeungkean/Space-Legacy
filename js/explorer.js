@@ -24,6 +24,27 @@ import { createGlow } from "./glow.js";
 import { play } from "./sounds.js";
 import { hasNasaModel, nasaModelInfo, upgradeToNasaModel } from "./nasa-models.js";
 import { onThemeChange, accentNumber } from "./theme.js";
+import { destinationIcon, uiIcon, craftIcon, vehicleIcon, toolIcon } from "./icons.js";
+
+// An icon for each choice in the left list (Master Doc 10), so each one can be told apart at a glance,
+// also in the slim strip
+const LIST_ICONS = {
+  "dest:": function () { return uiIcon("destination"); },
+  "dest:earth": function () { return destinationIcon("earth-orbit"); },
+  "dest:moon": function () { return destinationIcon("moon"); },
+  "dest:mars": function () { return destinationIcon("mars"); },
+  "dest:inner": function () { return destinationIcon("sun"); },
+  "dest:outer": function () { return destinationIcon("saturn"); },
+  "dest:small": function () { return destinationIcon("asteroid"); },
+  "category:all": function () { return uiIcon("wrench"); },
+  "category:rockets": function () { return uiIcon("rocket"); },
+  "category:spacecraft": function () { return craftIcon("voyager"); },
+  "category:telescopes": function () { return craftIcon("hubble"); },
+  "category:landers": function () { return vehicleIcon("rover"); },
+  "category:instruments": function () { return toolIcon("SCI"); },
+  "category:stations": function () { return craftIcon("skylab"); },
+  "category:capsules": function () { return uiIcon("spacecraft"); }
+};
 
 // ----- Page elements -----
 const screen = document.getElementById("explorer-screen");
@@ -180,11 +201,13 @@ function sidebarRow(label, meta, dot, onClick, data) {
   const row = document.createElement("button");
   row.className = "sidebar-item explorer-cat";
   Object.keys(data).forEach(function (key) { row.dataset[key] = data[key]; });
-  row.innerHTML = '<span class="sb-dot"></span><span class="sb-name"></span><span class="sb-meta"></span>';
+  const iconKey = data.dest !== undefined ? "dest:" + data.dest : "category:" + data.category;
+  const icon = LIST_ICONS[iconKey] ? LIST_ICONS[iconKey]() : "";
+  row.innerHTML = (icon ? '<span class="sb-icon">' + icon + "</span>" : '<span class="sb-dot"></span>') + '<span class="sb-name"></span><span class="sb-meta"></span>';
   if (row.querySelector) {
     row.querySelector(".sb-name").textContent = label;
     row.querySelector(".sb-meta").textContent = meta;
-    if (dot) row.querySelector(".sb-dot").style.setProperty("--dot", dot);
+    if (dot) row.style.setProperty("--dot", dot);
   }
   row.addEventListener("click", function () {
     // In the slim strip, the two main choices ("All missions", "All hardware") also open and close the

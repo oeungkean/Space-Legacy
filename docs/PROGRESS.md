@@ -321,6 +321,28 @@ The first countdown caption describes each pad, and rockets that were stacked on
 - Venus texture 404 fixed.
 - `docs/ASSETS.md` lists the Venus files by their real names.
 
+## Completed (2026-11-14): Kampu Space Master Doc (10)
+- **Sharper planet maps**
+  - Mars, Jupiter and Saturn at 4096 px (Solar System Scope, CC BY 4.0), loaded after the 2K maps (not on phones).
+  - Titan uses Cassini's real global mosaic (NASA PIA22770, public domain, tinted orange for display) instead of a drawn illustration.
+  - Gas giants and hazy worlds get darker edges (limb darkening).
+- **Site globes ("Explore")**
+  - The planet turns slowly; × closes the panel and resets the view.
+  - "Open in Missions" and "All hardware from this world" are now "Go back" (to the Solar System).
+  - The list collapses to a slim strip, like the other pages.
+- **Every mission linked to a world is shown**
+  - Flybys and orbiters (`data/world-visits.js`, facts from the catalog and its sources) are drawn as labelled paths (not to scale), listed under "Flybys and orbits", with a panel (date, closest approach, Replay Mission).
+  - Jupiter shows all 7 missions.
+  - Neptune shows Voyager 2, and New Horizons marked "Did not visit": it is linked in the catalog, but only Voyager 2 has visited Neptune.
+- **Replay Mission** replaces "Watch the landing/descent". Sites with a full journey use it (it includes the landing). The others get a short replay: arrival, the landing, then "What happened next" (the real status and findings).
+- **Landing scene**
+  - The ground continues to a curved horizon (no square in space).
+  - Giant planets: seamless, curved cloud decks over the real cloud-band maps, with Saturn's rings arching beyond.
+  - The camera catches up faster, so the spacecraft stays in view.
+  - Controls: Go back, a replay icon, Pause hidden after the end, and a "What happened next" list.
+  - The site card has more spacing.
+- **Missions list:** an icon for each choice, with more room in the slim strip.
+
 ## Completed (2026-11-14): Kampu Space Master Doc (9)
 - **Missions sidebar**
   - The slim strip shows only "All missions" and "All hardware". Clicking one shows its smaller choices; clicking again hides them.

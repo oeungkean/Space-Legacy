@@ -164,7 +164,7 @@ function proceduralTexture(name) {
 // The same planet look as the Solar System (js/planet-look.js): real photo maps, Earth's ocean shine
 // and relief, and for rocky worlds fine close-up detail so they stay sharp in low orbit.
 const SHARED_LOOK = { earth: "Earth", moon: "Moon", mars: "Mars", venus: "Venus", mercury: "Mercury", jupiter: "Jupiter",
-  saturn: "Saturn", uranus: "Uranus", neptune: "Neptune" };
+  saturn: "Saturn", uranus: "Uranus", neptune: "Neptune", titan: "Titan" };
 const ROCKY = { moon: true, mars: true, mercury: true };
 function planetMaterial(name, radius) {
   const shared = SHARED_LOOK[name];
