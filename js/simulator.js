@@ -1197,6 +1197,8 @@ function hexTexture() {
 
 function buildDomeLab(g, roomR, wallH, size, box) {
   const R = roomR;
+  const roofParts = new THREE.Group(); // the dome and what hangs from it (hidden in the zoomed-out view)
+  g.add(roofParts);
   const ringH = wallH * 0.45;      // the straight ring wall
   const domeH = wallH * 0.55;      // the dome on top of it
   const person = 0.23;
@@ -1220,15 +1222,15 @@ function buildDomeLab(g, roomR, wallH, size, box) {
   const dome = new THREE.Mesh(new THREE.SphereGeometry(R, 96, 32, 0, Math.PI * 2, oculusAngle, Math.PI / 2 - oculusAngle), domeMat);
   dome.scale.y = domeH / R;
   dome.position.y = ringH;
-  g.add(dome);
+  roofParts.add(dome);
   const sky = new THREE.Mesh(new THREE.CircleGeometry(R * Math.sin(oculusAngle) * 1.02, 48), new THREE.MeshBasicMaterial({ color: 0xcfe6ff }));
   sky.rotation.x = Math.PI / 2;
   sky.position.y = ringH + domeH * Math.cos(oculusAngle) + 0.05;
-  g.add(sky);
+  roofParts.add(sky);
   const oculusRim = new THREE.Mesh(new THREE.TorusGeometry(R * Math.sin(oculusAngle), size * 0.005, 8, 64), steel);
   oculusRim.rotation.x = Math.PI / 2;
   oculusRim.position.y = ringH + domeH * Math.cos(oculusAngle);
-  g.add(oculusRim);
+  roofParts.add(oculusRim);
   // dome ribs (meridians) and rings, inside a group squashed to the dome's height
   const ribs = new THREE.Group();
   ribs.position.y = ringH;
@@ -1244,7 +1246,7 @@ function buildDomeLab(g, roomR, wallH, size, box) {
     hoop.position.y = R * 0.985 * Math.sin(phi);
     ribs.add(hoop);
   });
-  g.add(ribs);
+  roofParts.add(ribs);
   // columns around the ring wall
   for (let i = 0; i < 24; i++) {
     const a = (i / 24) * Math.PI * 2;
@@ -1276,15 +1278,15 @@ function buildDomeLab(g, roomR, wallH, size, box) {
   const craneRail = new THREE.Mesh(new THREE.TorusGeometry(R * 0.9, size * 0.006, 8, 128), orange);
   craneRail.rotation.x = Math.PI / 2;
   craneRail.position.y = ringH * 0.97;
-  g.add(craneRail);
+  roofParts.add(craneRail);
   const bridge = new THREE.Mesh(new THREE.BoxGeometry(R * 1.8, size * 0.022, size * 0.03), orange);
   bridge.position.y = ringH * 0.95;
   bridge.rotation.y = 0.55;
-  g.add(bridge);
+  roofParts.add(bridge);
   const trolley = new THREE.Mesh(new THREE.BoxGeometry(size * 0.04, size * 0.03, size * 0.05), white);
   trolley.position.set(Math.cos(0.55) * R * 0.35, ringH * 0.93, -Math.sin(0.55) * R * 0.35);
   trolley.rotation.y = 0.55;
-  g.add(trolley);
+  roofParts.add(trolley);
   // a round airlock-style door at the back, with a lit frame
   const doorR = Math.min(ringH * 0.42, Math.max(box * 0.7, 6));
   const doorZ = -Math.sqrt(Math.max(0, R * R - doorR * doorR)) + 0.2;
@@ -1314,6 +1316,7 @@ function buildDomeLab(g, roomR, wallH, size, box) {
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(doorR * 1.8, doorR * 0.34), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(signCanvas) }));
   sign.position.set(0, doorR * 2 + 0.3 + doorR * 0.3, doorZ + 0.1);
   g.add(sign);
+  return roofParts;
 }
 
 // Small helper: add a box/cylinder mesh at a spot
@@ -1564,6 +1567,10 @@ function buildHangar(viewer, tallest, width) {
   const wallH = Math.max(tallest * 1.6 + 4, deckH + tallest * 0.45 + roomR * 0.9);
   // Real Missions: the rectangular high bay. Free Build: a round, domed engineering lab (buildDomeLab).
   if (!freeBuild) {
+    // (columns, catwalks and trims on the walls: hidden in the zoomed-out view, so they don't block it)
+    const wallDetail = new THREE.Group();
+    g.add(wallDetail);
+    viewer.wallDetail = wallDetail;
     const wallZ = -roomR;
     const panelMap = wallPanelTexture();
     const wallMat = new THREE.MeshStandardMaterial({ color: freeBuild ? 0x3b4656 : 0xa9afb8, map: panelMap, roughness: 0.7, metalness: 0.35 });
@@ -1587,18 +1594,18 @@ function buildHangar(viewer, tallest, width) {
         const rib = new THREE.Mesh(new THREE.BoxGeometry(size * 0.012, wallH, size * 0.014), steel);
         rib.position.set(w[0] + ax * along + nx * size * 0.007, wallH / 2, w[1] + az * along + nz * size * 0.007);
         rib.rotation.y = w[2];
-        g.add(rib);
+        wallDetail.add(rib);
       }
       // a band of high windows with daylight behind them
       const band = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.92, wallH * 0.045), new THREE.MeshBasicMaterial({ color: 0xbcd4f5 }));
       band.position.set(w[0] + nx * size * 0.016, wallH * 0.93, w[1] + nz * size * 0.016);
       band.rotation.y = w[2];
-      g.add(band);
+      wallDetail.add(band);
       // a dark skirting band low on the wall (scuffed paint, cable trays)
       const skirt = new THREE.Mesh(new THREE.PlaneGeometry(size, Math.max(1.2, wallH * 0.06)), skirtMat);
       skirt.position.set(w[0] + nx * 0.05, Math.max(0.6, wallH * 0.03), w[1] + nz * 0.05);
       skirt.rotation.y = w[2];
-      g.add(skirt);
+      wallDetail.add(skirt);
     });
 
     // The high bay door in the back wall: tall stacked panels, with a thin line of daylight at its edges
@@ -1642,29 +1649,34 @@ function buildHangar(viewer, tallest, width) {
         const walk = new THREE.Mesh(new THREE.BoxGeometry(galleryDepth, size * 0.006 + 0.08, size * 0.86), galleryMat);
         walk.position.set(side * (roomR - galleryDepth / 2), y, 0);
         walk.receiveShadow = true;
-        g.add(walk);
+        wallDetail.add(walk);
         const rail = new THREE.Mesh(new THREE.BoxGeometry(size * 0.004 + 0.03, size * 0.004 + 0.03, size * 0.86), yellowPaint);
         rail.position.set(side * (roomR - galleryDepth), y + person * 4.5, 0);
-        g.add(rail);
+        wallDetail.add(rail);
         const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, size * 0.7), galleryLampMat);
         lamp.position.set(side * (roomR - galleryDepth * 0.5), y - 0.15, 0);
-        g.add(lamp);
+        wallDetail.add(lamp);
       });
     });
 
+    // (the roof parts are in their own group: hidden when the camera zooms out above the building)
+    const roof = new THREE.Group();
+    g.add(roof);
+    viewer.roof = roof;
+    viewer.roofY = wallH;
     // Roof: a dark ceiling with a steel truss grid, rows of high bay lamps, and a bridge crane on rails
     const roofY = wallH;
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ color: 0x23272e, roughness: 0.9, metalness: 0.2 }));
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = roofY;
-    g.add(ceiling);
+    roof.add(ceiling);
     for (let i = -4; i <= 4; i++) {
       const beam = new THREE.Mesh(new THREE.BoxGeometry(size, size * 0.016, size * 0.012), steel);
       beam.position.set(0, roofY - size * 0.012, i * size * 0.11);
-      g.add(beam);
+      roof.add(beam);
       const cross = new THREE.Mesh(new THREE.BoxGeometry(size * 0.012, size * 0.012, size), darkSteel);
       cross.position.set(i * size * 0.11, roofY - size * 0.026, 0);
-      g.add(cross);
+      roof.add(cross);
     }
     const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff6e4 });
     const lampGeo = new THREE.CylinderGeometry(size * 0.012, size * 0.016, size * 0.008, 12);
@@ -1672,23 +1684,26 @@ function buildHangar(viewer, tallest, width) {
       for (let j = -3; j <= 3; j++) {
         const lamp = new THREE.Mesh(lampGeo, lampMat);
         lamp.position.set(i * size * 0.13, roofY - size * 0.04, j * size * 0.13);
-        g.add(lamp);
+        roof.add(lamp);
       }
     }
     [-1, 1].forEach(function (side) {
       const railBeam = new THREE.Mesh(new THREE.BoxGeometry(size * 0.02, size * 0.02, size), yellowPaint);
       railBeam.position.set(side * roomR * 0.7, roofY - size * 0.06, 0);
-      g.add(railBeam);
+      roof.add(railBeam);
     });
     const crane = new THREE.Mesh(new THREE.BoxGeometry(roomR * 1.4, size * 0.03, size * 0.035), yellowPaint);
     crane.position.set(0, roofY - size * 0.08, -box * 0.5);
-    g.add(crane);
+    roof.add(crane);
     const hookLength = Math.max(1, roofY - size * 0.08 - (deckH + tallest * 1.1));
     const hook = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, hookLength, 6), darkSteel);
     hook.position.set(box * 0.3, roofY - size * 0.08 - hookLength / 2, -box * 0.5);
-    g.add(hook);
+    roof.add(hook);
   } else {
-    buildDomeLab(g, roomR, wallH, size, box);
+    viewer.wallDetail = null;
+    const domeRoof = buildDomeLab(g, roomR, wallH, size, box);
+    viewer.roof = domeRoof;
+    viewer.roofY = wallH * 0.45;
   }
 
   // Service tower (red lattice) with an access arm, beside the pad
@@ -1767,9 +1782,12 @@ function buildHangar(viewer, tallest, width) {
     spot.target.position.set(padX, deckH + padH * 0.3, 0);
     g.add(spot.target);
   }
-  // The camera stays inside the building: it can't zoom out through a wall or drop under the floor
+  // The camera can't drop under the floor. Zooming out goes past the walls to show the whole building
+  // from outside (the walls are drawn from the inside only, so the building opens up like a cut-away
+  // model); the view starts inside it.
   const controls = viewer.controls;
-  controls.maxDistance = roomR * 0.82;
+  controls.maxDistance = roomR * 2.6;
+  viewer.insideDistance = roomR * 0.82;
   controls.minDistance = Math.max(1.5, tallest * 0.2);
   controls.maxPolarAngle = Math.PI * 0.49;
   if (viewer.scene.fog) {
@@ -1829,7 +1847,7 @@ function fill(viewer, objects) {
   viewer.padX = -right / 2 + (firstWidth || 0) / 2;
   if (viewer.garage) buildHangar(viewer, tallest, right);
   let distance = Math.max(tallest, right) * 1.9 + 2;
-  if (viewer.garage && viewer.controls.maxDistance < Infinity) distance = Math.min(distance, viewer.controls.maxDistance / 1.15);
+  if (viewer.garage && viewer.insideDistance) distance = Math.min(distance, viewer.insideDistance / 1.15);
   viewer.camera.position.set(distance * 0.55, deck + tallest * 0.6, distance);
   viewer.controls.target.set(0, deck + tallest * 0.45, 0);
   viewer.controls.update();
@@ -1851,6 +1869,12 @@ function loop(time) {
   [lab, locker].forEach(function (viewer) {
     if (!viewer) return;
     viewer.controls.update();
+    if (viewer.roof) {
+      const p = viewer.camera.position;
+      const outside = viewer.insideDistance && Math.hypot(p.x, p.z) > viewer.insideDistance * 1.12;
+      viewer.roof.visible = !(outside || p.y > viewer.roofY * 0.92);
+      if (viewer.wallDetail) viewer.wallDetail.visible = !outside;
+    }
     viewer.renderer.render(viewer.scene, viewer.camera);
   });
 }
@@ -1919,6 +1943,36 @@ function renderBay() {
     labBay.appendChild(slot);
   });
 }
+
+// The + and - buttons over the builder's 3D view: each press moves the camera closer or farther (to the
+// same limits as the mouse wheel), smoothly over a few frames
+function zoomLab(factor) {
+  if (!lab) return;
+  const c = lab.controls;
+  const offset = lab.camera.position.clone().sub(c.target);
+  const goal = Math.max(c.minDistance, Math.min(c.maxDistance, offset.length() * factor));
+  const start = offset.length();
+  const began = performance.now();
+  // beyond the walls, the camera also rises to look down into the building (a cut-away view)
+  const spherical = new THREE.Spherical().setFromVector3(offset);
+  const startPhi = spherical.phi;
+  const outsideNow = lab.insideDistance && goal > lab.insideDistance;
+  const goalPhi = outsideNow ? Math.min(startPhi, 0.9) : startPhi;
+  play("tick");
+  (function step() {
+    const k = Math.min(1, (performance.now() - began) / 280);
+    const eased = k * k * (3 - 2 * k);
+    spherical.radius = start + (goal - start) * eased;
+    spherical.phi = startPhi + (goalPhi - startPhi) * eased;
+    lab.camera.position.copy(c.target).add(offset.setFromSpherical(spherical));
+    c.update();
+    if (k < 1) requestAnimationFrame(step);
+  })();
+}
+const zoomInButton = el("lab-zoom-in");
+const zoomOutButton = el("lab-zoom-out");
+if (zoomInButton) zoomInButton.addEventListener("click", function () { zoomLab(0.7); });
+if (zoomOutButton) zoomOutButton.addEventListener("click", function () { zoomLab(1.45); });
 
 function bar(label, value, max, text, fictional) {
   const pct = Math.max(4, Math.min(100, (value / max) * 100));

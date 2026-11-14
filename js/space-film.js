@@ -410,8 +410,8 @@ function orbitShot(o) {
   const burn = Boolean(o.burn);
   const far = V(-0.35, 0.78, 0.92).normalize().multiplyScalar(R * 2.6); // where the launch scene ended
   return {
-    duration: o.duration || 14,
-    start: function () { setSun(V(0.66, 0.62, 0.42)); snapCamera(far, V(0, 0, 0)); }, // daylight on both the opening view and the orbit
+    duration: o.duration || 22, // slower than before (team feedback: the fly-in was too quick and gave a headache)
+    start: function () { setSun(V(0.66, 0.62, 0.42)); snapCamera(far, V(0, 0, 0)); camera.up.set(0, 1, 0); }, // daylight on both the opening view and the orbit
     update: function (t, u, dt) {
       const extra = burn ? smooth(0.55, 1, u) : 0;
       const a = -0.3 + 0.32 * u + extra * extra * 0.5;
@@ -419,18 +419,19 @@ function orbitShot(o) {
       craft.position.set(Math.cos(a) * radius, Math.sin(a * 0.7) * 3, Math.sin(a) * radius);
       const dir = V(-Math.sin(a), 0.02 + extra * 0.08, Math.cos(a)).normalize();
       aim(craft, dir, 3, dt);
-      if (o.roll) craft.userData.model.rotation.z += dt * 0.12;
+      if (o.roll) craft.userData.model.rotation.z += dt * 0.03; // a slow roll only
       if (burn && u > 0.55 && u < 0.97) engineFire(craft, 1);
       if (!burn && Math.abs(u - 0.5) < 0.01) thrusterPuff(craft);
       const outward = craft.position.clone().normalize();
-      // chase position: behind the craft and well above it, so Earth's curve and the craft both show
-      const chase = craft.position.clone().addScaledVector(dir, -12 - extra * 6).addScaledVector(outward, 7 + extra * 4);
-      const look = craft.position.clone().addScaledVector(dir, 6).addScaledVector(outward, -1.5);
-      // the first three seconds fly in from the whole-Earth view
-      const arrive = ease(smooth(0, 0.36, u)); // about five seconds: no rushed zoom
-      // "up" on screen turns to point away from Earth: Earth below, its horizon ahead, space above
-      camera.up.copy(V(0, 1, 0).lerp(outward, arrive)).normalize();
-      glide(lerpV(far, chase, arrive), lerpV(V(0, 0, 0), look, arrive), dt, 3, earth, R);
+      // chase position: behind the craft and high above it, so the whole curve of Earth shows (from close
+      // to the ground the map is blurry and the view is confusing)
+      const chase = craft.position.clone().addScaledVector(dir, -17 - extra * 6).addScaledVector(outward, 13 + extra * 4);
+      const look = craft.position.clone().addScaledVector(dir, 6).addScaledVector(outward, -2);
+      // a long, gentle fly-in from the whole-Earth view (about ten seconds), with no quick zoom
+      const arrive = ease(smooth(0, 0.48, u));
+      // "up" on screen turns only a little, slowly, so the horizon never swings round
+      camera.up.copy(V(0, 1, 0).lerp(outward, arrive * 0.45)).normalize();
+      glide(lerpV(far, chase, arrive), lerpV(V(0, 0, 0), look, arrive), dt, 1.6, earth, R);
       if (earth.userData.clouds) earth.userData.clouds.rotation.y += dt * 0.004;
       earth.rotation.y += dt * 0.006;
     }
@@ -445,9 +446,10 @@ function departShot(o) {
   const curve = new THREE.CatmullRomCurve3(keepOut([V(R * 1.2, 4, R * 0.25), V(R * 1.6, 9, R * 1.1), V(R * 3, 16, R * 3), V(R * 8, 30, R * 7.5)], V(0, 0, 0), R * 1.12));
   const follow = {};
   return {
-    duration: o.duration || 13,
+    duration: o.duration || 18, // slower swing round (team feedback)
     start: function () {
       setSun(V(0.81, 0.35, 0.46)); // looking back, Earth is almost full
+      camera.up.set(0, 1, 0);
       const p = curve.getPoint(0);
       const d = curve.getTangent(0).normalize();
       craft.position.copy(p);
@@ -461,14 +463,14 @@ function departShot(o) {
       if (u < 0.6) engineFire(craft, 1);   // the departure burn (trans-lunar injection for the Moon)
       const side = dir.clone().cross(V(0, 1, 0)).normalize();
       // behind the craft at first (the burn), then swinging round ahead of it to look back at Earth
-      const turn = ease(smooth(0.25, 0.65, u));
+      const turn = ease(smooth(0.2, 0.85, u));
       const behind = craft.position.clone().addScaledVector(dir, -10).addScaledVector(side, 3).add(V(0, 3.5, 0));
       const ahead = craft.position.clone().addScaledVector(dir, 9 + u * 6).addScaledVector(side, 6).add(V(0, 3, 0));
       const lookAhead = craft.position.clone().addScaledVector(dir, 4);
       const lookBack = craft.position.clone().lerp(earth.position, 0.06); // the craft in front, Earth behind it
       // swing round on a wide arc (out to the side), not past the craft at close range
       const swingPos = lerpV(behind, ahead, turn).addScaledVector(side, Math.sin(Math.PI * turn) * 9);
-      ride(follow, craft.position, swingPos, lerpV(lookAhead, lookBack, turn), dt, 4, earth, R);
+      ride(follow, craft.position, swingPos, lerpV(lookAhead, lookBack, turn), dt, 2.2, earth, R);
     }
   };
 }
@@ -1132,6 +1134,7 @@ export function stopFilm() {
 
 export function pauseFilm(on) {
   paused = Boolean(on);
+  if (paused) { setLoop("engine", 0); setLoop("wind", 0); } // no engine sound while the picture is paused
 }
 
 // Jump to a point in the shot (0 to 1), for the mission player's progress bar. The shot is rebuilt

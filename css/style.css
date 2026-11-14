@@ -10046,3 +10046,172 @@ body.player-on .cinema-site {
     animation: none;
   }
 }
+
+/* =========================================================================================
+   Kampu Space Master Doc (9), 2026-11-14
+   ========================================================================================= */
+/* The mission map sits under the "Exit replay" button (top right) */
+.mp-top .mp-map {
+  position: absolute;
+  top: 74px;
+  right: 30px;
+}
+/* The launch-site card sits low on the right, just above the scene bar */
+body.player-on .cinema-site {
+  bottom: 118px;
+}
+/* The stage list fills the right side: from under the mission map to just above the scene bar */
+body.player-on .cinema-stages {
+  top: 222px;
+  bottom: 128px;
+  transform: none;
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+}
+body.player-on .cinema-stages ol {
+  flex: 1;
+  grid-auto-rows: 1fr;
+}
+body.player-on .cinema-stages li {
+  align-content: center;
+}
+/* At "Mission complete" the briefing and the mission map step aside for the end card */
+.mission-player.mp-complete .mp-brief,
+.mission-player.mp-complete .mp-map {
+  display: none !important;
+}
+/* The end card's real photo of the mission */
+.mp-card-photo {
+  margin: -6px 0 16px;
+}
+.mp-card-photo img {
+  display: block;
+  width: 100%;
+  max-height: 34vh;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #05070b;
+}
+.mp-card-photo figcaption {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.mp-card-photo .mcp-credit {
+  color: var(--accent);
+  white-space: nowrap;
+}
+/* The briefing's scroll bar matches the site's dark blue theme (it was a light browser default) */
+.mb-body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(122, 184, 255, 0.35) transparent;
+}
+.mb-body::-webkit-scrollbar {
+  width: 8px;
+}
+.mb-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.mb-body::-webkit-scrollbar-thumb {
+  background: rgba(122, 184, 255, 0.3);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.mb-body::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(122, 184, 255, 0.5);
+}
+@media (max-width: 760px) {
+  body.player-on .cinema-stages { top: 110px; bottom: auto; width: 170px; }
+  body.player-on .cinema-stages ol { grid-auto-rows: auto; }
+  body.player-on .cinema-site { bottom: auto; }
+}
+.mp-card {
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(122, 184, 255, 0.35) transparent;
+}
+/* ---- Missions page (Master Doc 9) ----
+   The slim strip shows only the two main choices, "All missions" and "All hardware". Clicking one opens
+   the smaller choices under it; clicking it again closes them. */
+@media (min-width: 761px) {
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-toggle {
+    display: none;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-group + .dd-group {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-group:not(.open) .dd-body .sidebar-item:not(:first-child) {
+    display: none;
+  }
+  /* the main choice: larger */
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-body .sidebar-item:first-child {
+    min-height: 58px;
+    margin-top: 4px;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-body .sidebar-item:first-child .sb-dot {
+    width: 20px;
+    height: 20px;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-body .sidebar-item:first-child .sb-name {
+    font-size: 0.66rem;
+    font-weight: 600;
+  }
+  /* the choices under it: smaller, slightly indented with a guide line */
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-body .sidebar-item:not(:first-child) {
+    width: 64px;
+    min-height: 40px;
+    padding: 4px 2px;
+    border-left: 1px solid var(--accent-line);
+    border-radius: 0 8px 8px 0;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-body .sidebar-item:not(:first-child) .sb-dot {
+    width: 10px;
+    height: 10px;
+  }
+  #explorer-screen.sidebar-collapsed #explorer-categories .dd-body .sidebar-item:not(:first-child) .sb-name {
+    font-size: 0.54rem;
+    color: var(--muted);
+  }
+  /* The detail page keeps the left list, like the main Missions screen (it no longer covers it) */
+  .explorer-detail {
+    left: var(--sidebar-w);
+  }
+}
+/* ---- Mission Builder: zoom buttons over the 3D view (bottom right) ---- */
+.lab-zoom {
+  position: absolute;
+  right: 14px;
+  bottom: 22px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lab-zoom-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: rgba(8, 12, 20, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.lab-zoom-btn:hover { border-color: var(--accent-line); color: var(--accent); }
+.lab-zoom-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The subtitles stay clear of the stage list on the right (and the same width on the left) */
+@media (min-width: 1000px) {
+  .mp-caption {
+    max-width: min(900px, calc(100vw - 600px));
+  }
+}

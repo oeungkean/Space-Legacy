@@ -321,6 +321,29 @@ The first countdown caption describes each pad, and rockets that were stacked on
 - Venus texture 404 fixed.
 - `docs/ASSETS.md` lists the Venus files by their real names.
 
+## Completed (2026-11-14): Kampu Space Master Doc (9)
+- **Missions sidebar**
+  - The slim strip shows only "All missions" and "All hardware". Clicking one shows its smaller choices; clicking again hides them.
+  - The full-screen detail page keeps the left list, like the main Missions screen.
+- **Mission Builder:** + and − zoom buttons over the 3D view. Zooming all the way out shows the whole building from above, as a cut-away (the roof and the wall columns hide while outside).
+- **Narrator**
+  - The next scene waits until the narrator has finished. Before, it moved on after 14 s, and the launch forced it on at once.
+  - The narrator speaks at every speed.
+  - Pause stops only the scene: the narrator and subtitles carry on, and the engine and rumble sounds go silent.
+- **"Leaving Earth" shot:** longer (22 s), a slow and steady fly-in, higher above Earth, the horizon barely rolling. The departure shot's swing round is slower too.
+- **Player layout**
+  - The briefing appears once the replay is on screen.
+  - The mission map sits under "Exit replay".
+  - The launch-site card and the stage list end just above the scene bar, measured on screen, so they fit when the controls wrap.
+  - The stage list fills the right side.
+  - The briefing's scroll bar matches the theme.
+  - At "Mission complete" the briefing and map are hidden, and the card shows a real NASA photo of the mission (`data/mission-photos.js`, loaded from NASA).
+- **Launch**
+  - Assembly building modelled on photos of the VAB: panelled high bay with dark bands, high-bay doors, a low-bay wing, a launch control building and the US flag (no logos).
+  - Crawler-transporter: twin tread belts on four trucks, levelling cylinders, a truss deck with railings, operator cabs, and the mobile launcher on pedestals.
+  - Rail launch platform and transporter-erector also rebuilt with more detail.
+  - The climb looks like space: a black sky with a blue glow over a curved horizon, stars come out earlier, thicker clouds on Earth, and the low cloud deck fades early (it looked like sea fog).
+
 ## Completed (2026-11-14): Kampu Space Master Doc (8)
 - **Builder halls tidied.** The equipment now stands in labelled work areas (floor lines, a floor label and a wall sign each), and nothing is left lying around the rocket.
   - Real Missions:

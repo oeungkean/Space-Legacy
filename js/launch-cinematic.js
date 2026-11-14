@@ -446,22 +446,11 @@ function buildCoast() {
     lane.position.set(-700 + offset, 0.03, -900);
     coastGroup.add(lane);
   });
-  // A large assembly building on the horizon (simple shape, no logos)
-  const building = new THREE.Mesh(new THREE.BoxGeometry(220, 160, 160), new THREE.MeshStandardMaterial({ color: 0xd5d8dc, roughness: 0.8 }));
-  building.position.set(-2400, 80, -1300); // off to the side of the long-lens shot, not right behind the rocket
-  coastGroup.add(building);
-  // the high bay door stands open: a dark doorway (the rocket comes out of it during rollout)
-  const doors = new THREE.Mesh(new THREE.PlaneGeometry(60, 150), new THREE.MeshStandardMaterial({ color: 0x15171b, roughness: 1 }));
-  doors.position.set(-2400, 75, -1219);
-  coastGroup.add(doors);
-  [-1, 1].forEach(function (side) {
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(3, 152, 3), new THREE.MeshStandardMaterial({ color: 0x8a9099, roughness: 0.6, metalness: 0.4 }));
-    frame.position.set(-2400 + side * 31, 76, -1218);
-    coastGroup.add(frame);
-  });
-  const lifted = new THREE.Mesh(new THREE.BoxGeometry(62, 8, 2), new THREE.MeshStandardMaterial({ color: 0x9aa2ad, roughness: 0.7 }));
-  lifted.position.set(-2400, 154, -1218); // the door panels, raised
-  coastGroup.add(lifted);
+  // The assembly building, shaped after Kennedy's Vehicle Assembly Building (photo references): a tall
+  // high bay clad in light grey panels with darker vertical bands, tall narrow high-bay doors, a lower
+  // low-bay wing, a launch control building and the US flag painted high on its side. Simplified, and
+  // without agency logos. About 220 m long, 160 m wide and 160 m tall, like the real one.
+  const doors = buildAssemblyBuilding(coastGroup);
   // the crawlerway out of the door: two wide gravel lanes
   [-1, 1].forEach(function (side) {
     const lane = new THREE.Mesh(new THREE.PlaneGeometry(14, 700), new THREE.MeshStandardMaterial({ color: 0xbab3a4, roughness: 1 }));
@@ -515,6 +504,112 @@ function buildCoast() {
   }
 }
 
+
+// Light grey cladding: vertical panel seams, faint horizontal joints and a little weathering
+function facadeTexture(columns, rows) {
+  const c = document.createElement("canvas");
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext && c.getContext("2d");
+  if (!ctx || !ctx.fillRect) return null;
+  ctx.fillStyle = "#c8ccd1";
+  ctx.fillRect(0, 0, 256, 256);
+  const w = 256 / columns;
+  for (let i = 0; i < columns; i++) {
+    ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)";
+    ctx.fillRect(i * w, 0, w, 256);
+    ctx.fillStyle = "rgba(60,66,74,0.35)";
+    ctx.fillRect(i * w, 0, 1, 256);
+  }
+  ctx.fillStyle = "rgba(60,66,74,0.18)";
+  for (let j = 1; j < rows; j++) ctx.fillRect(0, (256 / rows) * j, 256, 1);
+  for (let k = 0; k < 220; k++) {
+    ctx.fillStyle = "rgba(80,84,90," + (Math.random() * 0.06).toFixed(3) + ")";
+    ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 6 + Math.random() * 20);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+// The US flag (public domain design), drawn simply: 13 stripes and a blue field with rows of stars
+function flagTexture() {
+  const c = document.createElement("canvas");
+  c.width = 380; c.height = 200;
+  const ctx = c.getContext && c.getContext("2d");
+  if (!ctx || !ctx.fillRect) return null;
+  for (let i = 0; i < 13; i++) {
+    ctx.fillStyle = i % 2 ? "#ffffff" : "#b22234";
+    ctx.fillRect(0, (200 / 13) * i, 380, 200 / 13 + 1);
+  }
+  ctx.fillStyle = "#3c3b6e";
+  ctx.fillRect(0, 0, 152, 108);
+  ctx.fillStyle = "#ffffff";
+  for (let r = 0; r < 9; r++) {
+    const n = r % 2 ? 5 : 6;
+    for (let k = 0; k < n; k++) {
+      ctx.beginPath();
+      ctx.arc(13 + k * 25 + (r % 2 ? 12.5 : 0), 8 + r * 11.5, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function buildAssemblyBuilding(group) {
+  const x0 = BUILDING.x;
+  const z0 = BUILDING.z;
+  const front = z0 + 80;                         // the face with the high-bay door (toward the pads)
+  const grey = new THREE.MeshStandardMaterial({ color: 0xffffff, map: facadeTexture(16, 10), roughness: 0.85 });
+  const band = new THREE.MeshStandardMaterial({ color: 0x5f666f, roughness: 0.8 });
+  const roof = new THREE.MeshStandardMaterial({ color: 0x8d939b, roughness: 0.9 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xe9ecef, roughness: 0.7 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x1d2a38, roughness: 0.25, metalness: 0.6 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0x8a9099, roughness: 0.6, metalness: 0.4 });
+  function box(w, h, d, material, x, y, z) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    group.add(m);
+    return m;
+  }
+  // the high bay, with a darker roof edge
+  box(220, 160, 160, grey, x0, 80, z0);
+  box(222, 3, 162, roof, x0, 161.5, z0);
+  // darker vertical bands: beside the door and at the corners, on the door face
+  [-36, 36, -102, 102].forEach(function (dx) {
+    box(Math.abs(dx) > 50 ? 16 : 12, 160, 1, band, x0 + dx, 80, front + 0.6);
+  });
+  // a second high-bay door outline on the side wall (closed), so the building reads from an angle
+  box(1, 140, 56, band, x0 + 110.6, 70, z0 - 20);
+  for (let i = 1; i < 7; i++) box(1.4, 0.8, 56, steel, x0 + 111.2, i * 20, z0 - 20);
+  // the open high-bay door: a dark doorway, its frame, and the raised door panels at the top
+  const doors = new THREE.Mesh(new THREE.PlaneGeometry(60, 150), new THREE.MeshStandardMaterial({ color: 0x15171b, roughness: 1 }));
+  doors.position.set(x0, 75, front + 1);
+  group.add(doors);
+  [-1, 1].forEach(function (side) { box(3, 152, 3, steel, x0 + side * 31, 76, front + 2); });
+  for (let i = 0; i < 4; i++) box(62, 3.2, 2, new THREE.MeshStandardMaterial({ color: 0x9aa2ad, roughness: 0.7 }), x0, 151 + i * 3.4, front + 2);
+  // the US flag, high on the door face
+  const flagMap = flagTexture();
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(56, 29.5), new THREE.MeshStandardMaterial({ map: flagMap, color: flagMap ? 0xffffff : 0xb22234, roughness: 0.8 }));
+  flag.position.set(x0 - 72, 118, front + 0.8);
+  group.add(flag);
+  // the low bay: a lower wing along one side, with its own grey cladding and doors
+  const lowMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: facadeTexture(10, 4), roughness: 0.85 });
+  box(150, 64, 120, lowMat, x0 - 185, 32, z0 + 10);
+  box(152, 2.5, 122, roof, x0 - 185, 65.2, z0 + 10);
+  [-40, 0, 40].forEach(function (dx) { box(22, 34, 1, band, x0 - 185 + dx, 17, z0 + 70.6); });
+  // the launch control building beside it: low and white, with a long band of slanted windows
+  box(90, 22, 44, white, x0 + 170, 11, front + 20);
+  const windows = new THREE.Mesh(new THREE.BoxGeometry(90.4, 7, 2), glass);
+  windows.position.set(x0 + 170, 18, front + 42.4);
+  windows.rotation.x = -0.35;
+  group.add(windows);
+  // a covered walkway between them, and a low utility annex
+  box(60, 6, 8, white, x0 + 140, 16, front + 4);
+  box(46, 14, 36, white, x0 - 290, 7, z0 + 40);
+  return doors;
+}
 
 // Small ripples for the ocean (a tiling normal map drawn from overlapping sine waves)
 function waveNormalTexture() {
@@ -925,7 +1020,21 @@ function showLaunchSite(rocket) {
   dot.style.left = ((pad.lon + 180) / 360 * 100).toFixed(2) + "%";
   dot.style.top = ((90 - pad.lat) / 180 * 100).toFixed(2) + "%";
   siteCard.classList.remove("hidden");
+  fitAboveSceneBar();
 }
+// In the mission player, the launch-site card and the stage list end just above the scene bar, wherever
+// it is (its controls wrap onto two rows on narrower screens, so a fixed distance did not fit)
+function fitAboveSceneBar() {
+  const bar = document.getElementById("mp-timeline");
+  const playerOn = document.body.classList.contains("player-on");
+  [siteCard, stageHud].forEach(function (box) {
+    if (!box) return;
+    if (!playerOn || !bar || window.innerWidth <= 760 || !bar.getBoundingClientRect) { box.style.bottom = ""; return; }
+    const top = bar.getBoundingClientRect().top;
+    if (top > 0) box.style.bottom = Math.round(window.innerHeight - top + 12) + "px";
+  });
+}
+window.addEventListener("resize", fitAboveSceneBar);
 function hideLaunchSite() {
   if (siteCard) siteCard.classList.add("hidden");
 }
@@ -933,6 +1042,25 @@ function hideLaunchSite() {
 // ----- Rollout rigs -----
 let rollout = null;
 
+// The crawler deck's steel truss sides: a frame with X bracing
+function trussTexture() {
+  const c = document.createElement("canvas");
+  c.width = 256; c.height = 64;
+  const ctx = c.getContext && c.getContext("2d");
+  if (!ctx || !ctx.fillRect) return null;
+  ctx.fillStyle = "#3a3e44";
+  ctx.fillRect(0, 0, 256, 64);
+  ctx.strokeStyle = "#a9aeb5";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, 252, 60);
+  for (let x = 0; x < 256; x += 32) {
+    ctx.beginPath(); ctx.moveTo(x, 2); ctx.lineTo(x, 62); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, 2); ctx.lineTo(x + 32, 62); ctx.moveTo(x + 32, 2); ctx.lineTo(x, 62); ctx.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 function trackUnit(width, length, height, material, tread) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), material);
@@ -957,54 +1085,160 @@ function buildRollout(style) {
   const radiusMeters = (rocketModel.userData.radius || 1) * ROCKET_SCALE;
   let deck = 0;
   if (style === "crawler") {
-    // crawler-transporter: about 40 x 35 m, 6 m tall, four double-tracked trucks at the corners
+    // The crawler-transporter, after photos of the real machine: about 40 x 35 m, four trucks at the
+    // corners, each with two tread belts of big steel shoes, levelling cylinders up to a steel truss
+    // deck with railings, operator cabs at two opposite corners, and the mobile launcher on pedestals
+    const tread = new THREE.MeshStandardMaterial({ color: 0x2f3236, roughness: 0.9, metalness: 0.4 });
+    const shoe = new THREE.MeshStandardMaterial({ color: 0x54585e, roughness: 0.8, metalness: 0.5 });
+    const truss = new THREE.MeshStandardMaterial({ color: 0xffffff, map: trussTexture(), roughness: 0.7, metalness: 0.3 });
+    const white = new THREE.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.6 });
+    const glass = new THREE.MeshStandardMaterial({ color: 0x1d2a38, roughness: 0.3, metalness: 0.5 });
+    const rail = new THREE.MeshStandardMaterial({ color: 0xd8b13a, roughness: 0.6 });
     [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
-      const truck = trackUnit(10, 12, 3, dark, steel);
-      truck.position.set(c[0] * 14, 0, c[1] * 13);
-      group.add(truck);
+      [-1, 1].forEach(function (side) {
+        const belt = trackUnit(4.4, 12, 3, tread, shoe);
+        belt.position.set(c[0] * 14 + side * 2.6, 0, c[1] * 12.5);
+        group.add(belt);
+      });
+      // the truck frame and its levelling (jacking) cylinders
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(10, 1.2, 9), steel);
+      frame.position.set(c[0] * 14, 3.6, c[1] * 12.5);
+      group.add(frame);
+      [-1, 1].forEach(function (k) {
+        const jack = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2.4, 14), steel);
+        jack.position.set(c[0] * 14 + k * 2.4, 5.2, c[1] * 12.5);
+        group.add(jack);
+      });
     });
-    const crawler = new THREE.Mesh(new THREE.BoxGeometry(40, 3, 35), grey);
-    crawler.position.y = 4.5;
-    group.add(crawler);
-    const cab = new THREE.Mesh(new THREE.BoxGeometry(5, 3, 4), new THREE.MeshStandardMaterial({ color: 0xd7dade, roughness: 0.5 }));
-    cab.position.set(-18, 7.5, 16);
-    group.add(cab);
-    // the mobile launcher on top, with its tower
-    const platformWidth = Math.max(40, radiusMeters * 2 + 16);
-    const platform = new THREE.Mesh(new THREE.BoxGeometry(platformWidth, 7.6, 40), dark);
-    platform.position.y = 6 + 3.8;
+    // the deck: a steel truss box with railings along its top edge
+    const deckBody = new THREE.Mesh(new THREE.BoxGeometry(40, 4.2, 35), [truss, truss, grey, grey, truss, truss]);
+    deckBody.position.y = 8.5;
+    group.add(deckBody);
+    [-1, 1].forEach(function (side) {
+      const railA = new THREE.Mesh(new THREE.BoxGeometry(40, 0.25, 0.25), rail);
+      railA.position.set(0, 11.6, side * 17.4);
+      group.add(railA);
+      const railB = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 35), rail);
+      railB.position.set(side * 19.9, 11.6, 0);
+      group.add(railB);
+      for (let i = -4; i <= 4; i++) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1, 0.15), rail);
+        post.position.set(i * 4.6, 11.1, side * 17.4);
+        group.add(post);
+      }
+    });
+    // operator cabs at two opposite corners, with dark windows
+    [[-1, 1], [1, -1]].forEach(function (c) {
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(5, 3.4, 4), white);
+      cab.position.set(c[0] * 21.6, 8.6, c[1] * 15.5);
+      group.add(cab);
+      const win = new THREE.Mesh(new THREE.BoxGeometry(5.1, 1.2, 4.1), glass);
+      win.position.set(c[0] * 21.6, 9.4, c[1] * 15.5);
+      group.add(win);
+    });
+    // equipment houses and exhaust stacks on the deck's ends
+    [-1, 1].forEach(function (side) {
+      const house = new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 4), white);
+      house.position.set(side * 15, 11.9, side * -12);
+      group.add(house);
+      const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 3, 10), dark);
+      stack.position.set(side * 12, 12.1, side * 12);
+      group.add(stack);
+    });
+    // the mobile launcher, on six pedestals above the crawler's deck, with its tower
+    [[-1, -1], [0, -1], [1, -1], [-1, 1], [0, 1], [1, 1]].forEach(function (c) {
+      const pedestal = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), dark);
+      pedestal.position.set(c[0] * 15, 11.6, c[1] * 13);
+      group.add(pedestal);
+    });
+    const platformWidth = Math.max(48, radiusMeters * 2 + 18);
+    const launcherMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: facadeTexture(8, 3), roughness: 0.8 });
+    const platform = new THREE.Mesh(new THREE.BoxGeometry(platformWidth, 7.6, 42), launcherMat);
+    platform.position.y = 12.6 + 3.8;
     group.add(platform);
-    deck = 6 + 7.6;
+    deck = 12.6 + 7.6;
     const tower = buildTower(Math.max(60, Math.ceil(heightMeters + 6)));
     tower.position.set(-(radiusMeters + 9), deck, 0);
     group.add(tower);
   } else if (style === "rail") {
-    // launch platform on rail bogies, on two rails
-    const platform = new THREE.Mesh(new THREE.BoxGeometry(Math.max(26, radiusMeters * 2 + 10), 6, 22), dark);
-    platform.position.y = 4;
-    group.add(platform);
+    // A launch platform that rolls on rails (like the Atlas V and Ariane 5 launch tables): a panelled
+    // steel deck with railings, a hold-down base under the rocket, and two-axle rail bogies on two rails
+    const width = Math.max(26, radiusMeters * 2 + 12);
+    const launcherMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: facadeTexture(6, 2), roughness: 0.8 });
+    const truss = new THREE.MeshStandardMaterial({ color: 0xffffff, map: trussTexture(), roughness: 0.7, metalness: 0.3 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(width, 5, 24), [truss, truss, launcherMat, dark, truss, truss]);
+    body.position.y = 5.5;
+    group.add(body);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(radiusMeters * 1.25, radiusMeters * 1.4, 1.6, 24), dark);
+    base.position.y = 8.8;
+    group.add(base);
+    const yellow = new THREE.MeshStandardMaterial({ color: 0xd8b13a, roughness: 0.6 });
     [-1, 1].forEach(function (side) {
-      [-1, 1].forEach(function (end) {
-        const bogie = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 6), steel);
-        bogie.position.set(side * 9, 1, end * 7);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(width, 0.2, 0.2), yellow);
+      rail.position.set(0, 9, side * 11.8);
+      group.add(rail);
+      // bogies: two axles each, on the rails
+      [-0.36, -0.12, 0.12, 0.36].forEach(function (f) {
+        const bogie = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.6, 2.2), steel);
+        bogie.position.set(f * width * 2, 2.4, side * 9);
         group.add(bogie);
+        [-0.9, 0.9].forEach(function (dx) {
+          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.5, 16), dark);
+          wheel.rotation.x = Math.PI / 2;
+          wheel.position.set(f * width * 2 + dx, 0.85, side * 9);
+          group.add(wheel);
+        });
       });
     });
-    deck = 7;
+    deck = 9.6;
   } else {
-    // transporter-erector: a long frame on wheels, the rocket lying on it base first
+    // A transporter-erector (Falcon 9, Delta IV, Proton): a long steel truss frame on many sets of
+    // wheels, with clamp rings holding the rocket, which lies on it base first; at the pad it is raised
     const length = heightMeters + 8;
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(radiusMeters * 1.6 + 4, 2, length), grey);
-    frame.position.set(0, 3, -length / 2 + 4);
-    group.add(frame);
-    for (let i = 0; i < 6; i++) {
+    const truss = new THREE.MeshStandardMaterial({ color: 0xffffff, map: trussTexture(), roughness: 0.7, metalness: 0.3 });
+    const halfW = radiusMeters * 0.9 + 1.6;
+    [-1, 1].forEach(function (side) {
+      const girder = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3, length), [grey, grey, grey, grey, truss, truss]);
+      girder.position.set(side * halfW, 3.6, -length / 2 + 4);
+      group.add(girder);
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(length, 3), truss);
+      face.rotation.y = side * Math.PI / 2;
+      face.position.set(side * (halfW + 0.61), 3.6, -length / 2 + 4);
+      group.add(face);
+    });
+    // cross members and clamp rings around the rocket
+    const ringCount = Math.max(3, Math.round(length / 14));
+    for (let i = 0; i <= ringCount; i++) {
+      const z = 4 - (i / ringCount) * (length - 2);
+      const cross = new THREE.Mesh(new THREE.BoxGeometry(halfW * 2, 0.8, 1), grey);
+      cross.position.set(0, 2.4, z);
+      group.add(cross);
+      if (i > 0 && i < ringCount) {
+        const clamp = new THREE.Mesh(new THREE.TorusGeometry(radiusMeters * 1.02, 0.3, 6, 24, Math.PI), steel);
+        clamp.position.set(0, 4 + radiusMeters * 0.55, z); // an arch over the top of the rocket
+        group.add(clamp);
+      }
+    }
+    // wheel sets along both sides (many small wheels, like a heavy-load trailer)
+    const axles = Math.max(6, Math.round(length / 7));
+    for (let i = 0; i < axles; i++) {
+      const z = 2 - i * (length - 6) / (axles - 1);
       [-1, 1].forEach(function (side) {
-        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 1, 16), dark);
-        wheel.rotation.z = Math.PI / 2;
-        wheel.position.set(side * (radiusMeters * 0.8 + 2.5), 1.2, 2 - i * (length - 6) / 5);
-        group.add(wheel);
+        [0, 1].forEach(function (k) {
+          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.6, 14), dark);
+          wheel.rotation.z = Math.PI / 2;
+          wheel.position.set(side * (halfW + 0.6 + k * 0.7), 0.8, z);
+          group.add(wheel);
+        });
       });
     }
+    // the hinge frame at the base end (it raises the rocket at the pad), and a tractor cab at the front
+    const hinge = new THREE.Mesh(new THREE.BoxGeometry(halfW * 2 + 1, 6, 2.4), grey);
+    hinge.position.set(0, 5, 5.5);
+    group.add(hinge);
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(halfW * 1.6, 3.2, 4), new THREE.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.6 }));
+    cab.position.set(0, 2.6, -length + 1);
+    group.add(cab);
     deck = 4;
   }
   group.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -1189,7 +1423,7 @@ function buildEarthBall() {
   globe.add(ball);
   const cloudLayer = cloudMaterial();
   cloudLayer.fog = false;
-  cloudLayer.opacity = 0.55; // thin, so the coast and the ocean show through
+  cloudLayer.opacity = 0.75; // clouds over the land and the sea, as in photos from high altitude
   addSurfaceDetail(cloudLayer, { repeat: 700, near: 400, far: 3500, strength: 0.35, bump: 0.6 }); // puffy texture up close
   const clouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.002, 192, 128), cloudLayer);
   globe.add(clouds);
@@ -1248,7 +1482,9 @@ function buildSky() {
       " float h = clamp(vDir.y, 0.0, 1.0);" +
       " vec3 sky = mix(uHorizon, uMid, smoothstep(0.0, 0.25, h));" +
       " sky = mix(sky, uZenith, smoothstep(0.15, 0.9, h));" +
-      " vec3 space = vec3(0.005, 0.01, 0.03);" +
+      // above the air: a thin blue glow just over the horizon that fades into black space (like photos
+      // taken from high altitude), instead of one flat dark colour
+      " vec3 space = mix(vec3(0.12, 0.30, 0.68), vec3(0.003, 0.006, 0.02), smoothstep(0.0, 0.2, h));" +
       " gl_FragColor = vec4(mix(sky, space, uSpace), 1.0); }"
   });
   sky = new THREE.Mesh(new THREE.SphereGeometry(3000, 32, 16), skyMaterial);
@@ -2198,6 +2434,7 @@ function buildStageHud() {
     setStageRow(li, row[2]);
   });
   stageHud.classList.remove("hidden");
+  fitAboveSceneBar();
 }
 const STAGE_WORDS = { burning: "Engines firing", waiting: "Waiting", attached: "Attached", off: "Engines off", separated: "Separated" };
 function setStageRow(li, state) {
@@ -2410,12 +2647,13 @@ function updateAscent(t, dt) {
   earthBall.position.set(0, -(EARTH_R + altitude * 0.94), 0);
   earthBall.rotation.z = ascent.downrange;
   skyMaterial.uniforms.uSpace.value = smoothstep(15, 160, altitude);
-  stars.material.opacity = smoothstep(120, 420, altitude);
-  // the cloud layer sits about 30 units above the ground: the rocket passes up through it, and it drops away
+  stars.material.opacity = smoothstep(60, 260, altitude); // stars come out as the sky turns black
+  // the cloud layer sits about 30 units above the ground: the rocket passes up through it, and it drops
+  // away quickly (left longer, its soft puffs lay along the horizon like sea fog)
   if (cloudDeck) {
-    cloudDeck.visible = altitude < 400;
+    cloudDeck.visible = altitude < 140;
     cloudDeck.position.set(0, earthBall.position.y + EARTH_R + 30, 0);
-    const fade = 1 - smoothstep(200, 400, altitude);
+    const fade = 1 - smoothstep(45, 140, altitude);
     cloudDeck.children.forEach(function (puff) { puff.material.opacity = 0.85 * fade * (siteLook.cloudy ? 1 : 0.7); });
   }
   // above the air the Sun shines in a black sky
@@ -2693,6 +2931,10 @@ export function skipCinematic() {
 let pausedAt = null;
 export function pauseCinematic(on) {
   if (!running) return;
+  // the rumble stops with the picture and comes back with it
+  if (audio && audio.ctx && audio.ctx.suspend) {
+    try { if (on) audio.ctx.suspend(); else audio.ctx.resume(); } catch (error) { /* ignore */ }
+  }
   if (on && pausedAt === null) pausedAt = performance.now();
   else if (!on && pausedAt !== null) {
     startTime += performance.now() - pausedAt;

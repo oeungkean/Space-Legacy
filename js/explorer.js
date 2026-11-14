@@ -187,6 +187,12 @@ function sidebarRow(label, meta, dot, onClick, data) {
     if (dot) row.querySelector(".sb-dot").style.setProperty("--dot", dot);
   }
   row.addEventListener("click", function () {
+    // In the slim strip, the two main choices ("All missions", "All hardware") also open and close the
+    // smaller choices under them (Master Doc 9)
+    const slim = screen.classList.contains("sidebar-collapsed");
+    if (slim && group && group.body.firstChild === row) setGroupOpen(group, !group.root.classList.contains("open"));
+    // choosing from the list while a detail page is open goes back to the list with that choice
+    if (!detail.classList.contains("hidden")) closeDetail();
     onClick();
     sidebar.classList.remove("open");
     // the dropdown stays open after choosing; it only closes when its header is clicked

@@ -9,10 +9,11 @@
 import { startCinematic, stopCinematic, pauseCinematic, nextCinematicScene, cinematicInfo, seekCinematic } from "./launch-cinematic.js";
 import { startFilm, stopFilm, pauseFilm, filmProgress, seekFilm } from "./space-film.js";
 import { startLanding, stopLanding, pauseLanding, landingProgress, seekLanding } from "./landing-scene.js";
-import { speak, stopSpeaking, pauseSpeaking, resumeSpeaking, speechSupported, getVoices, getChosenVoice, onVoicesChange, voiceQuality } from "./narrator.js";
+import { missionPhoto } from "../data/mission-photos.js";
+import { speak, stopSpeaking, speechSupported, getVoices, getChosenVoice, onVoicesChange, voiceQuality } from "./narrator.js";
 import { getSetting, setSetting } from "./settings.js";
 import { getPlaybackSpeed, setPlaybackSpeed } from "./playback.js";
-import { play, isSoundOn, isGroupOn, setGroupOn } from "./sounds.js";
+import { play, isSoundOn, isGroupOn, setGroupOn, stopLoops } from "./sounds.js";
 import { briefingForPlan } from "./briefing.js";
 
 const el = function (id) { return document.getElementById(id); };
@@ -66,6 +67,8 @@ function voiceOn() {
 function estimate(c) {
   if (c.engine === "launch") return 41;
   if (c.engine === "landing") return 30;
+  if (c.shot && c.shot.kind === "orbit") return 22;
+  if (c.shot && c.shot.kind === "depart") return 18;
   return c.short ? 9 : 14;
 }
 
@@ -187,6 +190,7 @@ function setText(c) {
 
 // natural: the story moved on by itself (not a jump made with the buttons or the progress bar)
 function startChapter(i, natural) {
+  root.classList.remove("mp-complete");
   clearTimeout(waitTimer);
   clearTimeout(advanceTimer);
   stopSpeaking();
@@ -286,13 +290,19 @@ function meltHeldFrame() {
 }
 
 let firstScene = true;
+let pendingBrief = null;
 function beginChapter(my, c, held) {
   firstScene = false;
+  if (pendingBrief) {
+    const b = pendingBrief;
+    pendingBrief = null;
+    setTimeout(function () { if (active && plan && !root.classList.contains("mp-complete")) { showBriefing(b); briefOnChapter(plan.chapters[index]); } }, 1800);
+  }
   stopEngines(); // the scene that just ended kept moving under the bridge card; one render loop at a time
   {
     hooks.show(c.engine);
     if (c.engine === "launch") {
-      startCinematic(function () { if (my === token) { engineDone = true; tryAdvance(my, true); } }, { mission: true, caption: plan.title + " · " + c.title + (c.date ? " · " + c.date : ""), rocket: c.rocket, look: c.look || null });
+      startCinematic(function () { if (my === token) { engineDone = true; tryAdvance(my, false); } }, { mission: true, caption: plan.title + " · " + c.title + (c.date ? " · " + c.date : ""), rocket: c.rocket, look: c.look || null });
     } else if (c.engine === "film") {
       startFilm(c.shot, function () { if (my === token) { engineDone = true; tryAdvance(my, false); } });
     } else if (c.pre) {
@@ -418,7 +428,7 @@ if (brief) {
 }
 
 function sayLine(my, text) {
-  if (voiceOn() && text && getPlaybackSpeed() === 1) { // at 2x and 4x the captions tell the story
+  if (voiceOn() && text) { // at every speed: the narrator always tells the story
     voiceDone = false;
     stopSpeaking();
     // the subtitle shows exactly the sentence being spoken
@@ -445,7 +455,7 @@ function tryAdvance(my, force) {
     return;
   }
   clearTimeout(waitTimer);
-  waitTimer = setTimeout(function () { if (my === token && !paused) advance(); }, 14000);
+  waitTimer = setTimeout(function () { if (my === token && !paused) advance(); }, 120000);
 }
 
 function advance() {
@@ -477,9 +487,30 @@ function finish(cut) {
   cardTitle.textContent = plan.title;
   if (cardOutcome) cardOutcome.textContent = options.endTitle || "Mission complete";
   cardText.textContent = last.caption || "";
+  showCardPhoto(plan.title);
+  root.classList.add("mp-complete"); // the briefing and the mission map step aside for the end card
   card.classList.remove("hidden");
   play("success");
   if (options.onFinish && options.finishWithoutCard) { close(false); done(finished, false); }
+}
+
+// A real photo of the mission on the end card (NASA images, loaded from NASA when online). If it cannot
+// be loaded, the card shows without it.
+function showCardPhoto(title) {
+  const figure = el("mp-card-photo");
+  if (!figure) return;
+  const photo = missionPhoto(title);
+  figure.classList.add("hidden");
+  if (!photo) return;
+  const img = figure.querySelector("img");
+  img.onload = function () { figure.classList.remove("hidden"); };
+  img.onerror = function () { figure.classList.add("hidden"); };
+  img.alt = photo.caption;
+  figure.querySelector(".mcp-caption").textContent = photo.caption;
+  const credit = figure.querySelector(".mcp-credit");
+  credit.textContent = photo.credit;
+  credit.href = photo.page || "#";
+  img.src = photo.src;
 }
 
 // ----- Dragging the progress bar: backward or forward, to any point of any scene -----
@@ -598,15 +629,17 @@ export function togglePause() {
   pauseCinematic(paused);
   pauseFilm(paused);
   pauseLanding(paused);
-  // the narrator stops with the picture and picks up again at the same sentence (subtitle included)
-  if (paused) pauseSpeaking();
-  else resumeSpeaking();
+  // Only the scene stops: the narrator keeps talking and the subtitles keep following it (team request,
+  // Master Doc 9). The engines' sounds go quiet while paused (each engine silences its own sounds).
+  if (paused) stopLoops("ambient", "music");
   play(paused ? "pause" : "resume");
   if (!paused) tryAdvance(token, false);
 }
 
 function close(callExit) {
   active = false;
+  pendingBrief = null;
+  root.classList.remove("mp-complete");
   if (brief) brief.classList.add("hidden");
   setPlaybackSpeed(1); // nothing else in the app plays fast
   token++;
@@ -640,7 +673,11 @@ export function playPlan(p, opts) {
   setSpeed(1); // every replay starts at normal speed
   fillVoicePicker();
   buildTimeline();
-  showBriefing(options.brief || briefingForPlan(p));
+  // the briefing comes in once the first scene is on screen (it used to appear at once, over the page
+  // the replay was started from)
+  if (brief) brief.classList.add("hidden");
+  pendingBrief = options.brief || briefingForPlan(p);
+  root.classList.remove("mp-complete");
   firstScene = true;
   startChapter(0);
   if (tickId === null) tick();

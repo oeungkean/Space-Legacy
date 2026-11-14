@@ -25,6 +25,10 @@ Download the 2K versions (8K also works, but loads slower). Rename them to these
 
 Earth's day map, normal map, specular (ocean-shine) map and clouds load from the three.js examples on jsDelivr. You do not need to add them.
 
+## Mission photos on the "Replay finished" card (loaded from NASA, not stored here)
+
+`data/mission-photos.js` lists one official NASA photo per mission replay, from the NASA Image and Video Library (https://images.nasa.gov). Each entry has the image's NASA ID, a caption based on NASA's own title and description, a credit and a link to the image's page. The pictures load from `images-assets.nasa.gov` when the card opens; offline, the card shows without a picture. Apollo 11, Curiosity and Perseverance use the local photos already listed above. NASA images are generally not copyrighted (NASA Images and Media Usage Guidelines); no NASA endorsement is implied. Chosen and checked 2026-11-14.
+
 ## Official NASA 3D models (loaded from NASA, not stored here)
 
 `js/nasa-models.js` loads official models from NASA 3D Resources (https://science.nasa.gov/3d-resources/) straight from NASA's asset server (`assets.science.nasa.gov`, which allows this cross-origin), using `GLTFLoader` through the import map. NASA states the assets are free to download and use; see the NASA Images and Media Usage Guidelines (no NASA endorsement is implied). Nothing is copied into this project.
