@@ -369,12 +369,50 @@ document.addEventListener("show-in-solar", function (event) {
 
 const navTabs = document.querySelectorAll ? document.querySelectorAll("[data-nav]") : [];
 
+// ----- One builder, two sections (Master Doc 11) -----
+// Missions = what really happened: browse, replay, and rebuild a real mission (the builder in Real
+// Missions mode). Simulator = your own designs: the builder in Free Build mode. The builder says which
+// section it belongs to, the matching tab is lit, and a link leads to the other section.
+const BUILDER_TEXT = {
+  missions: { sub: "Missions", title: "Rebuild a Real Mission", mode: "historical",
+    switchEyebrow: "Simulator", switchTitle: "Build your own instead \u2192", switchText: "Free Build: mix any parts (marked fictional)" },
+  simulator: { sub: "Simulator", title: "Free Build Simulator", mode: "sandbox",
+    switchEyebrow: "Missions", switchTitle: "Rebuild a real mission \u2192", switchText: "Only parts that really flew together" }
+};
+function openBuilder(section) {
+  applyBuilderSection(section);
+  showScreen(simulatorScreen);
+}
+function applyBuilderSection(section) {
+  const text = BUILDER_TEXT[section] || BUILDER_TEXT.simulator;
+  simulatorScreen.dataset.section = section === "missions" ? "missions" : "simulator";
+  setSimMode(text.mode);
+  document.getElementById("sim-sidebar-sub").textContent = text.sub;
+  document.getElementById("sim-sidebar-title").textContent = text.title;
+  document.getElementById("sim-switch-eyebrow").textContent = text.switchEyebrow;
+  document.getElementById("sim-switch-title").textContent = text.switchTitle;
+  document.getElementById("sim-switch-text").textContent = text.switchText;
+  simulatorScreen.setAttribute("aria-label", text.title);
+}
+applyBuilderSection("simulator"); // the builder starts as the Simulator's Free Build
+document.getElementById("sim-switch").addEventListener("click", function () {
+  play("click");
+  openBuilder(simulatorScreen.dataset.section === "missions" ? "simulator" : "missions");
+});
+document.getElementById("explorer-rebuild").addEventListener("click", function () {
+  play("click");
+  openBuilder("missions");
+});
+document.addEventListener("open-real-builder", function () { openBuilder("missions"); });
+
 function updateNavTabs() {
   const tabs = document.querySelectorAll ? document.querySelectorAll("[data-nav]") : [];
   let active = null;
   if (currentScreen === solarSystemScreen || currentScreen === destinationScreen) active = "solar";
   else if (currentScreen === explorerScreen) active = "explorer";
-  else if (currentScreen === simulatorScreen || currentScreen === explorationScreen) active = "simulator";
+  else if (currentScreen === simulatorScreen || currentScreen === explorationScreen) {
+    active = simulatorScreen.dataset.section === "missions" ? "explorer" : "simulator";
+  }
   else if (currentScreen === collectionScreen) active = "collection";
   else if (currentScreen === creditsScreen) active = "credits";
   tabs.forEach(function (tab) {
@@ -395,7 +433,7 @@ function goSection(where) {
     const world = getCurrentWorldName() || "Mars";
     document.dispatchEvent(new CustomEvent("explore-destination", { detail: { destination: world } }));
   } else if (where === "simulator") {
-    showScreen(simulatorScreen);
+    openBuilder("simulator");
   } else if (where === "collection") {
     showScreen(collectionScreen);
   } else if (where === "credits") {

@@ -321,6 +321,19 @@ The first countdown caption describes each pad, and rockets that were stacked on
 - Venus texture 404 fixed.
 - `docs/ASSETS.md` lists the Venus files by their real names.
 
+## Completed (2026-11-14): Kampu Space Master Doc (11)
+- **Missions vs Simulator: one builder, two clear sections**
+  - **Missions** = what really happened: browse, replay, and a new "Rebuild a real mission" (top of the Missions list). It opens the builder in Real Missions mode, titled "Rebuild a Real Mission", with the Missions tab lit.
+  - **Simulator** = your own designs: the builder in Free Build only, titled "Free Build Simulator".
+  - Each shows only its own mode, plus a link to the other section. The help text and the exploration note explain the split.
+- **Moon and Mars landing terrain is generated, not blurred**
+  - The landing view builds about 2.6 km of detailed ground: the nearest tiles at once, the rest a few per frame during the descent, coarser farther out.
+  - The far ground now has the same seeded craters as the detailed ground and reaches 24 km, curving with the planet to a real horizon. It used to be a 600 m patch inside smooth, blurred hills.
+  - Exploration's far ground also gets the craters.
+- **Every mission has a replay**, and "Watch the landing" is merged into it.
+  - Every one of the 64 Missions items has "Replay mission": its own journey; or its landing replay (arrival, landing, what happened next); or its mission's replay; or, for a rocket, a real mission it launched.
+  - The globe panels already used the single Replay Mission (Doc 10).
+
 ## Completed (2026-11-14): Kampu Space Master Doc (10)
 - **Sharper planet maps**
   - Mars, Jupiter and Saturn at 4096 px (Solar System Scope, CC BY 4.0), loaded after the 2K maps (not on phones).

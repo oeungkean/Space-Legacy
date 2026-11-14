@@ -10371,3 +10371,76 @@ body.player-on .cinema-stages li {
   }
   #explorer-screen.sidebar-collapsed #explorer-categories .dd-body .sidebar-item:not(:first-child) .sb-icon { width: 18px; height: 18px; }
 }
+
+/* =========================================================================================
+   Kampu Space Master Doc (11), 2026-11-14
+   ========================================================================================= */
+/* One builder, two sections: from Missions it shows only "Real Missions", from Simulator only "Free Build" */
+#simulator-screen[data-section="missions"] .sim-mode .mode-free,
+#simulator-screen[data-section="simulator"] .sim-mode .mode-real {
+  display: none;
+}
+.sim-switch {
+  display: grid;
+  gap: 3px;
+  width: calc(100% - 28px);
+  margin: 14px 14px 0;
+  padding: 12px 14px;
+  text-align: left;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  background: rgba(122, 184, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+}
+.sim-switch:hover { border-color: var(--accent-line); background: rgba(122, 184, 255, 0.08); }
+.sim-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sim-switch .ss-eyebrow {
+  font-family: var(--mono, "IBM Plex Mono", monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.sim-switch b { font-size: 0.9rem; }
+.sim-switch span:last-child { font-size: 0.74rem; color: var(--muted); }
+/* Missions page: "Rebuild a real mission" at the top of the list */
+.explorer-rebuild {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% - 28px);
+  margin: 4px 14px 12px;
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--accent-line);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(122, 184, 255, 0.14), rgba(122, 184, 255, 0.04));
+  color: var(--text);
+  cursor: pointer;
+}
+.explorer-rebuild:hover { background: rgba(122, 184, 255, 0.18); }
+.explorer-rebuild:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.explorer-rebuild .er-icon { display: inline-flex; width: 26px; height: 26px; color: var(--accent); flex: none; }
+.explorer-rebuild .er-icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.explorer-rebuild .er-text { display: grid; gap: 2px; }
+.explorer-rebuild .er-text b { font-size: 0.86rem; }
+.explorer-rebuild .er-text span { font-size: 0.7rem; color: var(--muted); }
+@media (min-width: 761px) {
+  #explorer-screen.sidebar-collapsed .explorer-rebuild {
+    flex-direction: column;
+    width: 72px;
+    margin: 4px auto 10px;
+    padding: 8px 4px;
+    gap: 4px;
+    text-align: center;
+  }
+  #explorer-screen.sidebar-collapsed .explorer-rebuild .er-text span { display: none; }
+  #explorer-screen.sidebar-collapsed .explorer-rebuild .er-text b { font-size: 0.56rem; line-height: 1.15; }
+}
+.sim-switch, .sim-switch b, .sim-switch span:last-child,
+.explorer-rebuild, .explorer-rebuild b, .explorer-rebuild span {
+  font-family: var(--sans);
+  text-transform: none;
+  letter-spacing: normal;
+}

@@ -303,9 +303,10 @@ const CHUNK_SEGMENTS = 72;
 const TILE_REACH = 2; // a 5 x 5 block of tiles (1 km across) around you
 let ground = null;
 
-function buildChunk(cx, cz) {
-  const n = CHUNK_SEGMENTS + 1;
-  const step = CHUNK / CHUNK_SEGMENTS;
+function buildChunk(cx, cz, segmentsWanted) {
+  const SEG = segmentsWanted || CHUNK_SEGMENTS;
+  const n = SEG + 1;
+  const step = CHUNK / SEG;
   const x0 = cx * CHUNK - CHUNK / 2;
   const z0 = cz * CHUNK - CHUNK / 2;
   // heights on a grid one step wider on every side, so the normals match across tile edges (no seams)
@@ -339,8 +340,8 @@ function buildChunk(cx, cz) {
     }
   }
   const index = [];
-  for (let j = 0; j < CHUNK_SEGMENTS; j++) {
-    for (let i = 0; i < CHUNK_SEGMENTS; i++) {
+  for (let j = 0; j < SEG; j++) {
+    for (let i = 0; i < SEG; i++) {
       const a = j * n + i, b = a + 1, c = a + n, d = c + 1;
       index.push(a, c, b, b, c, d);
     }
@@ -359,6 +360,18 @@ function buildChunk(cx, cz) {
   ground.group.add(mesh);
   ground.chunks.set(cx + "," + cz, mesh);
   return mesh;
+}
+
+// Builds a few more of the tiles that buildGround(..., { reach }) left for later (call every frame)
+export function stepGround(count) {
+  if (!ground || !ground.buildLater || !ground.buildLater.length) return false;
+  const started = performance.now();
+  for (let i = 0; i < (count || 2) && ground.buildLater.length; i++) {
+    const t = ground.buildLater.shift();
+    buildChunk(t[0], t[1], t[2]);
+    if (performance.now() - started > 12) break; // keep each frame smooth
+  }
+  return true;
 }
 
 // Keep the ground around (x, z). Call every frame; it does real work only when you cross a tile edge.
@@ -394,7 +407,7 @@ export function updateGround(x, z) {
   }
   // The distant ground moves along in big steps (a whole number of its own grid cells, so it never shifts)
   if (ground.far) {
-    const cell = 6000 / 140;
+    const cell = ground.farCell || 6000 / 140; // one grid cell of the far ground
     const fx = Math.round(x / 400) * 400;
     const fz = Math.round(z / 400) * 400;
     if (fx !== ground.farX || fz !== ground.farZ) {
@@ -405,21 +418,43 @@ export function updateGround(x, z) {
   }
 }
 
-export function buildGround(group, world, keepClear) {
+// options (optional, for the landing scenes, seen from high above):
+//   reach: how many 200 m tiles out from the middle to build in detail, all at once (fewer triangles
+//          farther out), instead of only the nearest ones (the rest used to be a blurred far ground)
+//   wide:  a wider far ground that curves down with the planet, out to the horizon
+export function buildGround(group, world, keepClear, options) {
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, map: detailTexture(world), roughness: 1, metalness: 0 });
-  ground = { group: group, material: material, chunks: new Map(), cx: 0, cz: 0, queue: [], far: null, farX: 0, farZ: 0 };
-  // the nine nearest tiles now, the outer ring over the next frames
-  for (let dz = -1; dz <= 1; dz++) {
-    for (let dx = -1; dx <= 1; dx++) buildChunk(dx, dz);
-  }
-  for (let dz = -TILE_REACH; dz <= TILE_REACH; dz++) {
-    for (let dx = -TILE_REACH; dx <= TILE_REACH; dx++) {
-      if (Math.abs(dx) > 1 || Math.abs(dz) > 1) ground.queue.push([dx, dz]);
+  const reach = options && options.reach ? options.reach : TILE_REACH;
+  ground = { group: group, material: material, chunks: new Map(), cx: 0, cz: 0, queue: [], far: null, farX: 0, farZ: 0,
+    detailHalf: (reach + 0.5) * CHUNK, wide: Boolean(options && options.wide), world: world };
+  if (options && options.reach) {
+    // full detail near the middle now; the rest a few tiles per frame (stepGround), nearest first,
+    // with fewer triangles farther out (craters still show)
+    const later = [];
+    for (let dz = -reach; dz <= reach; dz++) {
+      for (let dx = -reach; dx <= reach; dx++) {
+        const ring = Math.max(Math.abs(dx), Math.abs(dz));
+        if (ring <= 1) buildChunk(dx, dz, CHUNK_SEGMENTS);
+        else later.push([dx, dz, ring <= 3 ? 36 : 20, ring]);
+      }
+    }
+    later.sort(function (a, b) { return a[3] - b[3]; });
+    ground.buildLater = later;
+  } else {
+    // the nine nearest tiles now, the outer ring over the next frames
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) buildChunk(dx, dz);
+    }
+    for (let dz = -TILE_REACH; dz <= TILE_REACH; dz++) {
+      for (let dx = -TILE_REACH; dx <= TILE_REACH; dx++) {
+        if (Math.abs(dx) > 1 || Math.abs(dz) > 1) ground.queue.push([dx, dz]);
+      }
     }
   }
 
-  // Far terrain all the way to the horizon: rolling hills and crater rims with the same colors and texture,
-  // so the detailed area blends in and its square edge is never visible (it sits just under the detailed ground)
+  // Far terrain all the way to the horizon: hills AND craters made by the same seeded rules as the
+  // detailed ground (it used to be smooth hills only, which looked blurred next to the detailed area),
+  // with the same colors and texture; it sits just under the detailed ground
   ground.far = farTerrain(world, material.map);
   group.add(ground.far);
 
@@ -487,8 +522,8 @@ export function buildGround(group, world, keepClear) {
 }
 
 function farTerrain(world, map) {
-  const size = 6000;
-  const segments = 140;
+  const size = ground && ground.wide ? 24000 : 6000;
+  const segments = ground && ground.wide ? 260 : 160;
   const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
   geometry.rotateX(-Math.PI / 2);
   geometry.setAttribute("color", new THREE.BufferAttribute(new Float32Array(geometry.attributes.position.count * 3), 3));
@@ -497,12 +532,13 @@ function farTerrain(world, map) {
   if (map && map.clone) {
     farMap = map.clone();
     farMap.wrapS = farMap.wrapT = THREE.RepeatWrapping;
-    if (farMap.repeat) farMap.repeat.set(500, 500);
+    if (farMap.repeat) farMap.repeat.set(500 * (size / 6000), 500 * (size / 6000)); // the same scale as the tiles
     farMap.needsUpdate = true;
   }
   const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, map: farMap, roughness: 1 }));
   mesh.receiveShadow = true;
   mesh.name = "far-terrain";
+  if (ground) ground.farCell = size / segments;
   shapeFarTerrain(mesh, 0, 0);
   return mesh;
 }
@@ -523,9 +559,18 @@ function shapeFarTerrain(mesh, cx, cz) {
     const near = Math.max(Math.abs(x - cx), Math.abs(z - cz));
     const reach = Math.max(Math.abs(x), Math.abs(z));
     let h = farHills(x, z, reach) + fbm(x / 95, z / 95, 3, seed) * p.hills * 2;
-    // well under the detailed tiles (they reach at least 400 m from you), so it can never show through
-    // them, even in deep craters or the rille; it rises to its full height beyond them
-    h -= 30 * (1 - smooth(560, 820, near)); // deeper than the deepest dip (Hadley Rille, 22 m)
+    // the same seeded craters as the detailed ground, so the far ground is not a smooth blur
+    if (reach > 240) h += moreCraters(x, z) * smooth(240, 300, reach);
+    // well under the detailed tiles, so it can never show through them, even in deep craters or the
+    // rille; it rises to its full height beyond them
+    const half = ground && ground.detailHalf ? ground.detailHalf : 500;
+    h -= 30 * (1 - smooth(half + 60, half + 320, near)); // deeper than the deepest dip (Hadley Rille, 22 m)
+    // the wide ground curves down with the planet (radius in meters), so the horizon is a real curve
+    if (ground && ground.wide) {
+      const radius = ground.world === "mars" ? 3389500 : 1737400;
+      const d = Math.hypot(x, z);
+      h -= (d * d) / (2 * radius);
+    }
     position.setXYZ(i, x, h, z);
     groundColor(x, z, Math.max(0, h), smooth(250, 900, reach) * 0.15, rgb);
     colors.setXYZ(i, rgb[0] * 0.96, rgb[1] * 0.96, rgb[2] * 0.96);

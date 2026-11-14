@@ -7,7 +7,7 @@
 //   openExplorer({ itemId, category, region, body, replayOnly })   (main.js, from the "open-explorer" message)
 //   startExplorer() / stopExplorer()                                (main.js, when the screen is shown or hidden)
 // It sends these messages (main.js handles them): replay-hardware, replay-mission, replay-spacecraft,
-// watch-landing, explore-destination, show-in-solar.
+// replay-landing, explore-destination, show-in-solar.
 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -419,12 +419,12 @@ function makeMissionBlock(group, items) {
         meta.appendChild(button);
       });
     }
-    const withReplay = all.find(function (item) { return item.replay; });
+    const withReplay = all.find(function (item) { return item.replay; }) || all.find(function (item) { return bestReplay(item); });
     if (withReplay) {
       const replay = document.createElement("button");
       replay.className = "small-button primary mb-replay";
       replay.innerHTML = '<span aria-hidden="true">\u25B6</span> Replay mission';
-      replay.addEventListener("click", replayAction(withReplay));
+      replay.addEventListener("click", bestReplay(withReplay));
       head.querySelector(".mb-actions").appendChild(replay);
     }
   }
@@ -1044,6 +1044,36 @@ function send(name, detailData) {
   document.dispatchEvent(new CustomEvent(name, { detail: detailData }));
 }
 
+// The one "Replay mission" for any item (Master Doc 11: every mission has a replay, and the landing is
+// part of it, not a separate button). In order: the item's own journey replay; its landing replay
+// (arrival, landing, what happened next); the replay of its mission (another item of the same mission);
+// for a launch vehicle, a real mission it launched.
+function landingSiteOf(item) {
+  const id = item.landing || item.hardware;
+  const hw = id ? hardwareList.find(function (entry) { return entry.id === id && entry.landing; }) : null;
+  return hw ? hw.id : null;
+}
+function bestReplay(item) {
+  if (!item) return null;
+  if (item.replay) return replayAction(item);
+  const site = landingSiteOf(item);
+  if (site) return function () { send("replay-landing", { hardwareId: site }); };
+  const group = groupOfItem(item.id);
+  if (group) {
+    const members = group.items.map(findItem).filter(Boolean);
+    const withReplay = members.find(function (m) { return m.replay; });
+    if (withReplay) return replayAction(withReplay);
+    const withSite = members.find(landingSiteOf);
+    if (withSite) return bestReplay(withSite);
+  }
+  if (item.category === "rockets") {
+    const launched = catalog.find(function (c) { return c.rocket === item.id && c.replay; }) ||
+      catalog.find(function (c) { return c.rocket === item.id && c.category !== "rockets" && landingSiteOf(c); });
+    if (launched) return bestReplay(launched);
+  }
+  return null;
+}
+
 function replayAction(item) {
   const replay = item.replay;
   if (replay.type === "hardware") return function () { send("replay-hardware", { hardwareId: replay.id }); };
@@ -1117,8 +1147,8 @@ function openDetail(id) {
 
   // Actions: only the ones that really work for this item
   detailActions.innerHTML = "";
-  if (item.replay) actionButton("Replay mission", "primary", replayAction(item));
-  if (item.landing) actionButton("Watch the landing", "accent", function () { send("watch-landing", { hardwareId: item.landing }); });
+  const replayIt = bestReplay(item);
+  if (replayIt) actionButton("Replay mission", "primary", replayIt); // (the landing is part of the replay)
   if (item.hardware) {
     const hw = hardwareList.find(function (entry) { return entry.id === item.hardware; });
     if (hw) actionButton("View site on the " + hw.destination + " globe", "small-button", function () {

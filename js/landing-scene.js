@@ -15,7 +15,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createModel, createParachute, createBackshell, createAstronaut } from "./models.js";
 import { createParticleSystem } from "./particles.js";
-import { buildTerrainShape, buildGround as buildRealGround, heightAt as realHeight } from "./terrain.js";
+import { buildTerrainShape, buildGround as buildRealGround, heightAt as realHeight, stepGround } from "./terrain.js";
 import { getPlaybackSpeed } from "./playback.js";
 import { planetMaterial as lookMaterial, cloudMaterial } from "./planet-look.js";
 import { createGlow } from "./glow.js";
@@ -493,7 +493,8 @@ function buildRealTerrain(worldName) {
   const site = item ? LANDING_SITE[item.id] || "" : "";
   buildTerrainShape(world, site, (site || worldName).length * 97 + 13);
   const group = new THREE.Group();
-  buildRealGround(group, world, [{ x: 0, z: 0 }]);
+  // the landing is seen from high above: a big detailed area (2.6 km) and a wide, curved far ground
+  buildRealGround(group, world, [{ x: 0, z: 0 }], { reach: 6, wide: true });
   group.traverse(function (o) { if (o.isMesh) o.receiveShadow = true; });
   return { group: group, heightAt: realHeight };
 }
@@ -2148,6 +2149,7 @@ function setAutoCamera() {
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 function frame(now) {
   if (!running) return;
+  stepGround(3); // the rest of the detailed Moon or Mars ground, a few tiles per frame
   rafId = requestAnimationFrame(frame);
   const dt = Math.min((now - lastTime) / 1000, 0.05) * getPlaybackSpeed(); // 0.5x / 2x playback
   lastTime = now;
