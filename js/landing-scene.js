@@ -2311,6 +2311,13 @@ function updateSiteCard() {
   if (!siteCard || !siteCardReady) return;
   const show = totalTime > 0 && elapsed / totalTime > 0.62;
   if (show && siteCard.classList.contains("hidden")) {
+    // in the mission player, just above its scene bar (it used to sit behind the controls)
+    const bar = document.getElementById("mp-timeline");
+    if (document.body.classList.contains("player-on") && bar && bar.getBoundingClientRect && bar.getBoundingClientRect().top > 0) {
+      siteCard.style.bottom = Math.round(window.innerHeight - bar.getBoundingClientRect().top + 12) + "px";
+    } else {
+      siteCard.style.bottom = "";
+    }
     siteCard.classList.remove("hidden");
     requestAnimationFrame(function () { siteCard.classList.add("on"); });
   } else if (!show && !siteCard.classList.contains("hidden")) {

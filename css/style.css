@@ -10445,3 +10445,59 @@ body.player-on .cinema-stages li {
   text-transform: none;
   letter-spacing: normal;
 }
+
+/* =========================================================================================
+   Kampu Space Master Doc (12), 2026-11-14
+   ========================================================================================= */
+/* Missions page = Real Missions: the mode card on top of the list, the switch button at the bottom */
+.explorer-mode-heading { margin: 4px 14px 6px; }
+.explorer-mode { grid-template-columns: 1fr; margin: 0; padding: 0 14px 10px; }
+.explorer-mode .mode-card { cursor: default; width: 100%; }
+.mode-switch-btn {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 12px 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--accent-line);
+  border-radius: 12px;
+  background: rgba(122, 184, 255, 0.08);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}
+.mode-switch-btn:hover { background: rgba(122, 184, 255, 0.16); }
+.mode-switch-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* the builder is Free Build only */
+#simulator-screen .sim-mode .mode-real { display: none; }
+@media (min-width: 761px) {
+  #explorer-screen.sidebar-collapsed .explorer-mode-heading,
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-row .mode-text span,
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-art-tag,
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-radio { display: none; }
+  #explorer-screen.sidebar-collapsed .explorer-mode { padding: 0 6px 8px; }
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-row { padding: 6px 4px; justify-content: center; }
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-text b { font-size: 0.56rem; text-align: center; }
+  #explorer-screen.sidebar-collapsed .explorer-mode .mode-art { height: 40px; justify-content: center; padding: 0; }
+  #explorer-screen.sidebar-collapsed .mode-switch-btn { width: 72px; margin: 10px auto; padding: 8px 4px; font-size: 0.56rem; }
+}
+
+/* Mission player (Master Doc 12): the stage list is a compact card under the mission map, the same width
+   as the mission briefing (it was stretched to fill the whole right side) */
+body.player-on .cinema-stages {
+  top: 200px;
+  bottom: auto !important;
+  right: 30px;
+  width: min(330px, calc(100vw - 80px));
+  display: block;
+  padding: 12px 14px;
+}
+body.player-on .cinema-stages ol { grid-auto-rows: auto; gap: 6px; }
+body.player-on .cinema-stages li { padding: 7px 10px; }
+@media (max-width: 760px) {
+  body.player-on .cinema-stages { top: 110px; right: 10px; width: 180px; }
+}
+/* The scene title card sits high on the screen, above the spacecraft in the middle (not on top of it) */
+.mp-bridge { top: 22%; }

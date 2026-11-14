@@ -123,8 +123,13 @@ function buildMap() {
   if (returns && worlds.length) path += " Q110 92 24 66";
   // Colours come from the shared status palette in css/style.css (.mp-map #mp-route / #mp-dot)
   svg += '<path id="mp-route" d="' + path + '" fill="none" stroke-width="1.4" stroke-dasharray="3 3"/><circle id="mp-dot" r="3.5"/></svg>';
+  if (!worlds.length) {
+    // a mission that stays near Earth: its orbit around Earth (every replay has a mission map)
+    svg = '<svg viewBox="0 0 220 90" aria-hidden="true"><circle cx="110" cy="46" r="13" fill="#3f7fd8"/><text x="110" y="84" text-anchor="middle">Earth</text>' +
+      '<path id="mp-route" d="M60 46 A50 20 0 1 1 160 46 A50 20 0 1 1 60 46" fill="none" stroke-width="1.4" stroke-dasharray="3 3"/><circle id="mp-dot" r="3.5"/></svg>';
+  }
   mapBox.innerHTML = '<p>Mission map</p>' + svg;
-  mapBox.classList.toggle("hidden", worlds.length === 0);
+  mapBox.classList.remove("hidden");
 }
 
 function updateMap(progress) {
@@ -213,7 +218,11 @@ function startChapter(i, natural) {
   // when, while the scene that just ended keeps moving behind it (the rocket, the planet and the stars
   // carry on; nothing freezes). Then the old picture melts into the new scene.
   const bridgeTime = natural && !firstScene ? 3200 / Math.max(1, getPlaybackSpeed()) : 0; // long enough to read
-  if (bridgeTime > 0) showBridge(c, i, false);
+  if (bridgeTime > 0) {
+    showBridge(c, i, false);
+    sayLine(my, c.pre ? c.pre.narration : c.narration); // the narrator speaks over the title card too
+    spokenFor = my;
+  }
   setTimeout(function () {
     if (my !== token) return;
     holdLastFrame(function (held) {
@@ -291,6 +300,7 @@ function meltHeldFrame() {
 
 let firstScene = true;
 let pendingBrief = null;
+let spokenFor = -1; // the scene whose narration has already started (during its title card)
 function beginChapter(my, c, held) {
   firstScene = false;
   if (pendingBrief) {
@@ -317,7 +327,7 @@ function beginChapter(my, c, held) {
     fade.classList.remove("on");
     if (held) meltHeldFrame();
     if (pendingSeek !== null) applySeek(c, pendingSeek);
-    sayLine(my, c.pre ? c.pre.narration : c.narration);
+    if (spokenFor !== my) sayLine(my, c.pre ? c.pre.narration : c.narration);
   }
 }
 

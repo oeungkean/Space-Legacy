@@ -930,6 +930,27 @@ function layoutAssemblyHall(g, roomR, box, wallH, size, doorW) {
   });
   placeGroup(g, buildPallets(m, 4), rx, zFront - 0.45 * S, 0, S);
 
+  // FRONT CORNERS: the work stations (from the old Free Build lab), each in a marked area with a sign:
+  // engineering (workbenches and computers) on the left, fabrication (3D printer, robot cell) on the right
+  const lm = labMaterials();
+  const fz0 = zFront + labelW * 0.5;
+  const fz1 = inner;
+  if (fz1 - fz0 > 8) {
+    const fd = fz1 - fz0;
+    const fcz = (fz0 + fz1) / 2;
+    const fw = Math.min(Wz * 1.5, inner * 0.55);
+    [[-1, "ENGINEERING", "Workbenches and computers"], [1, "FABRICATION", "3D printing and a robot cell"]].forEach(function (z) {
+      const cx = z[0] * (inner - fw / 2);
+      zoneOutline(g, cx, fcz, fw, fd, 0x56d4f0, lineW);
+      floorLabel(g, z[1], cx, fz0 - labelW * 0.14, Math.min(labelW, fw * 0.8), "rgba(127, 230, 255, 0.92)");
+      onWall(g, signMesh(z[1], z[2], signW, "#56d4f0"), z[0] < 0 ? leftWall : rightWall, z[0] < 0 ? -fcz : fcz, signY, size * 0.03);
+    });
+    placeGroup(g, labWorkbenches(lm), -inner + fw * 0.3, fcz, Math.PI / 2, S);
+    placeGroup(g, labServerRacks(lm), -inner + fw * 0.75, fcz, Math.PI / 2, S);
+    placeGroup(g, labPrinter(lm), inner - fw * 0.28, fcz, 0, 1);
+    placeGroup(g, labRobotArms(lm), inner - fw * 0.72, fcz, Math.PI / 2, 1);
+  }
+
   // BACK: vehicle parking, one marked bay per vehicle, on both sides of the door
   const bayDepth = Math.max(3.2, S * 1.4);
   const bayZ = -inner + bayDepth / 2;
@@ -1499,7 +1520,9 @@ function worker(height, color) {
 function buildHangar(viewer, tallest, width) {
   // Two different buildings: Real Missions = a light-grey assembly hall like the ones NASA used;
   // Free Build = a dark engineering lab with blueprint-cyan light (fictional)
-  const freeBuild = state.mode === "sandbox";
+  // One building for every mode (Master Doc 12: the domed lab looked too modern and confusing): the
+  // assembly hall, with the lab's work stations brought into it
+  const freeBuild = false;
   if (viewer.hangar) viewer.scene.remove(viewer.hangar);
   const g = new THREE.Group();
   // The camera circles at about 1.15 x (1.9 x the biggest size + 2): the room is wider than that
@@ -1786,7 +1809,7 @@ function buildHangar(viewer, tallest, width) {
   // from outside (the walls are drawn from the inside only, so the building opens up like a cut-away
   // model); the view starts inside it.
   const controls = viewer.controls;
-  controls.maxDistance = roomR * 2.6;
+  controls.maxDistance = roomR * 0.82; // the camera always stays inside the building (Master Doc 12)
   viewer.insideDistance = roomR * 0.82;
   controls.minDistance = Math.max(1.5, tallest * 0.2);
   controls.maxPolarAngle = Math.PI * 0.49;
@@ -1956,8 +1979,7 @@ function zoomLab(factor) {
   // beyond the walls, the camera also rises to look down into the building (a cut-away view)
   const spherical = new THREE.Spherical().setFromVector3(offset);
   const startPhi = spherical.phi;
-  const outsideNow = lab.insideDistance && goal > lab.insideDistance;
-  const goalPhi = outsideNow ? Math.min(startPhi, 0.9) : startPhi;
+  const goalPhi = startPhi; // (zooming out stops at the walls: the view stays inside the building)
   play("tick");
   (function step() {
     const k = Math.min(1, (performance.now() - began) / 280);

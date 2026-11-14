@@ -321,6 +321,19 @@ The first countdown caption describes each pad, and rockets that were stacked on
 - Venus texture 404 fixed.
 - `docs/ASSETS.md` lists the Venus files by their real names.
 
+## Completed (2026-11-14): Kampu Space Master Doc (12)
+- **Two modes, clearly split** (replaces Doc 11's split)
+  - **Real Missions** = the Missions page: the "Real Missions" mode card on top, then All missions / All hardware, then a "Switch to Free Build →" button. Every item keeps its "Replay mission".
+  - **Free Build** = the builder (Simulator tab): only the Free Build card and a "Switch to Real Missions →" button. The wordy switch card is gone.
+- **One building**: the domed Free Build lab is no longer used. Its stations stand in the assembly hall as two marked work areas at the front corners, ENGINEERING (workbenches and computers) and FABRICATION (3D printer and robot cell). The camera can't zoom out past the walls.
+- **Mission player**
+  - The stages list is a compact card under the mission map, the same width as the briefing. It used to stretch down the right side.
+  - Every replay has a mission map: missions that stay near Earth (for example Gemini III) show an orbit around Earth.
+  - The "Real landing site" card sits just above the scene bar instead of behind it.
+  - The narrator reads the next scene's line while its title card shows, and doesn't repeat it when the scene starts. The title card sits higher, above the spacecraft.
+- **Site globes**: choosing a flyby or orbit now turns the camera to that path and backs out so it can be seen. Before, the view didn't change. Landing and impact sites still fly in close. Tested on the Moon: landing → flyby → orbit → impact.
+- Tested: desktop journeys (globe clicks, Missions ↔ Free Build, builder zoom and rotation, Gemini III and Surveyor 1 replays), a 375px phone view of the player, and no console errors.
+
 ## Completed (2026-11-14): Kampu Space Master Doc (11)
 - **Missions vs Simulator: one builder, two clear sections**
   - **Missions** = what really happened: browse, replay, and a new "Rebuild a real mission" (top of the Missions list). It opens the builder in Real Missions mode, titled "Rebuild a Real Mission", with the Missions tab lit.

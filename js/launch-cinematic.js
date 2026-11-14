@@ -1027,7 +1027,7 @@ function showLaunchSite(rocket) {
 function fitAboveSceneBar() {
   const bar = document.getElementById("mp-timeline");
   const playerOn = document.body.classList.contains("player-on");
-  [siteCard, stageHud].forEach(function (box) {
+  [siteCard].forEach(function (box) {
     if (!box) return;
     if (!playerOn || !bar || window.innerWidth <= 760 || !bar.getBoundingClientRect) { box.style.bottom = ""; return; }
     const top = bar.getBoundingClientRect().top;

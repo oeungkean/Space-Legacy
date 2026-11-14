@@ -488,6 +488,7 @@ Object.keys(worldSettings).forEach(function (name) {
 // ----- Selection logic -----
 let selectedMarker = null;
 let flyDirection = null;
+let flyDistance = FOCUS_DISTANCE; // how far out the camera stops (farther for a flyby or orbit path)
 let detailsHidden = false; // the user's choice to hide the panel details
 
 function styleMarker(marker, isSelected) {
@@ -638,6 +639,7 @@ function selectMarker(marker) {
   styleMarker(marker, true);
 
   flyDirection = marker.group.position.clone().normalize();
+  flyDistance = FOCUS_DISTANCE;
   updateBreadcrumb();
   showPanel(marker.item);
   updateSidebarActive();
@@ -754,6 +756,12 @@ function selectVisit(entry) {
     other.label.material.opacity = on ? 1 : 0.35;
   });
   visitRows.forEach(function (r) { r.row.classList.toggle("active", r.entry === entry); });
+  // the camera turns to face the chosen path and backs out far enough to see it (Master Doc 12:
+  // choosing a flyby or an orbit used to leave the view exactly as it was)
+  if (entry.label) {
+    flyDirection = entry.label.position.clone().normalize();
+    flyDistance = Math.min(controls.maxDistance - 2, Math.max(FOCUS_DISTANCE * 2.4, entry.label.position.length() * 1.7));
+  }
   const v = entry.visit;
   document.getElementById("visit-kind").textContent = VISIT_KIND_LABELS[v.kind] + " \u00B7 " + currentWorld.name;
   document.getElementById("visit-name").textContent = v.name;
@@ -1066,11 +1074,11 @@ function animate() {
     if (flyDirection) {
       const currentDirection = camera.position.clone().normalize();
       const newDirection = currentDirection.lerp(flyDirection, 0.06).normalize();
-      const newDistance = THREE.MathUtils.lerp(camera.position.length(), FOCUS_DISTANCE, 0.06);
+      const newDistance = THREE.MathUtils.lerp(camera.position.length(), flyDistance, 0.06);
 
       camera.position.copy(newDirection).multiplyScalar(newDistance);
 
-      if (newDirection.dot(flyDirection) > 0.9999 && Math.abs(newDistance - FOCUS_DISTANCE) < 0.1) {
+      if (newDirection.dot(flyDirection) > 0.9999 && Math.abs(newDistance - flyDistance) < 0.1) {
         flyDirection = null;
         play("arrive"); // the camera has locked on to the site
       }
