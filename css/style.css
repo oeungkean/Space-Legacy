@@ -65,7 +65,7 @@ body {
   font-family: var(--sans);
   color: var(--text);
   min-height: 100vh;
-  overflow: hidden;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   /* Deep space: black with a hint of navy, plus a few tiny stars (seen while loading) */
   background:
@@ -227,6 +227,7 @@ button {
   border-radius: var(--radius);
   padding: 9px 16px;
   cursor: pointer;
+  touch-action: manipulation;
   transition: background 0.3s, border-color 0.3s, color 0.3s, transform 0.12s;
 }
 

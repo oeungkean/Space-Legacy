@@ -1255,4 +1255,3 @@ setInterval(updateClocks, 1000);
   });
 });
 
-console.log("Space Legacy main.js loaded.");
