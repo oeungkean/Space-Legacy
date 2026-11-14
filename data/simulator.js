@@ -60,6 +60,8 @@ export const DESTINATIONS = {
   jupiter: { name: "Jupiter", target: "Jupiter", gap: 1.6, travel: "About 21 months (Pioneer 10: Mar 1972 to Dec 1973)" },
   saturn: { name: "Saturn", target: "Saturn", gap: 1.2, travel: "About seven years to orbit (Cassini: 1997 to 2004)" },
   asteroid: { name: "A near-Earth asteroid", target: "deep", radius: 22.5, angle: 1.1, body: "Asteroid", travel: "About two years (OSIRIS-REx: 2016 to 2018)" },
+  // NLC-2 (new — safe to remove on request): Ceres, for the Dawn template
+  ceres: { name: "Ceres (dwarf planet)", target: "deep", radius: 28, angle: 3.4, body: "Ceres", travel: "About 7.5 years (Dawn: 2007 to 2015)" },
   deep: { name: "Deep space (outer solar system)", target: "outbound", far: 1, travel: "Decades (Voyager, Pioneer, New Horizons)" },
   sun: { name: "Close to the Sun", target: "Venus", gap: 2.5, around: 2.6, travel: "Months to the first close pass (Parker)" }
 };
@@ -88,7 +90,10 @@ export const SPACECRAFT = {
   parker: { name: "Parker Solar Probe", model: "parker", catalogId: "parker", type: "probe", crew: 0 },
   "osiris-rex": { name: "OSIRIS-REx", model: "osiris-rex", catalogId: "osiris-rex", type: "probe", crew: 0 },
   "pioneer-venus": { name: "Pioneer Venus 2 (Multiprobe)", model: "venus-probe-large", catalogId: "pv-large", type: "probe", crew: 0 },
-  messenger: { name: "MESSENGER", model: "messenger", catalogId: "messenger", type: "probe", crew: 0 }
+  messenger: { name: "MESSENGER", model: "messenger", catalogId: "messenger", type: "probe", crew: 0 },
+  // NLC-2 (new — safe to remove on request): Dawn and NEAR Shoemaker
+  dawn: { name: "Dawn", model: "dawn", catalogId: "dawn", type: "probe", crew: 0 },
+  "near-shoemaker": { name: "NEAR Shoemaker", model: "near-shoemaker", catalogId: "near-shoemaker", type: "probe", crew: 0 }
 };
 
 // ----- Equipment the user can carry -----
@@ -235,6 +240,13 @@ export const TEMPLATES = [
     ] },
   { id: "osiris-rex", name: "OSIRIS-REx", year: 2016, rocket: "atlas-v-411", spacecraft: "osiris-rex", destination: "asteroid", crew: 0,
     duration: "Seven years for the sample (2016 to 2023)", site: null, replay: { type: "mission", id: "osiris-rex" } },
+  // NLC-2 (new — safe to remove on request): Dawn and NEAR Shoemaker templates
+  { id: "dawn", name: "Dawn", year: 2007, rocket: "delta-2", spacecraft: "dawn", destination: "ceres", crew: 0, nlc2: true,
+    duration: "About 4 years to Vesta, 7.5 years to Ceres (2007 to 2015)", site: null,
+    replay: { type: "mission", id: "dawn" } },
+  { id: "near-shoemaker", name: "NEAR Shoemaker", year: 1996, rocket: "delta-2", spacecraft: "near-shoemaker", destination: "asteroid", crew: 0, nlc2: true,
+    duration: "About 4 years to Eros (1996 to 2000)", site: null,
+    replay: { type: "mission", id: "near-shoemaker" } },
   { id: "parker", name: "Parker Solar Probe", year: 2018, rocket: "delta-4-heavy", spacecraft: "parker", destination: "sun", crew: 0,
     duration: "Still circling the Sun", site: null, replay: { type: "spacecraft", id: "Parker Solar Probe" } }
 ].filter(function (t) { return !t.hidden; });

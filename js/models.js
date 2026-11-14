@@ -15,7 +15,8 @@ export const UPRIGHT_MODELS = new Set([
   "lunar-module", "lm-ascent", "rover", "curiosity", "perseverance", "helicopter", "helicopter-flying",
   "mer-rover", "sojourner", "pathfinder-lander", "viking-lander", "phoenix", "insight", "surveyor",
   "lrv", "blue-ghost", "sky-crane",
-  "apollo-cm", "orion-cm", "src", "gemini-cm", "lrrr", "pse", "moxie", "seis"
+  "apollo-cm", "orion-cm", "src", "gemini-cm", "lrrr", "pse", "moxie", "seis",
+  "alsep" // NLC-2 (new — safe to remove on request)
 ]);
 
 // Short helper: a 3D point
@@ -1905,6 +1906,120 @@ function createZaryaUnity() {
   return station;
 }
 
+// ---------- NLC-2 (new — safe to remove on request): Dawn, NEAR Shoemaker, ALSEP ----------
+
+// Dawn: a gold box body with a large dish facing forward (+Z), two huge solar wings
+// spanning 19.7 m, three ion engine bells underneath and a magnetometer boom.
+function createDawn() {
+  const m = getMaterials();
+  const craft = new THREE.Group();
+
+  // Body (1.64 x 1.27 x 1.77 m) wrapped in gold thermal blanket
+  craft.add(put(box(1.27, 1.77, 1.64, m.gold), 0, 0, 0));
+
+  // The fixed 1.52 m high-gain dish on the front face (pointing +Y until rotated below)
+  const antenna = new THREE.Group();
+  antenna.add(strut(V(0, 0.9, 0), V(0, 1.15, 0), 0.05, m.metal));            // feed support
+  antenna.add(dish(0.78, 0.3, m.dish, 24));
+  antenna.position.y = 0.9;
+  craft.add(antenna);
+
+  // Two long thin solar wings (19.7 m tip-to-tip on the real spacecraft)
+  [-1, 1].forEach(function (side) {
+    craft.add(strut(V(side * 0.63, 0, 0), V(side * 1.1, 0, 0), 0.04, m.metal));
+    craft.add(put(box(8.2, 0.05, 2.3, m.solar), side * 5.2, 0, 0));
+  });
+
+  // Three ion engine bells on the back face, with small hydrazine thruster clusters
+  [-1, 0, 1].forEach(function (i) {
+    craft.add(put(cyl(0.05, 0.14, 0.22, m.bell, 12), i * 0.42, -1.02, 0));
+    craft.add(put(box(0.16, 0.1, 0.1, m.white), i * 0.42, -0.95, 0.5));
+  });
+
+  // Magnetometer boom on the opposite side of the dish
+  craft.add(strut(V(0.6, -0.85, 0), V(1.9, -2.3, 0.2), 0.02, m.metal));
+  craft.add(put(cyl(0.05, 0.05, 0.25, m.white, 8), 1.9, -2.3, 0.2));
+
+  // Point the dish forward (+Z), like Galileo
+  const outer = new THREE.Group();
+  craft.rotation.x = Math.PI / 2;
+  outer.add(craft);
+  outer.userData.size = 10;
+  return outer;
+}
+
+// NEAR Shoemaker: an eight-sided gold bus with four solar panels in a cross,
+// a dish antenna facing forward (+Z) and a magnetometer boom.
+function createNearShoemaker() {
+  const m = getMaterials();
+  const craft = new THREE.Group();
+
+  // Eight-sided bus (the real spacecraft is a 1.8 m octagonal prism)
+  craft.add(put(cyl(0.9, 0.9, 0.9, m.gold, 8), 0, 0, 0));
+  craft.add(put(cyl(0.9, 0.75, 0.18, m.black, 8), 0, -0.55, 0));             // engine section
+
+  // Four solar panels in a cross (NEAR's actual layout)
+  [-1, 1].forEach(function (side) {
+    craft.add(strut(V(side * 0.85, 0, 0), V(side * 1.05, 0, 0), 0.04, m.metal));
+    craft.add(put(box(2.0, 0.04, 0.85, m.solar), side * 2.0, 0, 0));
+    craft.add(strut(V(0, 0, side * 0.85), V(0, 0, side * 1.05), 0.04, m.metal));
+    craft.add(put(box(0.85, 0.04, 2.0, m.solar), 0, 0, side * 2.0));
+  });
+
+  // Dish antenna on the front face (+Y here; forward() turns it to +Z)
+  const antenna = new THREE.Group();
+  antenna.add(strut(V(0, 0.45, 0), V(0, 0.7, 0), 0.04, m.metal));
+  antenna.add(dish(0.45, 0.2, m.dish, 20));
+  antenna.position.y = 0.55;
+  craft.add(antenna);
+
+  // Magnetometer boom out the back (opposite the dish)
+  craft.add(strut(V(0.4, -0.45, 0), V(0.9, -1.7, 0.25), 0.02, m.metal));
+  craft.add(put(cyl(0.04, 0.04, 0.2, m.white, 8), 0.9, -1.7, 0.25));
+
+  const outer = forward(craft, 3.5);
+  return outer;
+}
+
+// ALSEP (Apollo 15): the surface experiments package — an upright central station
+// with an antenna dish on a mast, a black RTG power unit beside it, and thin
+// cables running out to the experiments.
+function createAlsep() {
+  const m = getMaterials();
+  const group = new THREE.Group();
+
+  // Central station: a boxy gold-wrapped stand with electronics on top
+  group.add(put(box(0.34, 0.5, 0.28, m.silver), 0, 0.25, 0));
+  group.add(put(box(0.5, 0.32, 0.42, m.gold), 0, 0.66, 0));
+
+  // Antenna dish on a tilted mast, pointing at Earth
+  const antenna = new THREE.Group();
+  antenna.add(strut(V(0, 0, 0), V(0, 0.55, 0), 0.015, m.metal, 8));
+  const mesh = dish(0.17, 0.09, m.dish, 16);
+  mesh.rotation.x = -0.5;
+  antenna.add(mesh);
+  antenna.position.set(-0.32, 0.82, 0);
+  group.add(antenna);
+  group.add(strut(V(-0.12, 0.82, 0), V(-0.28, 0.82, 0), 0.012, m.metal));    // mast brace
+
+  // RTG: a black finned power unit standing beside the station
+  group.add(put(box(0.3, 0.55, 0.22, m.black), 0.42, 0.28, 0));
+  for (let i = -1; i <= 1; i++) {
+    group.add(put(box(0.02, 0.4, 0.26, m.black), 0.42, 0.28, i * 0.14));
+  }
+  group.add(strut(V(0.2, 0.1, 0), V(0.34, 0.1, 0), 0.01, m.metal));          // power cable
+
+  // Thin cables running out to the sub-experiments
+  group.add(strut(V(0.25, 0.05, 0.2), V(0.85, 0.02, 0.65), 0.008, m.metal));
+  group.add(strut(V(0.25, 0.05, -0.2), V(0.8, 0.02, -0.7), 0.008, m.metal));
+  group.add(strut(V(-0.25, 0.05, 0.15), V(-0.9, 0.02, 0.35), 0.008, m.metal));
+
+  group.userData.size = 1.4;
+  return group;
+}
+
+// ---------- end NLC-2 ----------
+
 // ---------- Scientific instruments (upright, they stand on the ground) ----------
 
 // Apollo 11 Laser Ranging Retroreflector: a tilted panel of 100 small glass prisms on a stand
@@ -2060,6 +2175,10 @@ export function createModel(name) {
     case "gemini-cm": return createGeminiCm();
     case "osiris-rex": return createOsirisRex();
     case "stardust": return createStardust();
+    // NLC-2 (new — safe to remove on request)
+    case "dawn": return createDawn();
+    case "near-shoemaker": return createNearShoemaker();
+    case "alsep": return createAlsep();
     case "skylab": return createSkylab();
     case "zarya-unity": return createZaryaUnity();
     case "lrrr": return createLrrr();

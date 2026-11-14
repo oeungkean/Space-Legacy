@@ -301,6 +301,89 @@ export const missions = {
     ]
   },
 
+  // ===== NLC-2 (new — safe to remove on request): Dawn and NEAR Shoemaker replays =====
+  // Facts from the NSSDCA Master Catalog, checked November 14, 2026.
+  dawn: {
+    label: "Dawn", rocket: "delta-2", catalogId: "dawn", nlc2: true,
+    outcome: { label: "Ended", text: "Communications ended on October 31, 2018. Dawn keeps circling Ceres in silence: its final orbit is stable, with a lifetime of several hundred years." },
+    events: [
+      {
+        stage: "A", title: "Launch", date: "September 27, 2007",
+        caption: "A Delta II Heavy lifts Dawn out of Cape Canaveral toward the asteroid belt.",
+        narration: "September 27th, 2007. A Delta Two Heavy rocket launches Dawn, a spacecraft with ion engines built to visit two worlds in one trip.",
+        target: "Earth", isLaunch: true, model: "dawn", size: 0.07, zoom: 1.4
+      },
+      {
+        stage: "B", title: "Mars gravity assist", date: "February 18, 2009",
+        caption: "Dawn flies within 542 km of Mars, which bends its path toward the asteroid belt.",
+        narration: "February 2009. Dawn sweeps past Mars, borrowing a little of the planet's momentum to reach the asteroid belt.",
+        target: "Mars", gap: 0.4, around: 0.9, model: "dawn", size: 0.07, zoom: 1.2
+      },
+      {
+        stage: "C", title: "Orbit around Vesta", date: "July 16, 2011",
+        caption: "Dawn's ion engines settle it into orbit around Vesta, the second-heaviest asteroid. (Bodies are drawn far larger than they are.)",
+        narration: "July 2011. Dawn's ion engines, running for months, settle it into orbit around Vesta: the first spacecraft to orbit two worlds beyond Earth.",
+        target: "deep", radius: 24, angle: 2.2, body: "Vesta", gap: 0.25, model: "dawn", size: 0.08, zoom: 0.8, action: "orbit"
+      },
+      {
+        stage: "C", title: "Leaving Vesta", date: "September 5, 2012",
+        caption: "After a year of mapping, Dawn's ion engines push it away from Vesta toward Ceres.",
+        narration: "September 5th, 2012. After fourteen months at Vesta, Dawn leaves orbit and spirals on toward Ceres.",
+        target: "deep", radius: 24, angle: 2.2, body: "Vesta", gap: 0.3, model: "dawn", size: 0.08, zoom: 0.8
+      },
+      {
+        stage: "C", title: "Orbit around Ceres", date: "March 6, 2015",
+        caption: "Dawn arrives at the dwarf planet Ceres and maps its bright salt spots. (Bodies are drawn far larger than they are.)",
+        narration: "March 2015. Dawn reaches Ceres, a dwarf planet in the asteroid belt, and photographs its mysterious bright spots.",
+        target: "deep", radius: 28, angle: 3.4, body: "Ceres", gap: 0.25, model: "dawn", size: 0.08, zoom: 0.8, action: "orbit"
+      },
+      {
+        stage: "E", title: "Silent in orbit", date: "October 31, 2018",
+        caption: "With its hydrazine used up, Dawn falls silent and stays in a stable orbit around Ceres.",
+        narration: "October 31st, 2018. Out of fuel for pointing its antenna, Dawn goes silent. It is still circling Ceres today, and will stay in orbit for hundreds of years.",
+        target: "deep", radius: 28, angle: 3.4, body: "Ceres", gap: 0.4, model: "dawn", size: 0.08, zoom: 0.8
+      }
+    ]
+  },
+
+  "near-shoemaker": {
+    label: "NEAR Shoemaker", rocket: "delta-2", catalogId: "near-shoemaker", nlc2: true,
+    outcome: { label: "Ended", text: "The first spacecraft to orbit an asteroid, and the first to touch down on one. It rests on Eros in the 'saddle' region since its touchdown on February 12, 2001." },
+    events: [
+      {
+        stage: "A", title: "Launch", date: "February 17, 1996",
+        caption: "A Delta II launches NEAR toward the near-Earth asteroids.",
+        narration: "February 17th, 1996. A Delta Two rocket launches NEAR, the first mission built to orbit an asteroid.",
+        target: "Earth", isLaunch: true, model: "near-shoemaker", size: 0.07, zoom: 1.4
+      },
+      {
+        stage: "B", title: "Mathilde flyby", date: "June 27, 1997",
+        caption: "NEAR photographs asteroid Mathilde from 1,200 km. (The asteroid is drawn far larger than it is.)",
+        narration: "June 1997. NEAR flies past asteroid Mathilde, taking the first close pictures of this dark, cratered world.",
+        target: "deep", radius: 20, angle: 1.6, body: "Mathilde", gap: 0.2, model: "near-shoemaker", size: 0.07, zoom: 0.8
+      },
+      {
+        stage: "B", title: "Earth swingby", date: "January 23, 1998",
+        caption: "A swing past Earth bends NEAR's path onto Eros.",
+        narration: "January 23rd, 1998. NEAR swings past Earth at 540 km, using the planet's gravity to line up with asteroid Eros.",
+        target: "Earth", gap: 0.8, around: 1.2, model: "near-shoemaker", size: 0.07, zoom: 1.2
+      },
+      {
+        stage: "C", title: "Orbit around Eros", date: "February 14, 2000",
+        caption: "NEAR becomes the first spacecraft to orbit an asteroid, gradually circling closer. (Eros is drawn far larger than it is.)",
+        narration: "February 14th, 2000. On Valentine's Day, NEAR enters orbit around asteroid Eros, first from 200 km, then from only 35 km.",
+        target: "deep", radius: 22.5, angle: 1.1, body: "Eros", gap: 0.25, model: "near-shoemaker", size: 0.08, zoom: 0.8, action: "orbit"
+      },
+      {
+        stage: "E", title: "Touchdown on Eros", date: "February 12, 2001",
+        caption: "With its mission complete, NEAR is lowered onto the surface and survives. (Eros is drawn far larger than it is.)",
+        narration: "February 12th, 2001. Out of fuel, NEAR is lowered onto Eros itself, and survives the touchdown: the first landing on an asteroid.",
+        target: "deep", radius: 22.5, angle: 1.1, body: "Eros", gap: 0.05, model: "near-shoemaker", size: 0.08, zoom: 0.6
+      }
+    ]
+  },
+  // ===== end NLC-2 =====
+
   skylab: {
     label: "Skylab", rocket: "saturn-v-skylab", catalogId: "skylab",
     outcome: { label: "Ended", text: "Skylab re-entered the atmosphere on July 11, 1979, over the Indian Ocean and Australia." },

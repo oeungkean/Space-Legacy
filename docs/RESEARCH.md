@@ -102,3 +102,66 @@ Every 3D model in Space Legacy is a **representative model built in code**. None
 - [ESA: Ariane 5 ECA](https://www.esa.int/Enabling_Support/Space_Transportation/Ariane/Ariane_5_ECA)
 - [U.S. Centennial of Flight: Titan](https://centennialofflight.net/essay/SPACEFLIGHT/titan/SP11.htm)
 - [ULA: final Delta II launch](https://www.ulalaunch.com/about/news/2018/09/15/united-launch-alliance-successfully-launches-final-delta-ii-rocket-with-nasa-s-icesat-2)
+
+## NLC-2 verification pass (November 14, 2026)
+
+All facts below were checked against the NASA NSSDCA Master Catalog on November 14, 2026, and NASA's 3D
+Resources site was checked for official models the same day. The new items are all marked `nlc2: true`
+in the data files and sit between `// ===== NLC-2 (new — safe to remove on request) =====` /
+`// ===== end NLC-2 =====` comment markers, so they can be lifted out cleanly on request.
+
+### New items added (all `nlc2: true`)
+
+- **Dawn** (2007-043A) — catalog entry, mission group, replay journey, simulator spacecraft + template,
+  code model, NASA GLB. Facts: Delta II Heavy launch September 27, 2007 at 11:34 UT; Mars assist
+  February 18, 2009 (542 km); Vesta orbit July 16, 2011; departed September 5, 2012; Ceres orbit
+  March 6, 2015; comms ended October 31, 2018; stays in a stable orbit around Ceres (lifetime of
+  several hundred years); dry mass 747 kg, xenon 425 kg, hydrazine 45.6 kg, solar span 19.7 m.
+  Source: https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=2007-043A
+- **NEAR Shoemaker** (1996-008A) — same full wiring. Facts: Delta 7925-8 launch February 17, 1996;
+  Mathilde flyby June 27, 1997 (about 1,200 km); Earth swingby January 23, 1998 (540 km); Eros orbit
+  February 14, 2000 (200 km, later 35 km); touchdown February 12, 2001 in Eros's "saddle" region,
+  where it rests. 56 kg science payload. Eros is about 13 x 13 x 33 km.
+  Source: https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1996-008A
+- **ALSEP (Apollo 15)** (1971-063C) — instrument catalog entry, Apollo 15 mission group, code model
+  (upright). Facts: deployed July 31, 1971 at Hadley-Apennine; RTG-powered; experiments included
+  heat flow, a laser retroreflector and a supersensitive seismometer; its radio link was used to
+  track the Moon's distance; ALSEP stations switched off September 30, 1977; equipment left on the Moon.
+  Source: https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1971-063C
+
+### Existing entries enriched (no `nlc2` flag, markers in comments)
+
+- **LRV** — card description, background, specs and sources filled from
+  https://nssdc.gsfc.nasa.gov/planetary/lunar/apollo_lrv.html: three rovers (Apollos 15/16/17),
+  210 kg, payload up to 490 kg including two astronauts, distances 27.8 / 26.7 / 35.9 km, 36-volt
+  batteries, all three parked at their landing sites.
+- **Delta II** — NEAR (February 17, 1996, Delta 7925-8) and Dawn (September 27, 2007, Delta II Heavy
+  7925-H) added to the mission list, timeline and related ids.
+- **hardware.js** — NSSDCA Master Catalog source lines added to apollo11 (1969-059C, replacing the
+  stale "not re-checked for 2026" note), viking1 (1975-075C), pathfinder (1996-068A; Sojourner's own
+  entry 1996-068C does not load and returns an SQL error, so the parent Pathfinder entry is cited),
+  spirit (2003-027A), opportunity (2003-032A), phoenix (2007-034A, landing date corrected to
+  "May 25, 2008 (23:53 UTC)") and insight (2018-042A). Pathfinder's July 5 history entry notes the
+  NSSDCA egress time in the early hours of July 6 UTC.
+- **index.html** — NSSDCA credit description extended; Dawn and NEAR Shoemaker added to the NASA 3D
+  Resources model list.
+
+### Official NASA 3D models (checked November 14, 2026, HTTP 200 on NASA's asset server)
+
+- Dawn: `dawn/Dawn.glb` — https://science.nasa.gov/3d-resources/dawn/
+- NEAR Shoemaker: `near-shoemaker/NEAR%20Shoemaker.glb` — https://science.nasa.gov/3d-resources/near-shoemaker/
+- No official models exist for ALSEP, the LRV, Surveyor, Pathfinder/Sojourner or Phoenix (verified
+  against the official GitHub mirror nasa/NASA-3D-Resources), so those keep the code-built models.
+
+### Where to find the NLC-2 markers for removal
+
+- `data/catalog.js`: dawn + near-shoemaker entries between NLC-2 markers; `alsep` entry between
+  NLC-2 markers; LRV block marked with an `// NLC-2:` comment; delta-2 `related` marked.
+- `data/mission-groups.js`: `near-shoemaker` and `dawn` groups marked `nlc2: true` with comments;
+  `"alsep"` in the Apollo 15 group marked; "small" hint comment.
+- `js/models.js`: three builders between `// ---------- NLC-2 ----------` markers; factory cases and
+  the `UPRIGHT_MODELS` entry commented.
+- `js/nasa-models.js`: dawn + near-shoemaker entries under an NLC-2 comment.
+- `data/missions.js`: dawn + near-shoemaker replays between NLC-2 markers.
+- `data/simulator.js`: ceres destination, two SPACECRAFT entries and two TEMPLATES rows marked.
+- `data/hardware.js`: source lines marked `// NLC-2:`.

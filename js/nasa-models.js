@@ -21,7 +21,10 @@ export const NASA_MODELS = {
   pioneer: { file: "pioneer-10/Pioneer%2010.glb", page: "https://science.nasa.gov/3d-resources/pioneer/", name: "Pioneer 10" },
   "viking-lander": { file: "viking-lander/Viking%20Lander.glb", page: "https://science.nasa.gov/3d-resources/viking-lander/", name: "Viking Lander" },
   perseverance: { file: "mars-2020-perseverance-rover/Mars%202020%20Perseverance%20Rover.glb", page: "https://science.nasa.gov/3d-resources/mars-2020-perseverance-rover/", name: "Mars 2020 Perseverance Rover" },
-  agena: { file: "agena-target-vehicle/Agena%20Target%20Vehicle.glb", page: "https://science.nasa.gov/3d-resources/agena-target-vehicle/", name: "Agena Target Vehicle" }
+  agena: { file: "agena-target-vehicle/Agena%20Target%20Vehicle.glb", page: "https://science.nasa.gov/3d-resources/agena-target-vehicle/", name: "Agena Target Vehicle" },
+  // NLC-2 (new — safe to remove on request): official NASA models for Dawn and NEAR Shoemaker
+  dawn: { file: "dawn/Dawn.glb", page: "https://science.nasa.gov/3d-resources/dawn/", name: "Dawn" },
+  "near-shoemaker": { file: "near-shoemaker/NEAR%20Shoemaker.glb", page: "https://science.nasa.gov/3d-resources/near-shoemaker/", name: "NEAR Shoemaker" }
 };
 
 let loaderPromise = null;

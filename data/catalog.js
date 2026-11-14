@@ -1,6 +1,7 @@
 // The Spacecraft & Hardware Explorer catalog.
 // Each item is plain data. The Explorer page (js/explorer.js) reads it and never needs code changes to add items.
 // The facts were checked against the linked sources in October 2026 (see docs/RESEARCH.md).
+// Re-checked against the NSSDCA Master Catalog in November 2026; items marked nlc2: true were added then.
 //
 // How to add an item: copy an entry and change it. Fields:
 //   id          unique, lowercase
@@ -165,20 +166,23 @@ export const catalog = [
     model: { type: "rocket", key: "atlas-centaur" }
   },
   {
-    id: "delta-2", name: "Delta II", category: "rockets", mission: "Pathfinder, Stardust, Spirit, Opportunity, Phoenix",
-    launchDate: "December 4, 1996 (Mars Pathfinder)", destination: "Mars, comets", region: "Launch site (Earth)", bodies: ["Earth"],
+    id: "delta-2", name: "Delta II", category: "rockets", mission: "Pathfinder, Stardust, NEAR, Spirit, Opportunity, Phoenix, Dawn",
+    launchDate: "December 4, 1996 (Mars Pathfinder)", destination: "Mars, comets, asteroids", region: "Launch site (Earth)", bodies: ["Earth"],
     status: { label: "Retired", text: "The last Delta II launched ICESat-2 on September 15, 2018." },
     description: "A slim, turquoise-painted rocket ringed by nine white solid motors. It launched many of NASA's Mars missions.",
-    background: "NASA's Launch Services Program lists Delta II launches of Stardust (February 7, 1999), Spirit (June 10, 2003), Opportunity (July 7, 2003) and Phoenix (7925 version).",
+    background: "NASA's Launch Services Program lists Delta II launches of NEAR (February 17, 1996), Stardust (February 7, 1999), Spirit (June 10, 2003), Opportunity (July 7, 2003) and Phoenix (7925 version).",
     purpose: "A reliable, medium-sized rocket for science missions.",
     specs: [["Strap-on motors", "Nine (7925 version)"], ["Final flight", "September 15, 2018"]],
     timeline: [
       { date: "December 4, 1996", text: "Launches Mars Pathfinder." },
+      { date: "February 17, 1996", text: "A Delta 7925-8 launches NEAR Shoemaker." },
       { date: "February 7, 1999", text: "Launches Stardust." },
       { date: "June 10 and July 7, 2003", text: "Launches Spirit and Opportunity." },
+      { date: "September 27, 2007", text: "A Delta II Heavy 7925-H launches Dawn." },
       { date: "September 15, 2018", text: "Final flight." }
     ],
-    related: ["pathfinder", "stardust", "spirit", "opportunity", "phoenix", "delta-2-heavy"],
+    // NLC-2: NEAR Shoemaker and Dawn added to related list.
+    related: ["pathfinder", "stardust", "near-shoemaker", "spirit", "opportunity", "phoenix", "dawn", "delta-2-heavy"],
     sources: [LSP, DELTA2_LAST],
     model: { type: "rocket", key: "delta-2" }
   },
@@ -510,6 +514,53 @@ export const catalog = [
     model: { type: "model", key: "stardust" },
     replay: { type: "mission", id: "stardust" }
   },
+  // ===== NLC-2 (new — safe to remove on request): Dawn and NEAR Shoemaker =====
+  // Facts verified against the NSSDCA Master Catalog on November 14, 2026 (see docs/RESEARCH.md).
+  {
+    id: "dawn", name: "Dawn", category: "spacecraft", mission: "Dawn", nlc2: true,
+    launchDate: "September 27, 2007", rocket: "delta-2",
+    destination: "Asteroid belt: Vesta, then Ceres", region: "Asteroids & comets", bodies: ["Earth"],
+    status: { label: "Ended", text: "Dawn stayed in orbit around Ceres after the mission. Communications ended on October 31, 2018, and the silent spacecraft keeps circling Ceres: its final orbit is stable, with a lifetime of several hundred years.", asOf: "NASA NSSDCA catalog, checked November 2026." },
+    description: "The first spacecraft to orbit two worlds beyond Earth: it mapped the giant asteroids Vesta and Ceres, driven by ion engines.",
+    background: "Dawn launched on a Delta II Heavy from Cape Canaveral at 11:34 UT. It used its ion engines to spiral into orbit around Vesta on July 16, 2011, leave for Ceres on September 5, 2012, and orbit the dwarf planet Ceres from March 6, 2015.",
+    purpose: "To characterize the internal structure, density, shape, size, composition and mass of Vesta and Ceres, and understand the role of water in asteroid evolution.",
+    specs: [["Dry mass", "747 kg"], ["Xenon for the ion engines", "425 kg"], ["Hydrazine", "45.6 kg"], ["Solar array span", "19.7 m tip-to-tip"], ["Vesta arrival", "July 16, 2011"], ["Ceres arrival", "March 6, 2015"]],
+    timeline: [
+      { date: "September 27, 2007", text: "Launch on a Delta II Heavy from Cape Canaveral." },
+      { date: "February 18, 2009", text: "Mars gravity assist, flying within 542 km of the surface." },
+      { date: "July 16, 2011", text: "Enters orbit around Vesta." },
+      { date: "September 5, 2012", text: "Leaves Vesta for Ceres." },
+      { date: "March 6, 2015", text: "Enters orbit around Ceres." },
+      { date: "June 2016", text: "Primary mission ends." },
+      { date: "October 31, 2018", text: "Communications end. Dawn remains in orbit around Ceres." }
+    ],
+    related: ["delta-2", "stardust", "near-shoemaker", "osiris-rex"],
+    sources: [{ label: "NASA NSSDCA: Dawn", url: "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=2007-043A" }],
+    model: { type: "model", key: "dawn" },
+    replay: { type: "mission", id: "dawn" }
+  },
+  {
+    id: "near-shoemaker", name: "NEAR Shoemaker", category: "spacecraft", mission: "NEAR Shoemaker", nlc2: true,
+    launchDate: "February 17, 1996", rocket: "delta-2",
+    destination: "Asteroid 433 Eros", region: "Asteroids & comets", bodies: ["Earth"],
+    status: { label: "Ended", text: "The first spacecraft ever to orbit an asteroid and to touch down on one. It rests on the surface of 433 Eros, in the region called the saddle, since its touchdown on February 12, 2001.", asOf: "NASA NSSDCA catalog, checked November 2026." },
+    description: "Renamed in honor of Gene Shoemaker: the first mission to orbit an asteroid, and the first to land on one.",
+    background: "NEAR studied the near-Earth asteroid Eros from close orbit. It flew past asteroid Mathilde on June 27, 1997, swung past Earth on January 23, 1998, and orbited Eros from a 200 km circular orbit that was gradually lowered to 35 km.",
+    purpose: "To return data on the bulk properties, composition, mineralogy, morphology, internal mass distribution and magnetic field of asteroid 433 Eros.",
+    specs: [["Asteroid", "433 Eros, about 13 x 13 x 33 km"], ["Touchdown", "February 12, 2001, in the 'saddle' region"], ["Science payload", "56 kg"]],
+    timeline: [
+      { date: "February 17, 1996", text: "Launch on a Delta II from Cape Canaveral." },
+      { date: "June 27, 1997", text: "Flies within 1,200 km of asteroid Mathilde." },
+      { date: "January 23, 1998", text: "Earth gravity assist at 540 km." },
+      { date: "February 14, 2000", text: "Enters orbit around Eros: the first spacecraft to orbit an asteroid." },
+      { date: "February 12, 2001", text: "Touchdown in the saddle region of Eros, where it rests." }
+    ],
+    related: ["delta-2", "dawn", "osiris-rex"],
+    sources: [{ label: "NASA NSSDCA: NEAR Shoemaker", url: "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1996-008A" }],
+    model: { type: "model", key: "near-shoemaker" },
+    replay: { type: "mission", id: "near-shoemaker" }
+  },
+  // ===== end NLC-2 =====
   {
     id: "cassini", name: "Cassini", category: "spacecraft", mission: "Cassini-Huygens", hardware: "cassini",
     launchDate: "October 15, 1997", rocket: "titan-4b", destination: "Saturn", region: "Saturn & Titan", bodies: ["Saturn", "Titan"],
@@ -616,7 +667,13 @@ export const catalog = [
     id: "lrv", name: "Lunar Roving Vehicle (Apollo 15)", category: "landers", mission: "Apollo 15", hardware: "apollo15",
     launchDate: "July 26, 1971", rocket: "saturn-v", destination: "Moon, Hadley-Apennine", region: "Moon", bodies: ["Moon"],
     status: { label: "On the surface" },
-    related: ["saturn-v", "apollo11-lm"],
+    // NLC-2: card details filled in from the NSSDCA Apollo Lunar Roving Vehicle page (checked November 14, 2026).
+    description: "An electric car the astronauts drove on the Moon. NASA built three, and all three are still parked where the astronauts left them.",
+    background: "NASA sent a Lunar Roving Vehicle on the last three Apollo missions: Apollos 15, 16 and 17. The rover folded up inside the Lunar Module, and the astronauts unpacked it after landing. When they lifted off, they parked the rover a short way from the Lunar Module, so the last three rovers are still standing at their landing sites.",
+    purpose: "To let the astronauts explore farther from the landing site and carry tools, cameras and rock samples.",
+    specs: [["Rovers built", "3 (Apollos 15, 16, 17)"], ["Mass", "210 kg on the Moon"], ["Payload", "Up to 490 kg, including two astronauts"], ["Distance driven", "Apollo 15: 27.8 km, Apollo 16: 26.7 km, Apollo 17: 35.9 km"], ["Power", "36-volt batteries"]],
+    related: ["saturn-v", "apollo11-lm", "alsep"],
+    sources: [{ label: "NASA NSSDCA: Apollo Lunar Roving Vehicle", url: "https://nssdc.gsfc.nasa.gov/planetary/lunar/apollo_lrv.html" }],
     model: { type: "model", key: "lrv" }, landing: "apollo15"
   },
   {
@@ -736,6 +793,21 @@ export const catalog = [
     related: ["apollo11-lm", "lrrr", "seis"],
     model: { type: "model", key: "pse" }
   },
+  // ===== NLC-2 (new — safe to remove on request): ALSEP =====
+  // Facts verified against the NSSDCA Apollo 15 ALSEP page on November 14, 2026 (see docs/RESEARCH.md).
+  {
+    id: "alsep", name: "ALSEP (Apollo 15)", category: "instruments", mission: "Apollo 15", hardware: "apollo15", nlc2: true,
+    launchDate: "July 26, 1971", rocket: "saturn-v", destination: "Moon, Hadley-Apennine", region: "Moon", bodies: ["Moon"],
+    status: { label: "Ended", text: "The ALSEP stations ran for years after the astronauts left. NASA switched them off on September 30, 1977 to save money, and the equipment is still sitting on the Moon.", asOf: "NASA NSSDCA catalog, checked November 2026." },
+    description: "A package of science instruments left on the Moon by the Apollo 15 crew: a central station powered by a nuclear generator, with experiments linked to it by cables.",
+    background: "ALSEP stands for Apollo Lunar Surface Experiments Package. Apollo 12 first carried a full ALSEP; Apollos 14, 15, 16 and 17 left later versions. Apollo 15's package included a heat-flow experiment, a laser retroreflector and a supersensitive seismometer. Its radio link made it possible to track how far the Moon drifts from Earth.",
+    purpose: "To measure moonquakes, heat from inside the Moon, the Moon's distance from Earth and the thin lunar atmosphere after the crews came home.",
+    specs: [["Deployed", "July 31, 1971, at Hadley-Apennine"], ["Power", "Radioisotope thermoelectric generator (RTG)"], ["Shut down", "September 30, 1977"], ["Still there", "Yes: the equipment was left on the Moon"]],
+    related: ["lrv", "apollo11-lm", "pse"],
+    sources: [{ label: "NASA NSSDCA: Apollo 15 ALSEP", url: "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1971-063C" }],
+    model: { type: "model", key: "alsep" }
+  },
+  // ===== end NLC-2 =====
   {
     id: "moxie", name: "MOXIE (on Perseverance)", category: "instruments", mission: "Mars 2020",
     launchDate: "July 30, 2020", rocket: "atlas-v-541", destination: "Mars, Jezero Crater", region: "Mars", bodies: ["Mars"],

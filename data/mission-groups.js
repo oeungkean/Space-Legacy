@@ -11,14 +11,16 @@ export const DESTINATIONS = [
   { id: "mars", name: "Mars", hint: "Landers, rovers, a helicopter" },
   { id: "inner", name: "Sun, Mercury & Venus", hint: "Probes into heat and clouds" },
   { id: "outer", name: "Outer planets & beyond", hint: "Jupiter, Saturn, Pluto, interstellar space" },
-  { id: "small", name: "Asteroids & comets", hint: "Sample return" }
+  { id: "small", name: "Asteroids & comets", hint: "Sample return, asteroid orbiters" } // NLC-2: hint extended for Dawn and NEAR Shoemaker
 ];
 
 export const MISSION_GROUPS = [
   { id: "gemini3", name: "Gemini III", year: 1965, where: "earth", items: ["gemini3"] },
   { id: "surveyor1", name: "Surveyor 1", year: 1966, where: "moon", items: ["surveyor1"] },
+  // NLC-2 (new — safe to remove on request): NEAR Shoemaker group
+  { id: "near-shoemaker", name: "NEAR Shoemaker", year: 1996, where: "small", items: ["near-shoemaker"], nlc2: true },
   { id: "apollo11", name: "Apollo 11", year: 1969, where: "moon", items: ["apollo11-csm", "apollo11-lm", "apollo11-cm", "lrrr", "pse"] },
-  { id: "apollo15", name: "Apollo 15", year: 1971, where: "moon", items: ["lrv"] },
+  { id: "apollo15", name: "Apollo 15", year: 1971, where: "moon", items: ["lrv", "alsep"] }, // NLC-2: "alsep" added
   { id: "pioneer10", name: "Pioneer 10", year: 1972, where: "outer", items: ["pioneer10"] },
   { id: "pioneer11", name: "Pioneer 11", year: 1973, where: "outer", items: ["pioneer11"] },
   { id: "skylab", name: "Skylab", year: 1973, where: "earth", items: ["skylab"] },
@@ -35,6 +37,8 @@ export const MISSION_GROUPS = [
   { id: "messenger", name: "MESSENGER", year: 2004, where: "inner", items: ["messenger"] },
   { id: "new-horizons", name: "New Horizons", year: 2006, where: "outer", items: ["new-horizons"] },
   { id: "phoenix", name: "Phoenix", year: 2007, where: "mars", items: ["phoenix"] },
+  // NLC-2 (new — safe to remove on request): Dawn group
+  { id: "dawn", name: "Dawn", year: 2007, where: "small", items: ["dawn"], nlc2: true },
   { id: "lro-lcross", name: "LRO and LCROSS", year: 2009, where: "moon", items: ["lro", "lcross"] },
   { id: "msl", name: "Mars Science Laboratory", year: 2011, where: "mars", items: ["curiosity"] },
   { id: "osiris-rex", name: "OSIRIS-REx", year: 2016, where: "small", items: ["osiris-rex", "osiris-src"] },
