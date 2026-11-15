@@ -10,8 +10,7 @@ import { spacecraftInfo } from "../data/spacecraft.js";
 import { hardwareList } from "../data/hardware.js";
 import { hardwareReplays, replayVisuals } from "../data/hardware-replays.js";
 import { missions, STAGES, STAGE_TAGS, EVENT_ACTIONS } from "../data/missions.js";
-import { catalog, itemsForBody, CATEGORIES, launchYear } from "../data/catalog.js";
-import { modelIcon } from "./explorer.js";
+import { catalog, itemsForBody, CATEGORIES } from "../data/catalog.js";
 import { createModel, createLauncher, UPRIGHT_MODELS } from "./models.js";
 import { createParticleSystem } from "./particles.js";
 import { createGlow } from "./glow.js";
@@ -19,7 +18,6 @@ import { PLANET_LOOKS, planetMaterial as lookMaterial, cloudMaterial, ringMateri
 import { play, setLoop, isSoundOn, isGroupOn, setGroupOn, onSoundChange } from "./sounds.js";
 import { accentCss, accentNumber, onThemeChange } from "./theme.js";
 import { speak, stopSpeaking, speechSupported } from "./narrator.js";
-import { wantsReducedMotion } from "./settings.js";
 
 // ----- Find the page elements we need -----
 const solarScreen = document.getElementById("solar-system-screen");
@@ -104,9 +102,9 @@ function showToast(message) {
 const TEXTURE_FOLDER = "assets/textures/";
 
 const EARTH_TEXTURE_URL =
-  "assets/textures/earth_atmos_2048.jpg";
+  "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg";
 const MOON_TEXTURE_URL =
-  "assets/textures/moon_1024.jpg";
+  "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/moon_1024.jpg";
 
 const textureLoader = new THREE.TextureLoader();
 
@@ -825,41 +823,11 @@ onThemeChange(function () {
   });
 });
 
-// The × (and Esc, R) glide the camera back to the whole Solar System instead of jumping
-const HOME_SECONDS = 1.6;
-let homeFlight = null;
 function resetView() {
   play("whoosh");
   deselectBody();
-  zoomGoal = null;
-  if (prefersReducedMotion()) {
-    camera.position.copy(START_CAMERA_POSITION);
-    controls.target.set(0, 0, 0);
-    return;
-  }
-  const fromPos = camera.position.clone();
-  const fromTarget = controls.target.clone();
-  // A middle point between the two, lifted up, so the path arcs out instead of cutting through planets
-  const mid = fromPos.clone().lerp(START_CAMERA_POSITION, 0.5);
-  mid.y += Math.max(fromPos.distanceTo(START_CAMERA_POSITION) * 0.18, 0);
-  homeFlight = { t: 0, fromPos: fromPos, fromTarget: fromTarget, mid: mid };
-}
-function prefersReducedMotion() {
-  return wantsReducedMotion();
-}
-const homeA = new THREE.Vector3();
-const homeB = new THREE.Vector3();
-function updateHomeFlight(delta) {
-  if (!homeFlight) return;
-  if (selectedBody || replay) { homeFlight = null; return; } // a new choice took over
-  homeFlight.t += delta;
-  const u = Math.min(1, homeFlight.t / HOME_SECONDS);
-  const k = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; // slow start, slow arrival
-  homeA.copy(homeFlight.fromPos).lerp(homeFlight.mid, k);
-  homeB.copy(homeFlight.mid).lerp(START_CAMERA_POSITION, k);
-  camera.position.copy(homeA.lerp(homeB, k));
-  controls.target.copy(homeFlight.fromTarget).lerp(ORIGIN, k);
-  if (u >= 1) homeFlight = null;
+  camera.position.copy(START_CAMERA_POSITION);
+  controls.target.set(0, 0, 0);
 }
 
 function fillList(listElement, rows, makeRow) {
@@ -993,26 +961,23 @@ function showRelatedHardware(body) {
 
   const missionsTab = paneTabs.find(function (t) { return t.dataset.pane === "missions"; });
   if (missionsTab) missionsTab.textContent = "Missions" + (items.length ? " \u00B7 " + items.length : "");
-  // A picture grid instead of a pile of names: each tile has a small 3D picture of the hardware, its
-  // name and its year, oldest first (the history of the place at a glance); it scrolls when long
-  const sorted = items.slice().sort(function (a, b) { return (launchYear(a) || 0) - (launchYear(b) || 0); });
-  sorted.forEach(function (item) {
-    const tile = document.createElement("button");
-    tile.className = "related-tile";
+  items.slice(0, 10).forEach(function (item) {
+    const chip = document.createElement("button");
+    chip.className = "related-chip";
+    chip.textContent = item.name;
     const category = CATEGORIES.find(function (c) { return c.id === item.category; });
-    tile.title = item.name + (category ? " \u00B7 " + category.name : "") + (item.launchDate ? " \u00B7 " + item.launchDate : "");
-    tile.innerHTML = '<span class="rt-pic"><img alt="" decoding="async"></span><b class="rt-name"></b><span class="rt-year"></span>';
-    if (tile.querySelector) {
-      tile.querySelector(".rt-name").textContent = item.name;
-      tile.querySelector(".rt-year").textContent = launchYear(item) || "";
-      if (item.model) modelIcon(item.model, tile.querySelector("img"));
-      else tile.querySelector(".rt-pic").classList.add("empty");
-    }
-    tile.addEventListener("click", function () {
+    chip.title = (category ? category.name + " \u00B7 " : "") + (item.launchDate || "");
+    chip.addEventListener("click", function () {
       document.dispatchEvent(new CustomEvent("open-explorer", { detail: { itemId: item.id } }));
     });
-    relatedList.appendChild(tile);
+    relatedList.appendChild(chip);
   });
+  if (items.length > 10) {
+    const more = document.createElement("span");
+    more.className = "related-more";
+    more.textContent = "+" + (items.length - 10) + " more in Missions";
+    relatedList.appendChild(more);
+  }
 }
 
 explorerLink.addEventListener("click", function () {
@@ -2441,7 +2406,6 @@ controls.addEventListener("start", function () {
   }
   isZooming = false;
   zoomGoal = null;
-  homeFlight = null; // dragging takes over from the glide home
   if (replay) replay.cameraGoal = null;
 });
 
@@ -2476,11 +2440,6 @@ canvas.addEventListener("pointerup", function (event) {
 
   const body = getBodyAtPointer(event);
   if (body) selectBody(body);
-  else if (selectedBody && !entry) {
-    // a click on empty space goes back to the whole Solar System (the same smooth glide as the panel's ×)
-    play("close");
-    resetView();
-  }
 });
 
 canvas.addEventListener("pointermove", function (event) {
@@ -2823,12 +2782,6 @@ function updateEntry(delta) {
 }
 
 entrySkip.addEventListener("click", function () { play("click"); skipEntry(); });
-// Clicking (or tapping) anywhere on the picture during the opening flight skips it too
-solarScreen.addEventListener("pointerdown", function (event) {
-  if (!entry || entry.fast) return;
-  if (event.target.closest && event.target.closest(".entry-actions")) return; // Skip / CC buttons handle themselves
-  skipEntry();
-});
 entryCc.addEventListener("click", function () {
   entryCaptions = !entryCaptions;
   entryCc.setAttribute("aria-pressed", String(entryCaptions));
@@ -2911,7 +2864,6 @@ function animate() {
   if (entry) {
     updateEntry(delta);
   } else {
-    updateHomeFlight(delta);
     updateCamera(delta);
     applyZoomGoal(delta);
     controls.update();
@@ -2945,10 +2897,7 @@ export function stopSolarSystem() {
     animationId = null;
   }
   if (!keepReplay) stopReplay(true);
-  // Only this screen's own narration stops here. While the mission player runs, its narrator keeps going
-  // (Master Doc 15: a scene change used to cut the narrator off mid-line, and the scene then waited
-  // silently for a line that never finished)
-  if (!document.body.classList.contains("player-on")) stopSpeaking();
+  stopSpeaking();
   closeSearch();
   closeSpeedPanel();
   bodyTooltip.classList.add("hidden");

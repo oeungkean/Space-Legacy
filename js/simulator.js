@@ -11,7 +11,6 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { createRocket } from "./rockets.js";
 import { createModel } from "./models.js";
-import { createEquipment } from "./equipment-models.js";
 import { createSuitedAstronaut } from "./astronaut.js";
 import { modelIcon } from "./explorer.js";
 import { destinationIcon, planetPicture, uiIcon } from "./icons.js";
@@ -21,8 +20,6 @@ import {
 } from "../data/simulator.js";
 import { buildObjectives, getPoints, getUpgrades, spendPoint, onProgressChange } from "./progress.js";
 import { play } from "./sounds.js";
-import { loadNasaModel, nasaUsableInScene, upgradeToNasaModel, nasaModelInfo } from "./nasa-models.js";
-import { hardwareList } from "../data/hardware.js";
 
 const el = function (id) { return document.getElementById(id); };
 const stepButtons = document.querySelectorAll ? document.querySelectorAll("[data-sim-step]") : [];
@@ -31,7 +28,7 @@ const modeButtons = document.querySelectorAll ? document.querySelectorAll("[data
 // One place: the Mission Builder. (Older names "locker" and "explore" open the Suit and Destination steps.)
 const panels = { lab: el("sim-step-lab") };
 // Steps of the builder, in order, plus the optional Workshop
-const BAY_TABS = ["rocket", "spacecraft", "suit", "destination", "workshop", "review"];
+const BAY_TABS = ["rocket", "spacecraft", "suit", "destination", "review", "workshop"];
 const progressBar = el("bay-progress-bar");
 const progressText = el("bay-progress-text");
 const bayTabButtons = document.querySelectorAll ? document.querySelectorAll("[data-bay-tab]") : [];
@@ -66,20 +63,23 @@ const lockerFacts = el("locker-facts");
 const lockerName = el("locker-name");
 const lockerEquipment = el("locker-equipment");
 const lockerVehicles = el("locker-vehicles");
-const siteList = el("sim-site-list");      // (removed from the page in Master Doc 14; kept optional)
+const lockerWear = el("locker-wear");
+const lockerWearNote = el("locker-wear-note");
+const siteList = el("sim-site-list");
 const exploreNote = el("sim-explore-note");
 const rocketInfo = el("sim-rocket-info");
 const craftList = el("sim-craft-list");
+const craftInfo = el("sim-craft-info");
 const destList = el("sim-dest-list");
+const reviewList = el("sim-review");
 const reviewObjectives = el("sim-objectives");
+const reviewBadge = el("sim-badge");
 const launchButton = el("sim-launch");
 const modeNote = el("sim-mode-note");
 const labCanvas = el("lab-canvas");
-const wsAccessories = el("ws-accessories");
-const wsName = el("ws-name");
-const wsPatch = el("ws-patch");
-const patchPreview = el("sim-patch-preview");
-const objectivesTitle = el("sim-objectives-title");
+const labCompare = el("lab-compare");
+const labParts = el("lab-parts");
+const labTable = el("lab-table");
 const labCustom = el("lab-custom");
 const labPoints = el("lab-points");
 const labUpgrades = el("lab-upgrades");
@@ -98,36 +98,8 @@ const state = {
   labCompare: "",
   suit: "a7l",          // the suit shown in the Suit Locker
   pose: "walk",         // the animation shown in the Suit Locker
-  // Master Doc 14
-  vehicle: null,        // a surface vehicle that rides along: "lrv", "curiosity" or "perseverance"
-  site: null,           // the landing site chosen in the Destination step ("none" = orbit or fly by)
-  lockerTool: null,     // a hand tool shown on the turntable instead of the astronaut
-  workshopSeen: false,
-  missionName: "",
-  patch: { shape: "circle", color: "#2f5fb8" }
+  wearSuit: false       // Sandbox only: wear the locker's suit on every site (fictional)
 };
-state.look.acc = { fins: false, stripe: false, camera: false, flag: false };
-state.look.finColor = null;
-state.look.stripeColor = null;
-
-// Spacecraft that carry people get the Suit step
-function crewed() {
-  return Boolean(state.spacecraft && SPACECRAFT[state.spacecraft] && SPACECRAFT[state.spacecraft].type === "crewed");
-}
-const ROVERS = { curiosity: true, perseverance: true };
-
-// The spacecraft that counts for "did this really fly": a rover delivered by the sky crane flew as that
-// rover's own mission (MSL, Mars 2020)
-function effectiveCraft() {
-  if (state.spacecraft === "skycrane" && state.vehicle && ROVERS[state.vehicle]) return state.vehicle;
-  return state.spacecraft;
-}
-// The real mission that used this exact rocket, spacecraft, destination and site (Apollo 11, 15 and 17
-// all flew Saturn V + Apollo to the Moon, each to its own site)
-function realTemplateAt(siteId) {
-  return templatesFor({ rocket: state.rocket, spacecraft: effectiveCraft(), destination: state.destination })
-    .find(function (t) { return (t.site || null) === (siteId || null); }) || null;
-}
 
 // ----- Helpers -----
 function rocketName(key) {
@@ -174,15 +146,7 @@ function setPicture(frame, spec, svg) {
   const img = document.createElement("img");
   img.alt = "";
   frame.appendChild(img);
-  // where NASA's 3D Resources has the model, the picture switches to it and is labelled (Master Doc 14)
-  modelIcon(spec, img, function () {
-    if (!frame.querySelector || frame.querySelector(".nasa-tag")) return;
-    const tag = document.createElement("span");
-    tag.className = "nasa-tag";
-    tag.textContent = "NASA";
-    tag.title = "Official NASA 3D model";
-    frame.appendChild(tag);
-  });
+  modelIcon(spec, img);
 }
 
 // Destinations that are planets or moons get a rendered picture of the real-texture globe
@@ -239,15 +203,14 @@ function renderRockets() {
   const key = state.labRocket;
   const item = findItem(key);
   const missions = templatesFor({ rocket: key });
-  const rocketModel = createRocket(key);
-  // Only what is needed to choose (Master Doc 14): name, size, side boosters, what it flew, status
-  const specs = item && item.specs ? item.specs.slice(0, 2).map(function (sp) { return sp[0] + ": " + sp[1]; }).join(" \u00B7 ") : "";
+  const compatible = missions.map(function (t) { return SPACECRAFT[t.spacecraft].name; });
   factList(rocketInfo, [
-    ["On the pad", rocketName(key) + (state.rocket === key ? " (chosen)" : "")],
-    ["Size", specs || ("About " + Math.round(rocketModel.userData.height * 8) + " m tall")],
-    ["Side boosters", String(rocketModel.userData.boosters.length)],
-    ["Flew", missions.length ? missions.map(function (t) { return t.name; }).join(", ") : (item && item.mission) || "Free Build only"],
-    ["Status", item && item.status ? item.status.label : ""]
+    ["On the pad", rocketName(key) + (state.rocket === key ? " (chosen for your mission)" : rocketAllowed(key) ? "" : " (inspect only: it launched no mission in this simulator; Free Build lets you fly it)")],
+    ["History", item ? item.background || item.description : ""],
+    ["Specifications", item && item.specs ? item.specs.map(function (s) { return s[0] + ": " + s[1]; }).join(" · ") : ""],
+    ["Flew", missions.length ? missions.map(function (t) { return t.name; }).join(", ") : "Free Build only in this simulator"],
+    ["Compatible spacecraft (historical)", compatible.length ? Array.from(new Set(compatible)).join(", ") : "None in this simulator"],
+    ["Launch animation", "The liftoff scene uses this rocket's own model, with its own boosters and staging."]
   ]);
 }
 
@@ -255,208 +218,152 @@ function renderRockets() {
 function renderSpacecraft() {
   craftList.innerHTML = "";
   if (!state.rocket) {
-    craftList.innerHTML = '<p class="sim-empty">Roll a rocket onto the pad first (step 01).</p>';
+    craftList.innerHTML = '<p class="sim-empty">Roll a rocket onto the pad first (station 01).</p>';
+    craftInfo.innerHTML = "";
     return;
   }
   Object.keys(SPACECRAFT).forEach(function (key) {
     const craft = SPACECRAFT[key];
-    if (craft.type === "rover") return; // rovers are surface vehicles now (Master Doc 14)
-    const historical = key === "skycrane" ? state.rocket === "atlas-v-541" : templatesFor({ rocket: state.rocket, spacecraft: key }).length > 0;
+    const historical = templatesFor({ rocket: state.rocket, spacecraft: key }).length > 0;
     if (state.mode === "historical" && !historical) return;
-    const launchers = key === "skycrane" ? ["Atlas V 541"] : Array.from(new Set(templatesFor({ spacecraft: key }).map(function (t) { return rocketName(t.rocket); })));
+    const launchers = Array.from(new Set(templatesFor({ spacecraft: key }).map(function (t) { return rocketName(t.rocket); })));
     craftList.appendChild(card(craft.name,
       historical ? "Historically launched on " + rocketName(state.rocket) : "FICTIONAL combination (Free Build)",
-      (craft.type === "crewed" ? "Carries astronauts \u00B7 " : "") + "Real launch vehicles: " + (launchers.join(", ") || "none in this simulator"),
+      "Real launch vehicles: " + (launchers.join(", ") || "none in this simulator"),
       state.spacecraft === key,
       function () {
-        if (state.spacecraft !== key) {
-          state.spacecraft = key;
-          state.destination = null;
-          state.site = null;
-        }
+        state.spacecraft = key;
+        state.destination = null;
         play("select");
-        render(); // only marks it chosen: the button moves on
+        render();
       }, { fictional: !historical, picture: craftPicture(key) }));
   });
+  if (state.spacecraft) {
+    const craft = SPACECRAFT[state.spacecraft];
+    const item = craft.catalogId ? findItem(craft.catalogId) : null;
+    factList(craftInfo, [
+      ["Type", craft.type],
+      ["About", item ? item.description || item.mission : "Crew Dragon: SpaceX's crew capsule; Demo-2 (2020) carried Robert Behnken and Douglas Hurley to the space station."],
+      ["Can be launched by (historically)", Array.from(new Set(templatesFor({ spacecraft: state.spacecraft }).map(function (t) { return rocketName(t.rocket); }))).join(", ")]
+    ]);
+  } else craftInfo.innerHTML = "";
 }
 
 // ----- Step 3: destination -----
-// First only the worlds; after one is clicked, only that world's landing sites (Master Doc 14), plus
-// "Orbit or fly by". Choosing a site only marks it; the button then leads to the Workshop.
-const SITE_WORLD = { moon: "moon", mars: "mars", "earth-orbit": "orbit" };
-
-function sitesFor(destination) {
-  const world = SITE_WORLD[destination];
-  if (!world) return [];
-  return Object.keys(SITES).filter(function (id) {
-    const site = SITES[id];
-    if (site.world !== world) return false;
-    if (state.mode !== "sandbox" && site.fictional) return false;
-    if (crewed()) return Boolean(site.suit);                                     // people land where people walk
-    if (state.vehicle && ROVERS[state.vehicle]) return site.vehicle === "rover"; // a rover drives at a rover site
-    return false;                                                                // other robots: orbit or fly by
-  });
-}
-
-// Is this the site the real mission used?
-function realSite(id) {
-  return Boolean(realTemplateAt(id));
-}
+const CAPABILITY = {
+  crewed: "Carries astronauts.",
+  rover: "A robot: explores the surface and does not return to Earth.",
+  lander: "A robot lander: it stays where it lands.",
+  probe: "A robotic probe: flybys or orbit, no astronauts and no landing of people.",
+  telescope: "A telescope: it observes from its orbit.",
+  station: "A space station module in Earth orbit."
+};
 
 function renderDestinations() {
   destList.innerHTML = "";
   if (!state.spacecraft) {
-    destList.innerHTML = '<p class="sim-empty">Fit a spacecraft first (step 02).</p>';
+    destList.innerHTML = '<p class="sim-empty">Fit a spacecraft first (station 02).</p>';
     return;
   }
-  if (!state.destination) {
-    const grid = document.createElement("div");
-    grid.className = "sim-grid";
-    Object.keys(DESTINATIONS).forEach(function (key) {
-      const d = DESTINATIONS[key];
-      const historical = isHistoricalCombo(state.rocket, effectiveCraft(), key);
-      if (state.mode === "historical" && !historical) return;
-      const template = templatesFor({ rocket: state.rocket, spacecraft: effectiveCraft(), destination: key })[0];
-      grid.appendChild(card(d.name,
-        historical ? "Real mission: " + template.name + " (" + template.year + ")" : "FICTIONAL destination for this spacecraft",
-        "Travel time: " + d.travel,
-        false,
-        function () {
-          state.destination = key;
-          state.site = null;
-          play("select");
-          render();
-        }, { fictional: !historical, picture: PLANET_PICTURE[key], icon: PLANET_PICTURE[key] ? null : planetPicture(key) }));
-    });
-    destList.appendChild(grid);
-    return;
-  }
-  const d = DESTINATIONS[state.destination];
-  const head = document.createElement("div");
-  head.className = "dest-head";
-  const back = document.createElement("button");
-  back.type = "button";
-  back.className = "small-button dest-back";
-  back.textContent = "\u2190 All destinations";
-  back.addEventListener("click", function () {
-    state.destination = null;
-    state.site = null;
-    play("click");
-    render();
-  });
-  const title = document.createElement("h4");
-  title.className = "sim-sub sim-sub-big";
-  title.textContent = d.name + ": choose where to go";
-  head.appendChild(back);
-  head.appendChild(title);
-  destList.appendChild(head);
-  const grid = document.createElement("div");
-  grid.className = "sim-grid";
-  sitesFor(state.destination).forEach(function (id) {
-    const site = SITES[id];
-    const suitKey = crewed() && state.suitSeen ? state.suit : site.suit;
-    const suit = suitKey ? SUITS[suitKey] : null;
-    const real = realSite(id) && (!crewed() || !state.suitSeen || state.suit === site.suit);
-    const how = site.vehicle === "lrv" ? "Lunar Roving Vehicle" : site.vehicle === "rover" ? "Drive the rover" : site.start === "eva" ? "Spacewalk" : site.start === "cockpit" ? "Spacecraft controls" : "On foot";
-    grid.appendChild(card(site.name,
-      real ? "Real site of " + site.mission : (site.fictional ? "FICTIONAL site" : site.mission + " \u00B7 FICTIONAL for this build"),
-      (suit ? "Suit: " + suit.name : "Robotic") + " \u00B7 " + how,
-      state.site === id,
+  const craft = SPACECRAFT[state.spacecraft];
+  const note = document.createElement("p");
+  note.className = "sim-capability";
+  note.textContent = craft.name + ": " + CAPABILITY[craft.type];
+  destList.appendChild(note);
+  Object.keys(DESTINATIONS).forEach(function (key) {
+    const d = DESTINATIONS[key];
+    const historical = isHistoricalCombo(state.rocket, state.spacecraft, key);
+    if (state.mode === "historical" && !historical) return;
+    const template = templatesFor({ rocket: state.rocket, spacecraft: state.spacecraft, destination: key })[0];
+    destList.appendChild(card(d.name,
+      historical ? "Real mission: " + template.name + " (" + template.year + ")" : "FICTIONAL destination for this spacecraft",
+      "Travel time: " + d.travel,
+      state.destination === key,
       function () {
-        state.site = id;
+        state.destination = key;
         play("select");
         render();
-      }, { fictional: !real, picture: sitePicture(site) }));
+      }, { fictional: !historical, picture: PLANET_PICTURE[key], icon: PLANET_PICTURE[key] ? null : planetPicture(key) }));
   });
-  const lander = SPACECRAFT[state.spacecraft].type === "lander";
-  grid.appendChild(card(lander ? "No surface walk" : "Orbit or fly by",
-    "No landing site to explore",
-    lander ? "The replay follows the spacecraft to " + d.name + "; there is no surface exploration." : "The trip ends in orbit or with a flyby of " + d.name + ".",
-    state.site === "none",
-    function () {
-      state.site = "none";
-      play("select");
-      render();
-    }, { picture: PLANET_PICTURE[state.destination], icon: PLANET_PICTURE[state.destination] ? null : planetPicture(state.destination) }));
-  destList.appendChild(grid);
 }
 
-// ----- Launch step -----
-function ready() {
-  return Boolean(state.rocket && state.spacecraft && state.destination && state.site);
-}
-
+// ----- Step 4: review -----
 function missionConfig() {
+  const template = state.mode === "historical" ? historicalTemplate() : null;
   const craft = SPACECRAFT[state.spacecraft];
-  if (state.mode === "historical") {
-    const t = historicalTemplate();
-    return { mode: "historical", fictional: false, rocket: state.rocket, spacecraft: state.spacecraft, destination: state.destination,
-      template: t, siteId: t ? t.site : null, crew: t ? t.crew : craft.crew, title: t ? t.name : "Mission", look: null, upgrades: null };
+  let siteId = template ? template.site : null;
+  if (state.mode === "sandbox") {
+    if (state.destination === "moon" && (craft.type === "crewed" || craft.type === "lander")) siteId = state.spacecraft === "apollo" ? "hadley" : "sandbox-moon";
+    else if (state.destination === "mars" && (craft.type === "crewed" || craft.type === "rover")) siteId = craft.type === "rover" ? (state.spacecraft === "curiosity" ? "gale" : "jezero") : "sandbox-mars";
+    else if (state.destination === "earth-orbit" && craft.type === "crewed") siteId = state.spacecraft === "dragon" ? "orbit-dragon" : "orbit-hubble";
   }
-  // Free Build: the site chosen in the Destination step, the suit chosen in the Suit step (crews only),
-  // the rover chosen as a surface vehicle. Real only if all of it matches a real mission.
-  const siteId = state.site && state.site !== "none" ? state.site : null;
-  const template = realTemplateAt(siteId);
-  const site = siteId ? SITES[siteId] : null;
-  const suit = crewed() && state.suitSeen ? state.suit : null;
-  const siteMatches = Boolean(template);
-  const suitMatches = !site || !site.suit || !suit || suit === site.suit;
-  const vehicleMatches = !state.vehicle || (ROVERS[state.vehicle] ? state.spacecraft === "skycrane" : Boolean(site && site.vehicle === state.vehicle));
-  const fictional = !(template && siteMatches && suitMatches && vehicleMatches);
-  const name = (state.missionName || "").trim();
+  const fictional = state.mode === "sandbox" && !isHistoricalCombo(state.rocket, state.spacecraft, state.destination);
   return {
     mode: state.mode,
     fictional: fictional,
     rocket: state.rocket,
-    spacecraft: effectiveCraft(),
-    carrier: state.spacecraft,
-    vehicle: state.vehicle,
+    spacecraft: state.spacecraft,
     destination: state.destination,
-    template: null,
+    template: template,
     siteId: siteId,
-    suit: site && site.suit ? suit : null,
-    crew: craft.crew,
-    title: name || (fictional ? "Free Build mission (fictional)" : "Free Build mission"),
-    missionName: name,
-    patch: { shape: state.patch.shape, color: state.patch.color },
-    look: state.look,
-    upgrades: getUpgrades()
+    crew: template ? template.crew : craft.crew,
+    title: template ? template.name : (fictional ? "Free Build mission (fictional)" : "Free Build mission"),
+    look: state.mode === "sandbox" ? state.look : null,
+    upgrades: state.mode === "sandbox" ? getUpgrades() : null
   };
 }
 
 function renderReview() {
-  reviewObjectives.innerHTML = "";
-  if (!ready()) {
-    const li = document.createElement("li");
-    li.className = "sim-empty";
-    li.textContent = "Choose a rocket, a spacecraft, a destination and a landing site (or Orbit or fly by) first.";
-    reviewObjectives.appendChild(li);
+  if (state.destination && state.mode === "historical" && !historicalTemplate()) {
+    // Never offered in Historical Mode, but guard anyway
+    reviewList.innerHTML = '<li class="sim-empty">This combination never flew. Switch to Free Build to try it as a fictional mission.</li>';
+    reviewObjectives.innerHTML = "";
     launchButton.disabled = true;
-    if (objectivesTitle) objectivesTitle.textContent = "Mission objectives";
-    if (patchPreview) patchPreview.innerHTML = "";
+    reviewBadge.textContent = "";
+    return;
+  }
+  if (!state.destination) {
+    reviewList.innerHTML = '<li class="sim-empty">Choose a rocket, a spacecraft and a destination first (stations 01 to 03).</li>';
+    reviewObjectives.innerHTML = "";
+    launchButton.disabled = true;
+    reviewBadge.textContent = "";
     return;
   }
   const config = missionConfig();
   const site = config.siteId ? SITES[config.siteId] : null;
-  // only the mission's three objectives and the launch button (Master Doc 14)
+  const suit = site && site.suit ? SUITS[site.suit] : null;
+  reviewBadge.textContent = config.mode === "historical" ? "Real mission · " + config.template.name + " (" + config.template.year + ")" :
+    config.fictional ? "Free Build · FICTIONAL combination" : "Free Build · matches a real mission";
+  reviewBadge.className = "sim-badge " + (config.mode === "historical" ? "historical" : "fictional");
+  factList(reviewList, [
+    ["Rocket", rocketName(config.rocket) + (config.look && (config.look.paint || config.look.accent) ? " (custom paint: fictional)" : "")],
+    ["Spacecraft", SPACECRAFT[config.spacecraft].name],
+    ["Destination", DESTINATIONS[config.destination].name],
+    ["Crew", config.crew ? config.crew + (config.crew === 1 ? " astronaut" : " astronauts") : "Uncrewed"],
+    ["Spacesuit", suit ? suit.name + " (" + suit.era + ")" : "None needed"],
+    ["Exploration", site ? site.name + (site.fictional ? " (fictional site)" : "") : "No surface exploration: the journey ends with the spacecraft's real final state"],
+    ["Exploration vehicles", site && site.vehicle === "lrv" ? "Lunar Roving Vehicle" : site && site.vehicle === "rover" ? "The rover itself" : "None"],
+    ["Equipment", site ? site.equipment.map(function (key) { return EQUIPMENT[key].name; }).join(", ") : "Mission instruments only"],
+    ["Duration estimate", config.template ? config.template.duration : DESTINATIONS[config.destination].travel + " (based on real missions)"],
+    ["Fictional upgrades", config.upgrades && Object.keys(config.upgrades).length ? Object.keys(config.upgrades).map(function (k) { return k + " +" + config.upgrades[k]; }).join(", ") + " (game mode)" : ""]
+  ]);
+  reviewObjectives.innerHTML = "";
   buildObjectives(config, site).forEach(function (o) {
     const li = document.createElement("li");
     li.textContent = o.text;
     reviewObjectives.appendChild(li);
   });
-  if (objectivesTitle) objectivesTitle.textContent = config.missionName ? config.missionName + ": objectives" : "Mission objectives";
-  if (patchPreview) patchPreview.innerHTML = patchSvg(state.patch, config.missionName);
   launchButton.disabled = false;
 }
 
 launchButton.addEventListener("click", function () {
-  if (!ready()) return;
+  if (!state.destination) return;
   play("ignition");
   document.dispatchEvent(new CustomEvent("sim-launch", { detail: missionConfig() }));
 });
 
 // ----- Pages and stations -----
-// Old step names (rocket, spacecraft, destination, review) open that step inside the builder.
+// Old step names (rocket, spacecraft, destination, review) open that station inside the Engineering Bay.
 function setStep(step) {
   if (step === "locker") step = "suit";
   if (step === "explore") step = "destination";
@@ -471,25 +378,15 @@ function setStep(step) {
   });
   render();
   showBayExtras();
-
-  // If entering story step, load and show the mission story
-  if (step === "story" && state.currentMission) {
-    showMissionStory(state.currentMission);
-  }
 }
 
 function setBayTab(tab) {
-  if (tab === "suit" && !crewed()) tab = "destination"; // uncrewed: no suit step
   state.bayTab = tab;
-  if (tab === "workshop") state.workshopSeen = true;
   render();
   showBayExtras();
-  const bar = bayPanesTop();
-  if (bar && bar.scrollIntoView) bar.scrollIntoView({ block: "nearest" });
 }
-function bayPanesTop() { return document.querySelector ? document.querySelector(".build-progress") : null; }
 
-// The Suit step shows the locker (with its 3D turntable)
+// The Suit step shows the locker (with its 3D turntable); the Destination step also lists sites to explore
 function showBayExtras() {
   if (state.bayTab === "suit") {
     state.suitSeen = true;
@@ -497,39 +394,28 @@ function showBayExtras() {
     requestAnimationFrame(function () { if (locker) sizeViewer(locker); });
     render();
   }
+  if (state.bayTab === "destination") renderSites();
   if (state.bayTab === "spacecraft") renderVehicles();
 }
 
-// The progress bar keeps its icons but is not clickable (Master Doc 14): the buttons move you on
-bayTabButtons.forEach(function (item) {
-  if (item.querySelector) {
-    const icon = item.querySelector("[data-ui-icon]");
+bayTabButtons.forEach(function (button) {
+  if (button.querySelector) {
+    const icon = button.querySelector("[data-ui-icon]");
     if (icon) icon.innerHTML = uiIcon(icon.getAttribute ? icon.getAttribute("data-ui-icon") : icon.dataset.uiIcon);
   }
+  button.addEventListener("click", function () {
+    play("click");
+    setBayTab(button.dataset.bayTab);
+  });
 });
 
-// The steps in order (the Suit step only for spacecraft that carry people)
-function visibleSteps() {
-  return BAY_TABS.filter(function (tab) { return tab !== "suit" || crewed(); });
-}
-function stepDone(tab) {
-  if (tab === "rocket") return Boolean(state.rocket);
-  if (tab === "spacecraft") return Boolean(state.spacecraft);
-  if (tab === "suit") return Boolean(state.suitSeen);
-  if (tab === "destination") return Boolean(state.destination && state.site);
-  if (tab === "workshop") return Boolean(state.workshopSeen);
-  return false;
-}
-
-// The one "next" button (bottom-right, in the same place on every step): what it says and where it goes
+// The next station, so the bay guides you without extra sidebar buttons
 function nextStation() {
-  const tab = state.bayTab;
-  if (tab === "rocket") return state.rocket ? ["spacecraft", "Pick a spacecraft"] : null;
-  if (tab === "spacecraft") return state.spacecraft ? (crewed() ? ["suit", "Pick a suit"] : ["destination", "Pick a destination"]) : null;
-  if (tab === "suit") return ["destination", "Pick a destination"];
-  if (tab === "destination") return state.destination && state.site ? ["workshop", "Go to Workshop"] : null;
-  if (tab === "workshop") return ["review", "Go to launch"];
-  return null;
+  if (!state.rocket) return null;
+  if (!state.spacecraft) return ["spacecraft", "Next: fit a spacecraft"];
+  if (!state.suitSeen) return ["suit", "Next: choose a suit"];
+  if (!state.destination) return ["destination", "Next: pick a destination"];
+  return ["review", "Next: launch preparation"];
 }
 
 bayNext.addEventListener("click", function () {
@@ -539,64 +425,70 @@ bayNext.addEventListener("click", function () {
   setBayTab(next[0]);
 });
 
-// Back one step (the progress bar itself is not clickable)
-const bayBack = document.createElement("button");
-bayBack.type = "button";
-bayBack.className = "small-button bay-back hidden";
-bayBack.textContent = "\u2190 Back";
-bayBack.addEventListener("click", function () {
-  const steps = visibleSteps();
-  const i = steps.indexOf(state.bayTab);
-  if (i <= 0) return;
-  play("click");
-  setBayTab(steps[i - 1]);
-});
-if (bayNext.parentNode && bayNext.parentNode.insertBefore) bayNext.parentNode.insertBefore(bayBack, bayNext);
-// Master Doc 17: "Step 2 of 5" beside the next button, which sits centred in a bar pinned to the bottom
-const bayCount = document.createElement("span");
-bayCount.className = "bay-count";
-if (bayNext.parentNode && bayNext.parentNode.appendChild) bayNext.parentNode.appendChild(bayCount);
-
-// (the build sheet over the 3D bay was removed earlier; kept as a no-op for safety)
-function renderBuildSheet() {}
+// The build sheet at the top of the bay: what you have chosen so far
+function renderBuildSheet() {
+  // The row of choices above the 3D bay was removed (the step tabs below already show them)
+  if (!buildSheet) return;
+  // The sheet is rebuilt on every change, so remember which slot had keyboard focus and restore it
+  const focused = document.activeElement && buildSheet.contains && buildSheet.contains(document.activeElement)
+    ? document.activeElement.getAttribute("data-slot") : null;
+  buildSheet.innerHTML = "";
+  const rows = [
+    ["rocket", "Rocket", state.rocket ? rocketName(state.rocket) : "Not chosen", state.rocket ? { type: "rocket", key: state.rocket } : uiIcon("rocket")],
+    ["spacecraft", "Spacecraft", state.spacecraft ? SPACECRAFT[state.spacecraft].name : "Not chosen", state.spacecraft ? craftPicture(state.spacecraft) : uiIcon("spacecraft")],
+    ["suit", "Suit", state.suitSeen && SUITS[state.suit] ? SUITS[state.suit].name : "Not chosen", state.suitSeen ? { type: "astronaut", key: state.suit } : uiIcon("suit")],
+    ["destination", "Destination", state.destination ? DESTINATIONS[state.destination].name : "Not chosen", state.destination ? (PLANET_PICTURE[state.destination] || planetPicture(state.destination)) : uiIcon("destination")]
+  ];
+  rows.forEach(function (row) {
+    const li = document.createElement("li");
+    const done = row[2] !== "Not chosen";
+    li.className = "build-row" + (done ? " done" : "") + (state.bayTab === row[0] ? " active" : "");
+    li.innerHTML = '<span class="build-icon"></span><span class="build-text"><em></em><b></b></span>';
+    if (li.querySelector) {
+      if (typeof row[3] === "string") li.querySelector(".build-icon").innerHTML = row[3];
+      else setPicture(li.querySelector(".build-icon"), row[3]);
+      li.querySelector("em").textContent = row[1];
+      li.querySelector("b").textContent = row[2];
+    }
+    // Each manifest slot opens its station, with the mouse or the keyboard (Tab, then Enter or Space)
+    li.tabIndex = 0;
+    li.setAttribute("data-slot", row[0]);
+    li.setAttribute("role", "button");
+    li.setAttribute("aria-label", row[1] + ": " + row[2] + (done ? " (chosen)" : "") + ". Open the " + row[1] + " station");
+    li.addEventListener("click", function () { play("click"); setBayTab(row[0]); });
+    li.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        play("click");
+        setBayTab(row[0]);
+      }
+    });
+    buildSheet.appendChild(li);
+    if (focused === row[0] && li.focus) li.focus();
+  });
+}
 
 function renderBayChrome() {
-  if (state.bayTab === "suit" && !crewed()) state.bayTab = "destination";
-  const steps = visibleSteps();
-  const current = steps.indexOf(state.bayTab);
-  bayTabButtons.forEach(function (item) {
-    const tab = item.dataset.bayTab;
-    const shown = steps.indexOf(tab) !== -1;
-    item.classList.toggle("hidden", !shown);
-    item.classList.toggle("active", tab === state.bayTab);
-    item.classList.toggle("done", shown && stepDone(tab) && tab !== state.bayTab);
-    if (item.setAttribute) item.setAttribute("aria-current", tab === state.bayTab ? "step" : "false");
-    const number = item.querySelector ? item.querySelector("em") : null;
-    if (number && shown) number.textContent = String(steps.indexOf(tab) + 1).padStart(2, "0");
+  bayTabButtons.forEach(function (button) {
+    const tab = button.dataset.bayTab;
+    button.classList.toggle("active", tab === state.bayTab);
+    const done = (tab === "rocket" && state.rocket) || (tab === "spacecraft" && state.spacecraft) || (tab === "suit" && state.suitSeen) || (tab === "destination" && state.destination);
+    button.classList.toggle("done", Boolean(done));
   });
-  // the bar fills up to the current step
-  progressBar.style.width = (steps.length > 1 ? Math.max(0, current) / (steps.length - 1) * 100 : 0) + "%";
-  if (progressText) progressText.textContent = state.bayTab ? "Current step: " + state.bayTab : "";
+  // Progress: how many of the four choices are made, and which step you are on
+  const chosen = [state.rocket, state.spacecraft, state.suitSeen, state.destination].filter(Boolean).length;
+  const stepIndex = ["rocket", "spacecraft", "suit", "destination", "review"].indexOf(state.bayTab);
+  progressBar.style.width = (chosen / 4 * 100) + "%";
+  progressText.textContent = (stepIndex >= 0 ? "Step " + (stepIndex + 1) + " of 5 \u00B7 " : "Workshop (optional) \u00B7 ") +
+    chosen + " of 4 chosen" + (chosen === 4 ? " \u00B7 ready to launch" : "");
   bayPanes.forEach(function (pane) {
     pane.classList.toggle("hidden", pane.dataset.bayPane !== state.bayTab);
   });
+  renderBuildSheet();
   const next = nextStation();
-  bayNext.classList.toggle("hidden", !next);
-  if (next) bayNext.textContent = next[1] + " \u2192";
-  // a gentle pulse when the button first becomes available on a step, so the eye finds it
-  const readyKey = state.bayTab + (next ? next[0] : "");
-  if (next && bayNext.dataset.ready !== readyKey) {
-    bayNext.classList.remove("pulse");
-    void bayNext.offsetWidth;
-    bayNext.classList.add("pulse");
-  }
-  bayNext.dataset.ready = next ? readyKey : "";
-  bayBack.classList.toggle("hidden", current <= 0);
-  // the launch step counts as built once you reach it (everything before it is done)
-  const doneCount = steps.filter(function (tab) { return stepDone(tab) || (tab === "review" && state.bayTab === "review"); }).length;
-  bayCount.textContent = state.bayTab === "review"
-    ? "Step " + (current + 1) + " of " + steps.length + " \u00b7 ready to launch"
-    : "Step " + (current + 1) + " of " + steps.length + " \u00b7 " + Math.round(doneCount / steps.length * 100) + "% built";
+  const show = Boolean(next) && state.bayTab !== "review" && state.bayTab !== "workshop" && next[0] !== state.bayTab;
+  bayNext.classList.toggle("hidden", !show);
+  if (next) bayNext.textContent = next[1] + " →";
 }
 
 export function showSimStep(step) {
@@ -607,7 +499,6 @@ export function showSimStep(step) {
 const WORLD_GROUPS = [["moon", "The Moon"], ["mars", "Mars"], ["orbit", "Earth orbit"]];
 
 function renderSites() {
-  if (!siteList) return; // (the "go straight to the surface" list left the builder in Master Doc 14)
   siteList.innerHTML = "";
   exploreNote.textContent = state.mode === "historical"
     ? "Real landing sites, with the suits and vehicles used there. To fly there first, finish the steps above and launch."
@@ -634,7 +525,7 @@ function renderSites() {
         false,
         function () {
           play("select");
-          const wear = null;
+          const wear = state.mode === "sandbox" && state.wearSuit && site.suit ? state.suit : null;
           document.dispatchEvent(new CustomEvent("open-site", { detail: { siteId: id, suit: wear } }));
         }, { fictional: Boolean(site.fictional), picture: sitePicture(site) }));
     });
@@ -666,6 +557,7 @@ export function setMode(mode) {
     if (state.destination && !isHistoricalCombo(state.rocket, state.spacecraft, state.destination)) state.destination = null;
   }
   render();
+  if (state.bayTab === "destination") renderSites();
   if (state.bayTab === "suit") renderLocker();
 }
 
@@ -757,852 +649,6 @@ function concreteTexture() {
   return texture;
 }
 
-// Wall cladding: light grey steel panels with vertical seams and a few darker stains
-function wallPanelTexture() {
-  const c = document.createElement("canvas");
-  c.width = 128; c.height = 128;
-  const ctx = c.getContext("2d");
-  if (!ctx || !ctx.fillRect) return null;
-  ctx.fillStyle = "#9aa1ab";
-  ctx.fillRect(0, 0, 128, 128);
-  for (let x = 0; x < 128; x += 16) {
-    ctx.fillStyle = "rgba(255,255,255,0.10)";
-    ctx.fillRect(x + 1, 0, 6, 128);
-    ctx.fillStyle = "rgba(30,34,40,0.35)";
-    ctx.fillRect(x + 14, 0, 2, 128);
-  }
-  ctx.fillStyle = "rgba(30,34,40,0.45)";
-  ctx.fillRect(0, 126, 128, 2);
-  for (let i = 0; i < 300; i++) {
-    ctx.fillStyle = "rgba(40,44,50," + (Math.random() * 0.12).toFixed(2) + ")";
-    ctx.fillRect(Math.random() * 128, Math.random() * 128, 2, 4 + Math.random() * 10);
-  }
-  const texture = new THREE.CanvasTexture(c);
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-
-// ----- Equipment for the two buildings (1 unit = 8 m) -----
-function placeAround(roomR, box, angle, fraction) {
-  const r = box * 1.25 + (roomR * 0.82 - box * 1.25) * fraction;
-  return new THREE.Vector3(Math.cos(angle) * r, 0, Math.sin(angle) * r);
-}
-
-// ----- Organized work areas (Master Doc 8) -----
-// Everything stands in neat, labeled areas, the way a real assembly building is run: nothing is left
-// lying around the rocket. Each area has painted lines on the floor, a floor label and a sign.
-function floorLabel(g, text, x, z, width, color) {
-  const c = document.createElement("canvas");
-  c.width = 512; c.height = 96;
-  const ctx = c.getContext && c.getContext("2d");
-  if (!ctx || !ctx.fillText) return;
-  ctx.fillStyle = color || "rgba(255, 196, 40, 0.92)";
-  ctx.font = "bold 50px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, 256, 50);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  const label = new THREE.Mesh(new THREE.PlaneGeometry(width, width * 96 / 512), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false }));
-  label.rotation.x = -Math.PI / 2;
-  label.position.set(x, 0.02, z);
-  g.add(label);
-}
-function zoneOutline(g, cx, cz, w, d, color, lineW) {
-  const mat = new THREE.MeshBasicMaterial({ color: color });
-  [-1, 1].forEach(function (s) {
-    const across = new THREE.Mesh(new THREE.PlaneGeometry(w, lineW), mat);
-    across.rotation.x = -Math.PI / 2;
-    across.position.set(cx, 0.012, cz + s * d / 2);
-    g.add(across);
-    const along = new THREE.Mesh(new THREE.PlaneGeometry(lineW, d), mat);
-    along.rotation.x = -Math.PI / 2;
-    along.position.set(cx + s * w / 2, 0.012, cz);
-    g.add(along);
-  });
-}
-function signTexture(title, sub, accent) {
-  const c = document.createElement("canvas");
-  c.width = 512; c.height = 128;
-  const ctx = c.getContext && c.getContext("2d");
-  if (!ctx || !ctx.fillRect) return null;
-  ctx.fillStyle = "#1b212b"; ctx.fillRect(0, 0, 512, 128);
-  ctx.fillStyle = accent; ctx.fillRect(0, 0, 14, 128);
-  // shrink the text until it fits the sign
-  let big = 44;
-  ctx.font = "bold " + big + "px sans-serif";
-  while (ctx.measureText(title).width > 460 && big > 20) { big -= 2; ctx.font = "bold " + big + "px sans-serif"; }
-  ctx.fillStyle = "#f3f5f8";
-  ctx.fillText(title, 34, 58);
-  let small = 24;
-  ctx.font = small + "px sans-serif";
-  while (ctx.measureText(sub).width > 460 && small > 14) { small -= 1; ctx.font = small + "px sans-serif"; }
-  ctx.fillStyle = "#a9b4c4";
-  ctx.fillText(sub, 34, 100);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-function signMesh(title, sub, width, accent) {
-  const tex = signTexture(title, sub, accent || "#ffb020");
-  return new THREE.Mesh(new THREE.PlaneGeometry(width, width / 4), new THREE.MeshBasicMaterial({ map: tex, color: tex ? 0xffffff : 0x1b212b }));
-}
-// Puts a group on the floor at (x, z), turned by rotationY, at a size
-function placeGroup(g, group, x, z, rotationY, scale) {
-  group.position.set(x, 0, z);
-  group.rotation.y = rotationY || 0;
-  if (scale) group.scale.setScalar(scale);
-  group.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  g.add(group);
-  return group;
-}
-
-// Shared materials for the Real Missions hall
-function hallMaterials() {
-  return {
-    white: new THREE.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.55, metalness: 0.2 }),
-    grey: new THREE.MeshStandardMaterial({ color: 0x6b727c, roughness: 0.6, metalness: 0.5 }),
-    dark: new THREE.MeshStandardMaterial({ color: 0x2f343b, roughness: 0.7, metalness: 0.4 }),
-    yellow: new THREE.MeshStandardMaterial({ color: 0xe9a91c, roughness: 0.5, metalness: 0.2 }),
-    red: new THREE.MeshStandardMaterial({ color: 0xb8322a, roughness: 0.5, metalness: 0.3 }),
-    blue: new THREE.MeshStandardMaterial({ color: 0x2f5fa8, roughness: 0.55, metalness: 0.2 }),
-    wood: new THREE.MeshStandardMaterial({ color: 0x8a6a42, roughness: 0.9 })
-  };
-}
-// ---- equipment, each built around its own origin, facing +x ----
-function buildSpareStage(m) {
-  const g = new THREE.Group();
-  addMesh(g, new THREE.CylinderGeometry(0.62, 0.62, 5, 32), m.white, 0, 1.0, 0).rotation.z = Math.PI / 2;
-  [-1, 1].forEach(function (end) {
-    addMesh(g, new THREE.TorusGeometry(0.63, 0.04, 8, 32), m.dark, end * 1.6, 1.0, 0).rotation.y = Math.PI / 2;
-    addMesh(g, new THREE.BoxGeometry(0.3, 0.5, 1.5), m.yellow, end * 1.9, 0.25, 0);
-  });
-  addMesh(g, new THREE.BoxGeometry(5.4, 0.12, 1.6), m.grey, 0, 0.06, 0);
-  return g;
-}
-function buildEngineStand(m) {
-  const g = new THREE.Group();
-  addMesh(g, new THREE.BoxGeometry(1.1, 0.22, 1.1), m.yellow, 0, 0.11, 0);
-  const bell = addMesh(g, new THREE.CylinderGeometry(0.12, 0.45, 0.75, 24, 1, true), m.dark, 0, 0.62, 0);
-  bell.material.side = THREE.DoubleSide;
-  addMesh(g, new THREE.CylinderGeometry(0.25, 0.25, 0.3, 16), m.grey, 0, 1.12, 0);
-  return g;
-}
-function buildGasRack(m) {
-  const g = new THREE.Group();
-  addMesh(g, new THREE.BoxGeometry(0.42, 0.02, 0.22), m.grey, 0.135, 0.01, 0.045);
-  addMesh(g, new THREE.BoxGeometry(0.42, 0.02, 0.02), m.yellow, 0.135, 0.16, -0.06);
-  for (let i = 0; i < 8; i++) {
-    addMesh(g, new THREE.CylinderGeometry(0.035, 0.035, 0.22, 10), i % 2 ? m.grey : m.blue, (i % 4) * 0.09, 0.12, Math.floor(i / 4) * 0.09);
-  }
-  return g;
-}
-function buildScaffold(m, levels) {
-  const g = new THREE.Group();
-  for (let i = 0; i < levels; i++) addMesh(g, new THREE.BoxGeometry(1.2, 0.04, 1.2), m.grey, 0, 0.6 * (i + 1), 0);
-  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
-    addMesh(g, new THREE.BoxGeometry(0.05, 0.6 * levels, 0.05), m.yellow, c[0] * 0.58, 0.3 * levels, c[1] * 0.58);
-  });
-  return g;
-}
-function buildMobileCrane(m) {
-  const g = new THREE.Group();
-  addMesh(g, new THREE.BoxGeometry(1.2, 0.35, 0.6), m.yellow, 0, 0.3, 0);
-  addMesh(g, new THREE.BoxGeometry(0.3, 0.3, 0.5), m.dark, -0.35, 0.6, 0);
-  const boom = addMesh(g, new THREE.BoxGeometry(0.12, 2.6, 0.12), m.yellow, 0.4, 1.5, 0);
-  boom.rotation.z = -0.5;
-  [-1, 1].forEach(function (side) { addMesh(g, new THREE.BoxGeometry(1.3, 0.16, 0.16), m.dark, 0, 0.08, side * 0.3); });
-  return g;
-}
-function buildForklift(m) {
-  const g = new THREE.Group();
-  addMesh(g, new THREE.BoxGeometry(0.42, 0.16, 0.26), m.yellow, 0, 0.12, 0);
-  addMesh(g, new THREE.BoxGeometry(0.2, 0.2, 0.24), m.dark, -0.08, 0.3, 0);
-  [-0.12, 0.12].forEach(function (z) { addMesh(g, new THREE.BoxGeometry(0.02, 0.45, 0.02), m.dark, 0.22, 0.24, z); });
-  [-0.07, 0.07].forEach(function (z) { addMesh(g, new THREE.BoxGeometry(0.26, 0.01, 0.03), m.grey, 0.36, 0.05, z); });
-  [[-0.14, -0.13], [0.14, -0.13], [-0.14, 0.13], [0.14, 0.13]].forEach(function (w) {
-    addMesh(g, new THREE.CylinderGeometry(0.05, 0.05, 0.04, 12), m.dark, w[0], 0.05, w[1]).rotation.x = Math.PI / 2;
-  });
-  return g;
-}
-function buildTowTrain(m) {
-  const g = new THREE.Group();
-  addMesh(g, new THREE.BoxGeometry(0.34, 0.14, 0.22), m.white, 0, 0.1, 0);
-  addMesh(g, new THREE.BoxGeometry(0.14, 0.12, 0.2), m.blue, -0.06, 0.23, 0);
-  for (let i = 0; i < 3; i++) {
-    const x = -0.45 - i * 0.5;
-    addMesh(g, new THREE.BoxGeometry(0.42, 0.03, 0.24), m.grey, x, 0.06, 0);
-    addMesh(g, new THREE.BoxGeometry(0.3, 0.14, 0.18), i === 1 ? m.white : m.blue, x, 0.15, 0);
-  }
-  return g;
-}
-function buildRollingStairs(m) {
-  const g = new THREE.Group();
-  for (let i = 0; i < 8; i++) addMesh(g, new THREE.BoxGeometry(0.2, 0.02, 0.3), m.grey, i * 0.07, 0.05 + i * 0.06, 0);
-  addMesh(g, new THREE.BoxGeometry(0.3, 0.02, 0.34), m.grey, 0.62, 0.53, 0);
-  [-0.16, 0.16].forEach(function (z) {
-    addMesh(g, new THREE.BoxGeometry(0.75, 0.015, 0.015), m.yellow, 0.27, 0.42, z).rotation.z = 0.7;
-    addMesh(g, new THREE.BoxGeometry(0.02, 0.55, 0.02), m.yellow, 0.75, 0.28, z);
-  });
-  return g;
-}
-// A row of engineers' desks with monitors and chairs, along x
-function buildDeskRow(m, n) {
-  const g = new THREE.Group();
-  const person = 0.23;
-  for (let i = 0; i < n; i++) {
-    const x = (i - (n - 1) / 2) * 0.5;
-    addMesh(g, new THREE.BoxGeometry(0.42, 0.02, 0.22), m.white, x, person * 0.33, 0);
-    addMesh(g, new THREE.BoxGeometry(0.4, person * 0.32, 0.02), m.grey, x, person * 0.16, -0.1);
-    const tex = screenTexture(i, "#0b1624", "#9fc6ea");
-    addMesh(g, new THREE.BoxGeometry(0.16, 0.1, 0.01), m.dark, x, person * 0.33 + 0.07, -0.06);
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.09), new THREE.MeshBasicMaterial({ map: tex, color: tex ? 0xffffff : 0x9fc6ea }));
-    face.position.set(x, person * 0.33 + 0.07, -0.054);
-    g.add(face);
-    addMesh(g, new THREE.BoxGeometry(0.1, 0.02, 0.1), m.dark, x, person * 0.2, 0.14);
-    addMesh(g, new THREE.BoxGeometry(0.1, 0.1, 0.02), m.dark, x, person * 0.2 + 0.05, 0.19);
-  }
-  return g;
-}
-function buildToolChests(m, n) {
-  const g = new THREE.Group();
-  for (let i = 0; i < n; i++) {
-    const x = (i - (n - 1) / 2) * 0.32;
-    addMesh(g, new THREE.BoxGeometry(0.26, 0.2, 0.14), m.red, x, 0.1, 0);
-    for (let k = 0; k < 4; k++) addMesh(g, new THREE.BoxGeometry(0.22, 0.006, 0.005), m.grey, x, 0.04 + k * 0.045, 0.072);
-  }
-  return g;
-}
-function buildPallets(m, n) {
-  const g = new THREE.Group();
-  for (let i = 0; i < n; i++) {
-    const x = (i - (n - 1) / 2) * 0.48;
-    const h = 0.12 + (i % 3) * 0.05;
-    addMesh(g, new THREE.BoxGeometry(0.4, 0.03, 0.4), m.wood, x, 0.015, 0);
-    addMesh(g, new THREE.BoxGeometry(0.34, h, 0.34), i % 2 ? m.white : m.grey, x, 0.03 + h / 2, 0);
-  }
-  return g;
-}
-
-// Real Missions hall: stage processing (left), test and checkout (right), vehicle parking (back, beside
-// the door), and the exhibit corner with the photos and the Agena (front). The pad stays clear.
-function layoutAssemblyHall(g, roomR, box, wallH, size, doorW) {
-  const R = roomR;
-  const S = stationScale;
-  const m = hallMaterials();
-  const lineW = Math.max(0.08, size * 0.003);
-  const inner = R * 0.88;
-  // Each work area is sized to what is in it and stands against a side wall; the middle stays clear
-  const Wz = Math.max(6, S * 3.4);
-  const zd = Math.min(R * 0.95, Math.max(12.5, S * 4.6));
-  const zcz = -R * 0.08;
-  const zBack = zcz - zd / 2;
-  const zFront = zcz + zd / 2;
-  const labelW = Wz * 0.85;
-  const signW = Math.min(size * 0.2, zd * 0.6);
-  const leftWall = [-R, 0, Math.PI / 2];
-  const rightWall = [R, 0, -Math.PI / 2];
-  const signY = wallH * 0.12;
-
-  // LEFT: stage processing. Two spare stages on dollies by the wall, engines on stands in a row.
-  const lx = -inner + Wz / 2;
-  zoneOutline(g, lx, zcz, Wz, zd, 0xffb020, lineW);
-  floorLabel(g, "STAGE PROCESSING", lx, zFront + labelW * 0.14, labelW);
-  onWall(g, signMesh("STAGE PROCESSING", "Spare stages and engines", signW), leftWall, -zcz, signY, size * 0.03);
-  [-1, 1].forEach(function (k) {
-    placeGroup(g, buildSpareStage(m), -inner + 1.1, zcz + k * zd * 0.24, Math.PI / 2);
-  });
-  for (let i = 0; i < 4; i++) {
-    placeGroup(g, buildEngineStand(m), -inner + Wz - 1.0, zBack + zd * (0.16 + i * 0.2), 0);
-  }
-  [0.36, 0.56].forEach(function (f, i) {
-    const w = worker(0.23, i ? 0xf2f2f2 : 0x2f6fd6);
-    w.position.set(-inner + Wz - 1.9, 0, zBack + zd * f);
-    w.rotation.y = Math.PI / 2;
-    g.add(w);
-  });
-  placeGroup(g, buildGasRack(m), -inner + Wz * 0.5 - 0.2 * S, zFront - 0.5 * S, 0, S);
-
-  // RIGHT: test and checkout. Two rows of engineers' desks, tool chests along the wall, supplies.
-  const rx = inner - Wz / 2;
-  zoneOutline(g, rx, zcz, Wz, zd, 0xffb020, lineW);
-  floorLabel(g, "TEST & CHECKOUT", rx, zFront + labelW * 0.14, labelW);
-  onWall(g, signMesh("TEST & CHECKOUT", "Engineers' desks and tools", signW), rightWall, zcz, signY, size * 0.03);
-  placeGroup(g, buildToolChests(m, 6), inner - 0.3 * S, zcz - zd * 0.1, -Math.PI / 2, S);
-  [1.3, 2.35].forEach(function (k) {
-    placeGroup(g, buildDeskRow(m, 6), inner - k * S, zcz - zd * 0.1, Math.PI / 2, S);
-  });
-  placeGroup(g, buildPallets(m, 4), rx, zFront - 0.45 * S, 0, S);
-
-  // FRONT CORNERS: the work stations (from the old Free Build lab), each in a marked area with a sign:
-  // engineering (workbenches and computers) on the left, fabrication (3D printer, robot cell) on the right
-  const lm = labMaterials();
-  const fz0 = zFront + labelW * 0.5;
-  const fz1 = inner;
-  if (fz1 - fz0 > 8) {
-    const fd = fz1 - fz0;
-    const fcz = (fz0 + fz1) / 2;
-    const fw = Math.min(Wz * 1.5, inner * 0.55);
-    [[-1, "ENGINEERING", "Workbenches and computers"], [1, "FABRICATION", "3D printing and a robot cell"]].forEach(function (z) {
-      const cx = z[0] * (inner - fw / 2);
-      zoneOutline(g, cx, fcz, fw, fd, 0x56d4f0, lineW);
-      floorLabel(g, z[1], cx, fz0 - labelW * 0.14, Math.min(labelW, fw * 0.8), "rgba(127, 230, 255, 0.92)");
-      onWall(g, signMesh(z[1], z[2], signW, "#56d4f0"), z[0] < 0 ? leftWall : rightWall, z[0] < 0 ? -fcz : fcz, signY, size * 0.03);
-    });
-    placeGroup(g, labWorkbenches(lm), -inner + fw * 0.3, fcz, Math.PI / 2, S);
-    placeGroup(g, labServerRacks(lm), -inner + fw * 0.75, fcz, Math.PI / 2, S);
-    placeGroup(g, labPrinter(lm), inner - fw * 0.28, fcz, 0, 1);
-    placeGroup(g, labRobotArms(lm), inner - fw * 0.72, fcz, Math.PI / 2, 1);
-  }
-
-  // BACK: vehicle parking, one marked bay per vehicle, on both sides of the door
-  const bayDepth = Math.max(3.2, S * 1.4);
-  const bayZ = -inner + bayDepth / 2;
-  const left = [
-    { build: buildForklift(m), w: S * 1.0, scale: S },
-    { build: buildTowTrain(m), w: S * 2.2, scale: S, offset: S * 0.75 },
-    { build: buildMobileCrane(m), w: 2.2, scale: 1 }
-  ];
-  const right = [
-    { build: buildRollingStairs(m), w: S * 1.1, scale: S, offset: -S * 0.38 },
-    { build: buildRollingStairs(m), w: S * 1.1, scale: S, offset: -S * 0.38 },
-    { build: buildScaffold(m, Math.max(4, Math.round(wallH * 0.3 / 0.6))), w: 2.0, scale: 1 }
-  ];
-  const gap = Math.max(0.6, S * 0.35);
-  [[left, -1], [right, 1]].forEach(function (pair) {
-    let x = doorW * 0.75 + gap;
-    pair[0].forEach(function (bay) {
-      const cx = pair[1] * (x + bay.w / 2);
-      zoneOutline(g, cx, bayZ, bay.w + gap * 0.6, bayDepth, 0xd8dde4, lineW * 0.7);
-      placeGroup(g, bay.build, cx + (bay.offset || 0) * pair[1], bayZ, pair[1] < 0 ? 0 : Math.PI, bay.scale);
-      x += bay.w + gap;
-    });
-    floorLabel(g, "PARKING", pair[1] * (doorW * 0.75 + gap + (x - doorW * 0.75) / 2), bayZ + bayDepth / 2 + labelW * 0.12, Math.min(labelW * 0.7, x - doorW * 0.75));
-  });
-}
-
-// ----- Free Build lab: eight work bays evenly around the round room, the door bay left clear -----
-function labMaterials() {
-  return {
-    dark: new THREE.MeshStandardMaterial({ color: 0x232a35, roughness: 0.5, metalness: 0.6 }),
-    steel: new THREE.MeshStandardMaterial({ color: 0x8792a3, roughness: 0.35, metalness: 0.8 }),
-    white: new THREE.MeshStandardMaterial({ color: 0xdfe5ec, roughness: 0.5, metalness: 0.2 }),
-    orange: new THREE.MeshStandardMaterial({ color: 0xf07a2a, roughness: 0.45, metalness: 0.3 }),
-    cyan: new THREE.MeshBasicMaterial({ color: 0x56d4f0 }),
-    green: new THREE.MeshBasicMaterial({ color: 0x6ff0a8 }),
-    holo: new THREE.MeshBasicMaterial({ color: 0x7fe6ff, wireframe: true, transparent: true, opacity: 0.55 })
-  };
-}
-// Each bay is built in its own space: x runs along the wall, +z points to the middle of the room
-function labWorkbenches(m) {
-  const g = new THREE.Group();
-  const person = 0.23;
-  [-0.7, 0.7].forEach(function (bx, n) {
-    addMesh(g, new THREE.BoxGeometry(1.2, 0.03, 0.4), m.white, bx, person * 0.42, 0);
-    [[-0.55, -0.17], [0.55, -0.17], [-0.55, 0.17], [0.55, 0.17]].forEach(function (l) {
-      addMesh(g, new THREE.BoxGeometry(0.03, person * 0.42, 0.03), m.steel, bx + l[0], person * 0.21, l[1]);
-    });
-    [-0.25, 0.25].forEach(function (sx, i) {
-      const tex = screenTexture(n * 2 + i, "#061a22", i ? "#6ff0a8" : "#56d4f0");
-      addMesh(g, new THREE.BoxGeometry(0.32, 0.2, 0.02), m.dark, bx + sx, person * 0.42 + 0.14, -0.12);
-      const face = new THREE.Mesh(new THREE.PlaneGeometry(0.29, 0.17), new THREE.MeshBasicMaterial({ map: tex, color: tex ? 0xffffff : 0x56d4f0 }));
-      face.position.set(bx + sx, person * 0.42 + 0.14, -0.105);
-      g.add(face);
-    });
-  });
-  return g;
-}
-function labServerRacks(m) {
-  const g = new THREE.Group();
-  const person = 0.23;
-  for (let i = 0; i < 6; i++) {
-    const x = (i - 2.5) * 0.24;
-    addMesh(g, new THREE.BoxGeometry(0.22, person * 1.1, 0.3), m.dark, x, person * 0.55, 0);
-    for (let j = 0; j < 6; j++) {
-      const led = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.012, 0.005), (i + j) % 3 ? m.cyan : m.green);
-      led.position.set(x, 0.04 + j * person * 0.17, 0.152);
-      g.add(led);
-    }
-  }
-  return g;
-}
-function labHoloTable(m) {
-  const g = new THREE.Group();
-  const person = 0.23;
-  addMesh(g, new THREE.CylinderGeometry(0.6, 0.7, person * 0.45, 40), m.dark, 0, person * 0.225, 0);
-  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.58, 0.01, 40), new THREE.MeshBasicMaterial({ color: 0x1b6a80 }));
-  top.position.y = person * 0.45 + 0.005;
-  g.add(top);
-  const planet = new THREE.Mesh(new THREE.SphereGeometry(0.4, 18, 12), m.holo);
-  planet.position.y = person * 0.45 + 0.6;
-  g.add(planet);
-  const orbit = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.006, 4, 64), m.cyan);
-  orbit.position.y = planet.position.y;
-  orbit.rotation.x = 1.25;
-  g.add(orbit);
-  return g;
-}
-function labPrinter(m) {
-  const g = new THREE.Group();
-  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) { addMesh(g, new THREE.BoxGeometry(0.12, 3, 0.12), m.steel, c[0] * 1.4, 1.5, c[1] * 1.4); });
-  addMesh(g, new THREE.BoxGeometry(2.9, 0.12, 0.2), m.steel, 0, 2.6, 0);
-  addMesh(g, new THREE.BoxGeometry(0.3, 0.3, 0.3), m.cyan, 0.4, 2.35, 0);
-  addMesh(g, new THREE.CylinderGeometry(0.6, 0.6, 0.9, 32, 1, true), m.steel, 0, 0.45, 0).material.side = THREE.DoubleSide;
-  addMesh(g, new THREE.BoxGeometry(3, 0.06, 3), m.dark, 0, 0.03, 0);
-  return g;
-}
-function labRobotArms(m) {
-  const g = new THREE.Group();
-  [-1.4, 1.4].forEach(function (x, i) {
-    addMesh(g, new THREE.CylinderGeometry(0.5, 0.6, 0.3, 24), m.dark, x, 0.15, 0);
-    const arm = new THREE.Group();
-    arm.position.set(x, 0.3, 0);
-    arm.rotation.y = i ? Math.PI : 0;
-    addMesh(arm, new THREE.BoxGeometry(0.3, 2.4, 0.3), m.orange, 0, 1.2, 0).rotation.z = 0.35;
-    addMesh(arm, new THREE.BoxGeometry(0.24, 2, 0.24), m.orange, -0.85, 2.6, 0).rotation.z = 1.1;
-    const tool = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), m.cyan);
-    tool.position.set(-1.8, 3.1, 0);
-    arm.add(tool);
-    g.add(arm);
-  });
-  // the part they work on, on a stand between them
-  addMesh(g, new THREE.BoxGeometry(0.8, 0.5, 0.8), m.dark, 0, 0.25, 0);
-  addMesh(g, new THREE.CylinderGeometry(0.35, 0.45, 0.9, 24), m.white, 0, 0.95, 0);
-  return g;
-}
-function labStageJig(m) {
-  const g = new THREE.Group();
-  for (let i = 0; i < 3; i++) {
-    addMesh(g, new THREE.CylinderGeometry(0.55, 0.55, 1.2, 28), i === 1 ? m.orange : m.steel, (i - 1) * 1.5, 0.6, 0);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.03, 8, 32), m.cyan);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.set((i - 1) * 1.5, 0.05, 0);
-    g.add(ring);
-  }
-  return g;
-}
-function labDroneCage(m) {
-  const g = new THREE.Group();
-  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) { addMesh(g, new THREE.BoxGeometry(0.02, 0.9, 0.02), m.steel, c[0] * 0.7, 0.45, c[1] * 0.45); });
-  [0.9].forEach(function (y) {
-    [-1, 1].forEach(function (s) {
-      addMesh(g, new THREE.BoxGeometry(1.4, 0.02, 0.02), m.steel, 0, y, s * 0.45);
-      addMesh(g, new THREE.BoxGeometry(0.02, 0.02, 0.9), m.steel, s * 0.7, y, 0);
-    });
-  });
-  [[-0.35, 0.45], [0.05, 0.6], [0.4, 0.35]].forEach(function (d) {
-    const drone = new THREE.Group();
-    drone.position.set(d[0], d[1], 0);
-    addMesh(drone, new THREE.BoxGeometry(0.16, 0.05, 0.16), m.white, 0, 0, 0);
-    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
-      const rotor = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.006, 4, 20), m.cyan);
-      rotor.rotation.x = Math.PI / 2;
-      rotor.position.set(c[0] * 0.13, 0.015, c[1] * 0.13);
-      drone.add(rotor);
-    });
-    g.add(drone);
-  });
-  return g;
-}
-function labRoverPods(m) {
-  const g = new THREE.Group();
-  for (let i = 0; i < 4; i++) {
-    const x = (i - 1.5) * 0.7;
-    addMesh(g, new THREE.CylinderGeometry(0.28, 0.3, 0.05, 32), m.dark, x, 0.025, 0);
-    const halo = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.01, 6, 32), i === 1 ? m.green : m.cyan);
-    halo.rotation.x = Math.PI / 2;
-    halo.position.set(x, 0.06, 0);
-    g.add(halo);
-    addMesh(g, new THREE.BoxGeometry(0.3, 0.08, 0.2), m.white, x, 0.14, 0);
-    [[-0.12, -0.11], [0.12, -0.11], [-0.12, 0.11], [0.12, 0.11]].forEach(function (w) {
-      addMesh(g, new THREE.CylinderGeometry(0.045, 0.045, 0.03, 12), m.dark, x + w[0], 0.075, w[1]).rotation.x = Math.PI / 2;
-    });
-  }
-  return g;
-}
-function layoutLab(g, roomR, box, wallH, size) {
-  const R = roomR;
-  const S = stationScale;
-  const m = labMaterials();
-  const ringH = wallH * 0.45;
-  // a round floor grid, like the building
-  const grid = new THREE.PolarGridHelper(R * 0.94, 24, 10, 96, 0x56d4f0, 0x2b6f80);
-  grid.position.y = 0.012;
-  grid.material.transparent = true;
-  grid.material.opacity = 0.3;
-  g.add(grid);
-  const bays = [
-    ["WORKBENCHES", "Design and wiring", labWorkbenches, S],
-    ["COMPUTERS", "Flight software and simulations", labServerRacks, S],
-    ["HOLO TABLE", "Plan the route", labHoloTable, S],
-    ["3D PRINTING", "Printing new parts", labPrinter, 1],
-    ["ROBOT CELL", "Automatic assembly", labRobotArms, 1],
-    ["STAGE JIGS", "Stages being built", labStageJig, 1],
-    ["DRONE TESTS", "Test flights in a cage", labDroneCage, S],
-    ["ROVER PODS", "Charging test rovers", labRoverPods, S]
-  ];
-  const doorAngle = Math.PI * 1.5;       // the door is at the back (-z)
-  const step = (Math.PI * 2) / (bays.length + 1);
-  const r0 = Math.max(box * 1.45, R * 0.42);
-  const r1 = R * 0.9;
-  const rc = (r0 + r1) / 2;
-  const lineMat = new THREE.MeshBasicMaterial({ color: 0x56d4f0, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
-  bays.forEach(function (bay, k) {
-    const a = doorAngle + (k + 1) * step;
-    const half = step * 0.42;
-    // the bay's floor marking: an outlined ring segment
-    const edge = Math.max(0.06, size * 0.0025);
-    [r0, r1].forEach(function (r) {
-      const arc = new THREE.Mesh(new THREE.RingGeometry(r - edge, r + edge, 24, 1, -a - half, half * 2), lineMat);
-      arc.rotation.x = -Math.PI / 2;
-      arc.position.y = 0.014;
-      g.add(arc);
-    });
-    [-half, half].forEach(function (h) {
-      const side = new THREE.Mesh(new THREE.PlaneGeometry(r1 - r0, edge * 2), lineMat);
-      side.rotation.x = -Math.PI / 2;
-      side.rotation.z = -(a + h); // (laid flat, a plane's own angle runs the other way)
-      side.position.set(Math.cos(a + h) * rc, 0.014, Math.sin(a + h) * rc);
-      g.add(side);
-    });
-    // the equipment, in the middle of its bay, facing the middle of the room
-    const group = bay[2](m);
-    group.position.set(Math.cos(a) * (rc + (r1 - r0) * 0.12), 0, Math.sin(a) * (rc + (r1 - r0) * 0.12));
-    group.rotation.y = -a - Math.PI / 2;
-    group.scale.setScalar(bay[3]);
-    group.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    g.add(group);
-    // the bay's sign on the ring wall, and its name on the floor
-    const signW = Math.min(R * step * 0.7, size * 0.16);
-    const sign = signMesh("BAY " + (k + 1) + " · " + bay[0], bay[1], signW, "#56d4f0");
-    sign.position.set(Math.cos(a) * R * 0.965, Math.min(ringH * 0.3, signW * 0.6 + ringH * 0.12), Math.sin(a) * R * 0.965);
-    sign.lookAt(0, sign.position.y, 0);
-    g.add(sign);
-    const lw = Math.min(r1 - r0, R * step * 0.6) * 0.8;
-    const label = new THREE.Group();
-    floorLabel(label, bay[0], 0, 0, lw, "rgba(127, 230, 255, 0.92)");
-    label.position.set(Math.cos(a) * (r0 + lw * 0.12), 0, Math.sin(a) * (r0 + lw * 0.12));
-    label.rotation.y = -a + Math.PI / 2; // reads the right way up from the camera, which circles outside the bays' inner edge
-    g.add(label);
-  });
-}
-
-// ----- Free Build: the domed engineering lab (fictional) -----
-// A round building: a ring wall, a ribbed dome with an opening at the top (an oculus) letting in daylight,
-// two ring catwalks, a polar crane that turns on a rail around the room, and a round airlock-style door.
-function hexTexture() {
-  const c = document.createElement("canvas");
-  c.width = 128; c.height = 111;
-  const ctx = c.getContext("2d");
-  if (!ctx || !ctx.fillRect) return null;
-  ctx.fillStyle = "#2a3442";
-  ctx.fillRect(0, 0, 128, 111);
-  ctx.strokeStyle = "rgba(140,200,230,0.22)";
-  ctx.lineWidth = 2;
-  const r = 128 / 6;
-  for (let row = -1; row < 8; row++) {
-    for (let col = -1; col < 3; col++) {
-      const cx = col * r * 3 + (row % 2 ? r * 1.5 : 0);
-      const cy = row * r * 0.866;
-      ctx.beginPath();
-      for (let k = 0; k <= 6; k++) {
-        const a = (k / 6) * Math.PI * 2;
-        const x = cx + Math.cos(a) * r;
-        const y = cy + Math.sin(a) * r;
-        if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-      }
-      ctx.stroke();
-    }
-  }
-  const texture = new THREE.CanvasTexture(c);
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-function buildDomeLab(g, roomR, wallH, size, box) {
-  const R = roomR;
-  const roofParts = new THREE.Group(); // the dome and what hangs from it (hidden in the zoomed-out view)
-  g.add(roofParts);
-  const ringH = wallH * 0.45;      // the straight ring wall
-  const domeH = wallH * 0.55;      // the dome on top of it
-  const person = 0.23;
-  const wallMap = hexTexture();
-  if (wallMap) wallMap.repeat.set(28, Math.max(2, ringH / 6));
-  const domeMap = hexTexture();
-  if (domeMap) domeMap.repeat.set(36, 10);
-  const shell = new THREE.MeshStandardMaterial({ color: 0x8a9ab0, map: wallMap, roughness: 0.6, metalness: 0.35, side: THREE.BackSide });
-  const domeMat = new THREE.MeshStandardMaterial({ color: 0x9fb0c8, map: domeMap, roughness: 0.7, metalness: 0.15, emissive: 0x1a2636, emissiveIntensity: 1, side: THREE.BackSide });
-  const steel = new THREE.MeshStandardMaterial({ color: 0x9aa6b6, roughness: 0.35, metalness: 0.8 });
-  const white = new THREE.MeshStandardMaterial({ color: 0xdfe5ec, roughness: 0.5, metalness: 0.3 });
-  const cyan = new THREE.MeshBasicMaterial({ color: 0x56d4f0 });
-  const orange = new THREE.MeshStandardMaterial({ color: 0xf07a2a, roughness: 0.45, metalness: 0.3 });
-
-  const ring = new THREE.Mesh(new THREE.CylinderGeometry(R, R, ringH, 96, 1, true), shell);
-  ring.position.y = ringH / 2;
-  ring.receiveShadow = true;
-  g.add(ring);
-  // the dome, with an oculus (a round opening) at the top
-  const oculusAngle = 0.13;
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(R, 96, 32, 0, Math.PI * 2, oculusAngle, Math.PI / 2 - oculusAngle), domeMat);
-  dome.scale.y = domeH / R;
-  dome.position.y = ringH;
-  roofParts.add(dome);
-  const sky = new THREE.Mesh(new THREE.CircleGeometry(R * Math.sin(oculusAngle) * 1.02, 48), new THREE.MeshBasicMaterial({ color: 0xcfe6ff }));
-  sky.rotation.x = Math.PI / 2;
-  sky.position.y = ringH + domeH * Math.cos(oculusAngle) + 0.05;
-  roofParts.add(sky);
-  const oculusRim = new THREE.Mesh(new THREE.TorusGeometry(R * Math.sin(oculusAngle), size * 0.005, 8, 64), steel);
-  oculusRim.rotation.x = Math.PI / 2;
-  oculusRim.position.y = ringH + domeH * Math.cos(oculusAngle);
-  roofParts.add(oculusRim);
-  // dome ribs (meridians) and rings, inside a group squashed to the dome's height
-  const ribs = new THREE.Group();
-  ribs.position.y = ringH;
-  ribs.scale.y = domeH / R;
-  for (let i = 0; i < 12; i++) {
-    const rib = new THREE.Mesh(new THREE.TorusGeometry(R * 0.985, size * 0.004, 6, 64, Math.PI), steel);
-    rib.rotation.y = (i / 12) * Math.PI;
-    ribs.add(rib);
-  }
-  [0.35, 0.7, 1.05].forEach(function (phi) {
-    const hoop = new THREE.Mesh(new THREE.TorusGeometry(R * 0.985 * Math.cos(phi), size * 0.003, 6, 96), steel);
-    hoop.rotation.x = Math.PI / 2;
-    hoop.position.y = R * 0.985 * Math.sin(phi);
-    ribs.add(hoop);
-  });
-  roofParts.add(ribs);
-  // columns around the ring wall
-  for (let i = 0; i < 24; i++) {
-    const a = (i / 24) * Math.PI * 2;
-    const col = new THREE.Mesh(new THREE.BoxGeometry(size * 0.012, ringH, size * 0.014), steel);
-    col.position.set(Math.cos(a) * R * 0.99, ringH / 2, Math.sin(a) * R * 0.99);
-    col.rotation.y = -a;
-    g.add(col);
-  }
-  // light strips: one along the floor, one high on the ring wall
-  [[0.25, 0.03], [ringH * 0.86, 0.02]].forEach(function (l) {
-    const strip = new THREE.Mesh(new THREE.TorusGeometry(R * 0.975, Math.max(0.04, size * l[1] * 0.08), 6, 128), cyan);
-    strip.rotation.x = Math.PI / 2;
-    strip.position.y = l[0];
-    g.add(strip);
-  });
-  // two ring catwalks with railings
-  [0.42, 0.8].forEach(function (f) {
-    const y = ringH * f;
-    const walk = new THREE.Mesh(new THREE.RingGeometry(R * 0.93, R * 0.99, 96), new THREE.MeshStandardMaterial({ color: 0x5c6878, roughness: 0.6, metalness: 0.6, side: THREE.DoubleSide }));
-    walk.rotation.x = -Math.PI / 2;
-    walk.position.y = y;
-    g.add(walk);
-    const rail = new THREE.Mesh(new THREE.TorusGeometry(R * 0.93, size * 0.002 + 0.02, 6, 128), white);
-    rail.rotation.x = Math.PI / 2;
-    rail.position.y = y + person * 4.5;
-    g.add(rail);
-  });
-  // a polar crane: a bridge across the room that runs on a round rail at the top of the ring wall
-  const craneRail = new THREE.Mesh(new THREE.TorusGeometry(R * 0.9, size * 0.006, 8, 128), orange);
-  craneRail.rotation.x = Math.PI / 2;
-  craneRail.position.y = ringH * 0.97;
-  roofParts.add(craneRail);
-  const bridge = new THREE.Mesh(new THREE.BoxGeometry(R * 1.8, size * 0.022, size * 0.03), orange);
-  bridge.position.y = ringH * 0.95;
-  bridge.rotation.y = 0.55;
-  roofParts.add(bridge);
-  const trolley = new THREE.Mesh(new THREE.BoxGeometry(size * 0.04, size * 0.03, size * 0.05), white);
-  trolley.position.set(Math.cos(0.55) * R * 0.35, ringH * 0.93, -Math.sin(0.55) * R * 0.35);
-  trolley.rotation.y = 0.55;
-  roofParts.add(trolley);
-  // a round airlock-style door at the back, with a lit frame
-  const doorR = Math.min(ringH * 0.42, Math.max(box * 0.7, 6));
-  const doorZ = -Math.sqrt(Math.max(0, R * R - doorR * doorR)) + 0.2;
-  const door = new THREE.Mesh(new THREE.CircleGeometry(doorR, 64), new THREE.MeshStandardMaterial({ color: 0x46566a, roughness: 0.45, metalness: 0.7 }));
-  door.position.set(0, doorR + 0.3, doorZ);
-  g.add(door);
-  const doorFrame = new THREE.Mesh(new THREE.TorusGeometry(doorR, size * 0.008, 8, 64), cyan);
-  doorFrame.position.copy(door.position);
-  doorFrame.position.z += 0.05;
-  g.add(doorFrame);
-  const split = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.004, doorR * 2), new THREE.MeshBasicMaterial({ color: 0x0c1118 }));
-  split.position.copy(door.position);
-  split.position.z += 0.06;
-  g.add(split);
-  // a lit sign above the door
-  const signCanvas = document.createElement("canvas");
-  signCanvas.width = 512; signCanvas.height = 96;
-  const ctx = signCanvas.getContext && signCanvas.getContext("2d");
-  if (ctx && ctx.fillRect) {
-    ctx.fillStyle = "#061a22"; ctx.fillRect(0, 0, 512, 96);
-    ctx.strokeStyle = "#56d4f0"; ctx.lineWidth = 4; ctx.strokeRect(4, 4, 504, 88);
-    ctx.fillStyle = "#bff3ff"; ctx.font = "bold 40px sans-serif"; ctx.textAlign = "center";
-    ctx.fillText("FREE BUILD LAB", 256, 52);
-    ctx.font = "18px sans-serif"; ctx.fillStyle = "#7fe6ff";
-    ctx.fillText("Fictional designs: try any combination", 256, 80);
-  }
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(doorR * 1.8, doorR * 0.34), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(signCanvas) }));
-  sign.position.set(0, doorR * 2 + 0.3 + doorR * 0.3, doorZ + 0.1);
-  g.add(sign);
-  return roofParts;
-}
-
-// Small helper: add a box/cylinder mesh at a spot
-function addMesh(g, geometry, material, x, y, z, rotationY) {
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(x, y, z);
-  if (rotationY) mesh.rotation.y = rotationY;
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  g.add(mesh);
-  return mesh;
-}
-// Equipment groups are drawn larger in bigger halls (the hall is sized to fit a rocket up to 110 m tall,
-// so desks and carts at true size would be too small to see from the camera). Set in buildHangar.
-let stationScale = 1;
-// A group standing at an angle around the room, turned to face the middle
-function station(g, roomR, box, angle, fraction) {
-  const p = placeAround(roomR, box, angle, fraction);
-  const group = new THREE.Group();
-  group.position.copy(p);
-  group.scale.setScalar(stationScale);
-  group.rotation.y = -angle - Math.PI / 2;
-  g.add(group);
-  return group;
-}
-function screenTexture(lines, bg, fg) {
-  const c = document.createElement("canvas");
-  c.width = 128; c.height = 80;
-  const ctx = c.getContext && c.getContext("2d");
-  if (!ctx || !ctx.fillRect) return null;
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, 128, 80);
-  ctx.strokeStyle = fg; ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (let x = 0; x <= 128; x += 4) ctx.lineTo(x, 40 + Math.sin(x * 0.12 + lines) * 14 + Math.sin(x * 0.4) * 4);
-  ctx.stroke();
-  ctx.fillStyle = fg;
-  for (let i = 0; i < 4; i++) ctx.fillRect(6, 6 + i * 7, 20 + ((i * 37 + lines * 13) % 60), 3);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-// ----- Pictures on the front wall of the Real Missions hall -----
-// Three NASA photos (the local copies credited in data/hardware.js), with their credit under each one.
-function captionTexture(text, sub) {
-  const c = document.createElement("canvas");
-  c.width = 512; c.height = 96;
-  const ctx = c.getContext && c.getContext("2d");
-  if (!ctx || !ctx.fillRect) return null;
-  ctx.fillStyle = "#f2f0ea"; ctx.fillRect(0, 0, 512, 96);
-  ctx.fillStyle = "#1c2230"; ctx.font = "bold 28px sans-serif"; ctx.textAlign = "center";
-  ctx.fillText(text, 256, 40);
-  ctx.font = "17px sans-serif"; ctx.fillStyle = "#4a5263";
-  let size = 17;
-  while (ctx.measureText(sub).width > 490 && size > 10) { size -= 1; ctx.font = size + "px sans-serif"; }
-  ctx.fillText(sub, 256, 74);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-// Puts a flat thing on a wall: wall = [x, z, rotation] (facing into the room), along = position along it
-function onWall(g, mesh, wall, along, y, inset) {
-  const ax = Math.cos(wall[2]), az = -Math.sin(wall[2]);
-  const nx = Math.sin(wall[2]), nz = Math.cos(wall[2]);
-  mesh.position.set(wall[0] + ax * along + nx * inset, y, wall[1] + az * along + nz * inset);
-  mesh.rotation.y = wall[2];
-  g.add(mesh);
-}
-function addWallGallery(g, roomR, wallH, size) {
-  const inset = size * 0.024;
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: 0.5, metalness: 0.5 });
-  const front = [0, roomR, Math.PI];
-  // Laid out from the floor up: credit cards, then the photos (only the three NASA photos: no banner)
-  const photoH = size * 0.1;
-  const labelH = photoH * 0.27;
-  const labelY = Math.max(1.4, wallH * 0.07) + labelH / 2;
-  const photoY = labelY + labelH / 2 + photoH * 0.6;
-  // the three photos, with a frame and a credit card under each
-  const loader = new THREE.TextureLoader();
-  hardwareList.slice(0, 3).forEach(function (h, i) {
-    if (!h.image || !h.image.src) return;
-    const along = (i - 1) * size * 0.17;
-    const y = photoY;
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(photoH * 1.42, photoH * 1.1, size * 0.004), frameMat);
-    onWall(g, frame, front, along, y, inset);
-    const photoMat = new THREE.MeshBasicMaterial({ color: 0x3a4250 });
-    const photo = new THREE.Mesh(new THREE.PlaneGeometry(photoH * 1.33, photoH), photoMat);
-    onWall(g, photo, front, along, y, inset + size * 0.0025);
-    // the photo loads in the background; if it fails, the frame stays with a plain grey picture
-    loader.load(h.image.src, function (texture) {
-      texture.colorSpace = THREE.SRGBColorSpace;
-      photoMat.map = texture;
-      photoMat.color.set(0xffffff);
-      photoMat.needsUpdate = true;
-    }, undefined, function () {});
-    const label = new THREE.Mesh(new THREE.PlaneGeometry(photoH * 1.42, labelH), new THREE.MeshBasicMaterial({ map: captionTexture(h.breadcrumbName || h.mission, h.image.credit), color: 0xffffff }));
-    onWall(g, label, front, along, labelY, inset);
-  });
-}
-
-// ----- The Agena Target Vehicle exhibit (an official NASA 3D model) -----
-// Model: NASA 3D Resources, https://science.nasa.gov/3d-resources/agena-target-vehicle/
-// Fact on the plaque: https://www.nasa.gov/mission/gemini-viii/ (first docking in space, March 16, 1966)
-function addAgenaExhibit(g, roomR, box, size) {
-  const ex = station(g, roomR, box, Math.PI / 2, 0.72); // front, in front of the photo wall
-  ex.scale.setScalar(Math.min(stationScale, 2)); // enlarged a little, not as much as the equipment
-  const plinthMat = new THREE.MeshStandardMaterial({ color: 0x2b3038, roughness: 0.4, metalness: 0.6 });
-  addMesh(ex, new THREE.CylinderGeometry(1.3, 1.4, 0.12, 48), plinthMat, 0, 0.06, 0);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(1.3, 0.015, 6, 64), new THREE.MeshBasicMaterial({ color: 0xffd28a }));
-  rim.rotation.x = Math.PI / 2;
-  rim.position.y = 0.121;
-  ex.add(rim);
-  // stand-in shape until NASA's model arrives (and the fallback if it can't be loaded)
-  const standIn = new THREE.Group();
-  addMesh(standIn, new THREE.CylinderGeometry(0.1, 0.1, 0.8, 24), new THREE.MeshStandardMaterial({ color: 0xd8d8d0, roughness: 0.5 }), 0, 0, 0).rotation.z = Math.PI / 2;
-  addMesh(standIn, new THREE.CylinderGeometry(0.05, 0.1, 0.16, 24), new THREE.MeshStandardMaterial({ color: 0x3a3f46, roughness: 0.5 }), 0.48, 0, 0).rotation.z = -Math.PI / 2;
-  standIn.position.y = 1.0;
-  ex.add(standIn);
-  // a display column it rests on (it is shown raised, at eye level)
-  addMesh(ex, new THREE.CylinderGeometry(0.06, 0.09, 0.75, 16), plinthMat, 0, 0.47, 0);
-  const lamp = new THREE.SpotLight(0xfff1d6, 3, 0, 0.5, 0.6);
-  lamp.position.set(0, 3.2, 1.2);
-  lamp.target.position.set(0, 1.0, 0);
-  ex.add(lamp);
-  ex.add(lamp.target);
-  loadNasaModel("agena").then(function (model) {
-    if (!model) return;
-    const measured = new THREE.Box3().setFromObject(model);
-    const dims = measured.getSize(new THREE.Vector3());
-    const scale = 1.6 / Math.max(dims.x, dims.y, dims.z, 1e-6);
-    model.scale.setScalar(scale);
-    const centre = measured.getCenter(new THREE.Vector3()).multiplyScalar(scale);
-    model.position.set(-centre.x, 1.0 - centre.y, -centre.z);
-    model.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    standIn.visible = false;
-    ex.add(model);
-  });
-  // the exhibit's sign
-  const c = document.createElement("canvas");
-  c.width = 512; c.height = 200;
-  const ctx = c.getContext && c.getContext("2d");
-  if (ctx && ctx.fillRect) {
-    ctx.fillStyle = "#f2f0ea"; ctx.fillRect(0, 0, 512, 200);
-    ctx.fillStyle = "#1c2230"; ctx.font = "bold 34px sans-serif";
-    ctx.fillText("Agena Target Vehicle", 20, 46);
-    ctx.font = "20px sans-serif"; ctx.fillStyle = "#353c4a";
-    ctx.fillText("The docking target for the Gemini program.", 20, 86);
-    ctx.fillText("Gemini VIII docked with an Agena on March 16, 1966:", 20, 116);
-    ctx.fillText("the first docking of two spacecraft in orbit.", 20, 142);
-    ctx.font = "16px sans-serif"; ctx.fillStyle = "#6a7282";
-    ctx.fillText("Official NASA 3D model (NASA 3D Resources), shown enlarged", 20, 182);
-  }
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.35), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c) }));
-  sign.position.set(0, 0.32, 1.42);
-  sign.rotation.x = -0.5;
-  ex.add(sign);
-  addMesh(ex, new THREE.BoxGeometry(0.04, 0.3, 0.04), plinthMat, 0, 0.15, 1.38);
-}
-
 // A person for scale (hard hat and coveralls): about 1.8 m tall
 function worker(height, color) {
   const g = new THREE.Group();
@@ -1624,39 +670,31 @@ function worker(height, color) {
 // a steel roof truss with an overhead crane, work lights, carts and people for scale.
 // 1 model unit = 8 m, so a 1.8 m person is about 0.23 units tall.
 function buildHangar(viewer, tallest, width) {
-  // Two different buildings: Real Missions = a light-grey assembly hall like the ones NASA used;
-  // Free Build = a dark engineering lab with blueprint-cyan light (fictional)
-  // One building for every mode (Master Doc 12: the domed lab looked too modern and confusing): the
-  // assembly hall, with the lab's work stations brought into it
-  const freeBuild = false;
   if (viewer.hangar) viewer.scene.remove(viewer.hangar);
   const g = new THREE.Group();
-  // The camera circles at about 1.15 x (1.9 x the biggest size + 2): the room is wider than that
-  const cameraRadius = (Math.max(tallest, width) * 1.9 + 2) * 1.15;
-  const size = Math.max(cameraRadius * 2.3, tallest * 2.6, width * 2.4, 40); // (smaller than before, so the work areas fill it)
+  const size = Math.max(tallest * 2.4, width * 2.2, 40);
   const person = 0.23;
   const steel = new THREE.MeshStandardMaterial({ color: 0x5d6470, roughness: 0.45, metalness: 0.75 });
   const darkSteel = new THREE.MeshStandardMaterial({ color: 0x2b3038, roughness: 0.5, metalness: 0.7 });
   const yellowPaint = new THREE.MeshStandardMaterial({ color: 0xf2b01e, roughness: 0.5, metalness: 0.2 });
-  const skirtMat = new THREE.MeshStandardMaterial({ color: 0x3a414c, roughness: 0.8, metalness: 0.3 });
 
   // Floor: polished concrete (a little shiny) with painted lines
   const floorMap = concreteTexture();
   if (floorMap) floorMap.repeat.set(size / 10, size / 10);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ color: freeBuild ? 0x3a4250 : 0x8e939b, map: floorMap, roughness: freeBuild ? 0.4 : 0.62, metalness: freeBuild ? 0.2 : 0.05 }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ color: 0x8e939b, map: floorMap, roughness: 0.62, metalness: 0.05 }));
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   g.add(floor);
-  const yellow = new THREE.MeshBasicMaterial({ color: freeBuild ? 0x56d4f0 : 0xffb020 });
+  const yellow = new THREE.MeshBasicMaterial({ color: 0xffb020 });
   const lineW = Math.max(0.08, size * 0.003);
   const box = Math.max(width * 0.75, tallest * 0.45, 10);
-  if (!freeBuild) [[0, box, box * 2, lineW], [0, -box, box * 2, lineW]].forEach(function (l) {
+  [[0, box, box * 2, lineW], [0, -box, box * 2, lineW]].forEach(function (l) {
     const strip = new THREE.Mesh(new THREE.PlaneGeometry(l[2], l[3]), yellow);
     strip.rotation.x = -Math.PI / 2;
     strip.position.set(l[0], 0.01, l[1]);
     g.add(strip);
   });
-  if (!freeBuild) [-box, box].forEach(function (x) {
+  [-box, box].forEach(function (x) {
     const strip = new THREE.Mesh(new THREE.PlaneGeometry(lineW, box * 2), yellow);
     strip.rotation.x = -Math.PI / 2;
     strip.position.set(x, 0.01, 0);
@@ -1667,176 +705,55 @@ function buildHangar(viewer, tallest, width) {
   // (fill() lifts them to deckHeight()). It is long enough for everything on the pad.
   const mlpW = Math.max(width * 0.7, tallest * 0.22, 4);
   const deckH = deckHeight(tallest);
-  const mlpL = Math.max(mlpW * 1.6, width + 3);
-  const mlp = freeBuild
-    ? new THREE.Mesh(new THREE.CylinderGeometry(mlpL / 2, mlpL / 2 * 1.04, deckH, 72), new THREE.MeshStandardMaterial({ color: 0x2a3340, roughness: 0.35, metalness: 0.7 }))
-    : new THREE.Mesh(new THREE.BoxGeometry(mlpL, deckH, mlpW), darkSteel);
+  const mlp = new THREE.Mesh(new THREE.BoxGeometry(Math.max(mlpW * 1.6, width + 3), deckH, mlpW), darkSteel);
   mlp.position.y = deckH / 2;
-  if (freeBuild) {
-    // the turntable's glowing edge and a ring of markers on its top
-    const edge = new THREE.Mesh(new THREE.TorusGeometry(mlpL / 2, Math.max(0.03, size * 0.0012), 8, 96), new THREE.MeshBasicMaterial({ color: 0x56d4f0 }));
-    edge.rotation.x = Math.PI / 2;
-    edge.position.y = deckH + 0.01;
-    g.add(edge);
-    for (let i = 0; i < 24; i++) {
-      const a = (i / 24) * Math.PI * 2;
-      const tick = new THREE.Mesh(new THREE.BoxGeometry(mlpL * 0.04, 0.01, 0.04), new THREE.MeshBasicMaterial({ color: i % 6 ? 0x2b6f80 : 0x7fe6ff }));
-      tick.position.set(Math.cos(a) * mlpL * 0.46, deckH + 0.006, Math.sin(a) * mlpL * 0.46);
-      tick.rotation.y = -a;
-      g.add(tick);
-    }
-  }
   mlp.castShadow = true;
   mlp.receiveShadow = true;
   g.add(mlp);
 
-  // The building: a closed high bay (four walls and a roof) big enough that the camera always stays
-  // inside it, like a game garage. Before, there was one wall and the camera circled outside the room.
-  const roomR = size / 2;
-  const wallH = Math.max(tallest * 1.6 + 4, deckH + tallest * 0.45 + roomR * 0.9);
-  // Real Missions: the rectangular high bay. Free Build: a round, domed engineering lab (buildDomeLab).
-  if (!freeBuild) {
-    // (columns, catwalks and trims on the walls: hidden in the zoomed-out view, so they don't block it)
-    const wallDetail = new THREE.Group();
-    g.add(wallDetail);
-    viewer.wallDetail = wallDetail;
-    const wallZ = -roomR;
-    const panelMap = wallPanelTexture();
-    const wallMat = new THREE.MeshStandardMaterial({ color: freeBuild ? 0x3b4656 : 0xa9afb8, map: panelMap, roughness: 0.7, metalness: 0.35 });
-    if (panelMap) panelMap.repeat.set(size / 6, wallH / 12);
-    // [x, z, rotation]: back, front, left, right, each facing into the room
-    const walls = [[0, -roomR, 0], [0, roomR, Math.PI], [-roomR, 0, Math.PI / 2], [roomR, 0, -Math.PI / 2]];
-    walls.forEach(function (w) {
-      const nx = Math.sin(w[2]);   // the wall's inward direction
-      const nz = Math.cos(w[2]);
-      const ax = Math.cos(w[2]);   // along the wall
-      const az = -Math.sin(w[2]);
-      const wall = new THREE.Mesh(new THREE.PlaneGeometry(size, wallH), wallMat);
-      wall.position.set(w[0], wallH / 2, w[1]);
-      wall.rotation.y = w[2];
-      wall.receiveShadow = true;
-      g.add(wall);
-      // tall steel columns along each wall
-      const ribs = 12;
-      for (let i = 0; i <= ribs; i++) {
-        const along = -roomR + (size / ribs) * i;
-        const rib = new THREE.Mesh(new THREE.BoxGeometry(size * 0.012, wallH, size * 0.014), steel);
-        rib.position.set(w[0] + ax * along + nx * size * 0.007, wallH / 2, w[1] + az * along + nz * size * 0.007);
-        rib.rotation.y = w[2];
-        wallDetail.add(rib);
-      }
-      // a band of high windows with daylight behind them
-      const band = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.92, wallH * 0.045), new THREE.MeshBasicMaterial({ color: 0xbcd4f5 }));
-      band.position.set(w[0] + nx * size * 0.016, wallH * 0.93, w[1] + nz * size * 0.016);
-      band.rotation.y = w[2];
-      wallDetail.add(band);
-      // a dark skirting band low on the wall (scuffed paint, cable trays)
-      const skirt = new THREE.Mesh(new THREE.PlaneGeometry(size, Math.max(1.2, wallH * 0.06)), skirtMat);
-      skirt.position.set(w[0] + nx * 0.05, Math.max(0.6, wallH * 0.03), w[1] + nz * 0.05);
-      skirt.rotation.y = w[2];
-      wallDetail.add(skirt);
-    });
-
-    // The high bay door in the back wall: tall stacked panels, with a thin line of daylight at its edges
-    const doorW = Math.max(width * 1.3, tallest * 0.55, 8);
-    const doorH = Math.min(wallH * 0.86, tallest * 1.35 + 3);
-    const doorMat = new THREE.MeshStandardMaterial({ color: 0x8c96a6, roughness: 0.5, metalness: 0.55 });
-    const door = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH), doorMat);
-    door.position.set(0, doorH / 2, wallZ + size * 0.02);
-    g.add(door);
-    for (let i = 1; i < 12; i++) {
-      const seam = new THREE.Mesh(new THREE.PlaneGeometry(doorW, doorH * 0.006), darkSteel);
-      seam.position.set(0, (doorH / 12) * i, wallZ + size * 0.021);
-      g.add(seam);
-    }
-    const daylightMat = new THREE.MeshBasicMaterial({ color: 0xeaf2ff });
-    [-1, 1].forEach(function (side) {
-      const gap = new THREE.Mesh(new THREE.PlaneGeometry(doorW * 0.008, doorH), daylightMat);
-      gap.position.set(side * doorW / 2, doorH / 2, wallZ + size * 0.022);
-      g.add(gap);
-    });
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(doorW * 1.08, doorH * 0.04, size * 0.03), yellowPaint);
-    lintel.position.set(0, doorH * 1.02, wallZ + size * 0.02);
-    g.add(lintel);
-    // Crawler tracks on the floor, leading from the pad to the door
-    const trackMat = new THREE.MeshStandardMaterial({ color: 0x5a5f67, roughness: 0.9 });
-    [-1, 1].forEach(function (side) {
-      const track = new THREE.Mesh(new THREE.PlaneGeometry(doorW * 0.16, roomR), trackMat);
-      track.rotation.x = -Math.PI / 2;
-      track.position.set(side * doorW * 0.28, 0.006, -roomR / 2);
-      track.receiveShadow = true;
-      g.add(track);
-    });
-
-    // Work galleries along the side walls: three levels of catwalks with yellow railings and lamps
-    const galleryMat = new THREE.MeshStandardMaterial({ color: 0x6d7581, roughness: 0.6, metalness: 0.6 });
-    const galleryDepth = Math.max(1.2, size * 0.03);
-    const galleryLampMat = new THREE.MeshBasicMaterial({ color: 0xfff0d6 });
-    [-1, 1].forEach(function (side) {
-      [0.22, 0.42, 0.62].forEach(function (f) {
-        const y = wallH * f;
-        const walk = new THREE.Mesh(new THREE.BoxGeometry(galleryDepth, size * 0.006 + 0.08, size * 0.86), galleryMat);
-        walk.position.set(side * (roomR - galleryDepth / 2), y, 0);
-        walk.receiveShadow = true;
-        wallDetail.add(walk);
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(size * 0.004 + 0.03, size * 0.004 + 0.03, size * 0.86), yellowPaint);
-        rail.position.set(side * (roomR - galleryDepth), y + person * 4.5, 0);
-        wallDetail.add(rail);
-        const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, size * 0.7), galleryLampMat);
-        lamp.position.set(side * (roomR - galleryDepth * 0.5), y - 0.15, 0);
-        wallDetail.add(lamp);
-      });
-    });
-
-    // (the roof parts are in their own group: hidden when the camera zooms out above the building)
-    const roof = new THREE.Group();
-    g.add(roof);
-    viewer.roof = roof;
-    viewer.roofY = wallH;
-    // Roof: a dark ceiling with a steel truss grid, rows of high bay lamps, and a bridge crane on rails
-    const roofY = wallH;
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshStandardMaterial({ color: 0x23272e, roughness: 0.9, metalness: 0.2 }));
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.y = roofY;
-    roof.add(ceiling);
-    for (let i = -4; i <= 4; i++) {
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(size, size * 0.016, size * 0.012), steel);
-      beam.position.set(0, roofY - size * 0.012, i * size * 0.11);
-      roof.add(beam);
-      const cross = new THREE.Mesh(new THREE.BoxGeometry(size * 0.012, size * 0.012, size), darkSteel);
-      cross.position.set(i * size * 0.11, roofY - size * 0.026, 0);
-      roof.add(cross);
-    }
-    const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff6e4 });
-    const lampGeo = new THREE.CylinderGeometry(size * 0.012, size * 0.016, size * 0.008, 12);
-    for (let i = -3; i <= 3; i++) {
-      for (let j = -3; j <= 3; j++) {
-        const lamp = new THREE.Mesh(lampGeo, lampMat);
-        lamp.position.set(i * size * 0.13, roofY - size * 0.04, j * size * 0.13);
-        roof.add(lamp);
-      }
-    }
-    [-1, 1].forEach(function (side) {
-      const railBeam = new THREE.Mesh(new THREE.BoxGeometry(size * 0.02, size * 0.02, size), yellowPaint);
-      railBeam.position.set(side * roomR * 0.7, roofY - size * 0.06, 0);
-      roof.add(railBeam);
-    });
-    const crane = new THREE.Mesh(new THREE.BoxGeometry(roomR * 1.4, size * 0.03, size * 0.035), yellowPaint);
-    crane.position.set(0, roofY - size * 0.08, -box * 0.5);
-    roof.add(crane);
-    const hookLength = Math.max(1, roofY - size * 0.08 - (deckH + tallest * 1.1));
-    const hook = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, hookLength, 6), darkSteel);
-    hook.position.set(box * 0.3, roofY - size * 0.08 - hookLength / 2, -box * 0.5);
-    roof.add(hook);
-  } else {
-    viewer.wallDetail = null;
-    const domeRoof = buildDomeLab(g, roomR, wallH, size, box);
-    viewer.roof = domeRoof;
-    viewer.roofY = wallH * 0.45;
+  // Walls with tall vertical ribs, and the high bay door (a tall panel with stripes)
+  const wallH = tallest * 1.45 + 6;
+  const wallZ = -size * 0.32;
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x313844, roughness: 0.75, metalness: 0.3 });
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(size, wallH), wallMat);
+  wall.position.set(0, wallH / 2, wallZ);
+  wall.receiveShadow = true;
+  g.add(wall);
+  const ribs = 16;
+  for (let i = 0; i <= ribs; i++) {
+    const rib = new THREE.Mesh(new THREE.BoxGeometry(size * 0.01, wallH, size * 0.012), steel);
+    rib.position.set(-size / 2 + (size / ribs) * i, wallH / 2, wallZ + size * 0.006);
+    g.add(rib);
   }
+  const doorW = Math.max(width * 1.3, tallest * 0.5);
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(doorW, wallH * 0.92), new THREE.MeshStandardMaterial({ color: 0x8c96a6, roughness: 0.55, metalness: 0.5 }));
+  door.position.set(size * 0.18, wallH * 0.46, wallZ + size * 0.014);
+  g.add(door);
+  for (let i = 1; i < 10; i++) {
+    const seam = new THREE.Mesh(new THREE.PlaneGeometry(doorW, wallH * 0.004), darkSteel);
+    seam.position.set(size * 0.18, wallH * 0.092 * i, wallZ + size * 0.015);
+    g.add(seam);
+  }
+  const band = new THREE.Mesh(new THREE.PlaneGeometry(size, wallH * 0.05), new THREE.MeshBasicMaterial({ color: 0x9fc4ff }));
+  band.position.set(0, wallH * 0.95, wallZ + size * 0.008);
+  g.add(band); // high windows letting daylight in
+
+  // Roof truss beams and an overhead bridge crane with a hook
+  const roofY = wallH * 0.98;
+  for (let i = -3; i <= 3; i++) {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(size, size * 0.012, size * 0.012), steel);
+    beam.position.set(0, roofY, wallZ + (i + 3.5) * size * 0.09);
+    g.add(beam);
+  }
+  const crane = new THREE.Mesh(new THREE.BoxGeometry(size * 0.03, size * 0.025, size * 0.7), yellowPaint);
+  crane.position.set(-box * 0.2, roofY - size * 0.03, 0);
+  g.add(crane);
+  const hook = new THREE.Mesh(new THREE.CylinderGeometry(size * 0.002, size * 0.002, tallest * 0.25, 6), darkSteel);
+  hook.position.set(-box * 0.2, roofY - size * 0.03 - tallest * 0.125, box * 0.3);
+  g.add(hook);
 
   // Service tower (red lattice) with an access arm, beside the pad
-  const towerMat = new THREE.MeshStandardMaterial({ color: freeBuild ? 0xd9e0e8 : 0xb8432a, roughness: 0.55, metalness: 0.55 });
+  const towerMat = new THREE.MeshStandardMaterial({ color: 0xb8432a, roughness: 0.55, metalness: 0.55 });
   const towerH = tallest * 1.05;
   const tw = Math.max(1.2, tallest * 0.05);
   const tx = -box * 0.78;
@@ -1881,29 +798,27 @@ function buildHangar(viewer, tallest, width) {
     g.add(w);
   });
 
-  // Big equipment around the hall (sized for a hall that holds a 110 m rocket, so it can be seen)
-  stationScale = Math.min(4, Math.max(1.5, size * 0.035));
-  if (freeBuild) {
-    layoutLab(g, roomR, box, wallH, size);
-  } else {
-    layoutAssemblyHall(g, roomR, box, wallH, size, Math.max(width * 1.3, tallest * 0.55, 8));
-    addWallGallery(g, roomR, wallH, size);
-    addAgenaExhibit(g, roomR, box, size);
-  }
+  // Carts, crates and people on the floor, for scale
+  const crateMat = new THREE.MeshStandardMaterial({ color: 0x55606e, roughness: 0.7, metalness: 0.3 });
+  [[box * 0.6, box * 0.55], [box * 0.75, box * 0.4], [-box * 0.6, box * 0.6]].forEach(function (p, i) {
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(person * 2.2, person * 1.2, person * 1.4), i === 1 ? yellowPaint : crateMat);
+    crate.position.set(p[0], person * 0.6, p[1]);
+    crate.castShadow = true;
+    g.add(crate);
+  });
+  [[box * 0.5, box * 0.3, 0xf28c28], [box * 0.45, box * 0.36, 0x2f6fd6], [-box * 0.4, box * 0.5, 0xf2f2f2]].forEach(function (p) {
+    const w = worker(person, p[2]);
+    w.position.set(p[0], 0, p[1]);
+    w.rotation.y = Math.random() * 3;
+    g.add(w);
+  });
 
-  // Lights: soft light from the roof lamps and the windows, warm lamps around the hall,
-  // and a spotlight on the rocket (with shadows)
-  g.add(new THREE.HemisphereLight(freeBuild ? 0xbfe9ff : 0xe4ecff, 0x40444c, freeBuild ? 0.45 : 0.55)); // softer (it was too bright)
-  const daylight = new THREE.DirectionalLight(0xdfe9ff, 0.8);
+  // Lights: daylight from the high windows, warm work lights, and a spotlight on the rocket (with shadows)
+  const daylight = new THREE.DirectionalLight(0xdfe9ff, 1.1);
   daylight.position.set(size * 0.2, wallH, size * 0.4);
   g.add(daylight);
-  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
-    const lamp = new THREE.PointLight(freeBuild ? 0x9fe6ff : 0xffe7c4, 0.9, size * 1.1, 1.2);
-    lamp.position.set(c[0] * roomR * 0.55, wallH * 0.75, c[1] * roomR * 0.55);
-    g.add(lamp);
-  });
-  const spot = new THREE.SpotLight(0xfff0d8, 2.4, 0, 0.5, 0.55);
-  spot.position.set(size * 0.1, wallH * 0.95, size * 0.25);
+  const spot = new THREE.SpotLight(0xfff0d8, 3.4, 0, 0.5, 0.55);
+  spot.position.set(size * 0.1, wallH, size * 0.25);
   spot.castShadow = true;
   if (spot.shadow && spot.shadow.mapSize) spot.shadow.mapSize.set(1024, 1024);
   g.add(spot);
@@ -1911,17 +826,11 @@ function buildHangar(viewer, tallest, width) {
     spot.target.position.set(padX, deckH + padH * 0.3, 0);
     g.add(spot.target);
   }
-  // The camera can't drop under the floor. Zooming out goes past the walls to show the whole building
-  // from outside (the walls are drawn from the inside only, so the building opens up like a cut-away
-  // model); the view starts inside it.
-  const controls = viewer.controls;
-  controls.maxDistance = roomR * 0.82; // the camera always stays inside the building (Master Doc 12)
-  viewer.insideDistance = roomR * 0.82;
-  controls.minDistance = Math.max(1.5, tallest * 0.2);
-  controls.maxPolarAngle = Math.PI * 0.49;
-  if (viewer.scene.fog) {
-    viewer.scene.fog.near = roomR * 1.2;
-    viewer.scene.fog.far = roomR * 5;
+  const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff3dc });
+  for (let i = -2; i <= 2; i++) {
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(size * 0.45, size * 0.004, size * 0.01), lightMat);
+    strip.position.set(0, roofY - size * 0.01, i * size * 0.07);
+    g.add(strip);
   }
   viewer.scene.add(g);
   viewer.hangar = g;
@@ -1975,8 +884,7 @@ function fill(viewer, objects) {
   // The work platforms ring the first object (the rocket), wherever it ends up after centring
   viewer.padX = -right / 2 + (firstWidth || 0) / 2;
   if (viewer.garage) buildHangar(viewer, tallest, right);
-  let distance = Math.max(tallest, right) * 1.9 + 2;
-  if (viewer.garage && viewer.insideDistance) distance = Math.min(distance, viewer.insideDistance / 1.15);
+  const distance = Math.max(tallest, right) * 1.9 + 2;
   viewer.camera.position.set(distance * 0.55, deck + tallest * 0.6, distance);
   viewer.controls.target.set(0, deck + tallest * 0.45, 0);
   viewer.controls.update();
@@ -1998,691 +906,20 @@ function loop(time) {
   [lab, locker].forEach(function (viewer) {
     if (!viewer) return;
     viewer.controls.update();
-    if (viewer.roof) {
-      const p = viewer.camera.position;
-      const outside = viewer.insideDistance && Math.hypot(p.x, p.z) > viewer.insideDistance * 1.12;
-      viewer.roof.visible = !(outside || p.y > viewer.roofY * 0.92);
-      if (viewer.wallDetail) viewer.wallDetail.visible = !outside;
-    }
     viewer.renderer.render(viewer.scene, viewer.camera);
   });
 }
 
 // ----- Rocket Lab -----
-// The four parts of the rocket the Lab can repaint, and the colour each one has before you touch it
-// (the same values the models use: white paint, dark bands, red fins, blue stripe).
-const PAINT_SLOTS = [
-  { key: "paint", label: "Body", base: 0xeef0f3 },
-  { key: "accent", label: "Bands", base: 0x18191d },
-  { key: "finColor", label: "Fins", base: 0xb8412c },
-  { key: "stripeColor", label: "Stripe", base: 0x2f6fd8 }
+const PAINTS = [
+  { name: "Original", value: null }, { name: "Graphite", value: 0x3b3f46 }, { name: "Mars red", value: 0xb5482a },
+  { name: "Ocean blue", value: 0x2f5fb8 }, { name: "Gold", value: 0xc9a13b }
 ];
-
-function hexOf(value) {
-  return "#" + (value & 0xffffff).toString(16).padStart(6, "0");
-}
-
-// ----- Mission Story Data -----
-// Each mission has a story sequence that shows what happens,
-// told in first-person POV. Every mission type (rocket, rover,
-// telecrop, etc.) gets the same structure but different content.
-// Stories go: Earth launch → journey → arrival/post-landing with
-// dialogue, actions, discoveries, and key takeaways.
-
-const MISSION_STORIES = {
-  // Apollo 11 - first Moon landing with astronauts
-  apollo11: {
-    title: "Apollo 11: First Steps on the Moon",
-    beats: [
-      {
-        phase: "launch",
-        title: "Liftoff from KSC",
-        dialogue: "Commander: \"Ignition sequence start\". \"We have liftoff of Apollo 11!\"",
-        action: "Saturn V rises, shedding stages, entering Earth orbit",
-        pov: "view from command module window, Earth growing smaller",
-        sounds: ["rocket-engine", "stage-separation"]
-      },
-      {
-        phase: "trans-lunar",
-        title: "Journey to the Moon",
-        dialogue: "CAPCOM: \"Apollo 11, Transearth coast proceeding nominal\". \"Houston, Tranquility Base here. The Eagle has landed.\"",
-        action: "Mid-course correction, coast phase, moon approach",
-        pov: "view through windows, lunar surface approaching",
-        sounds: ["engine-cut", "communication"]
-      },
-      {
-        phase: "landing",
-        title: "Touchdown in Mare Tranquillitatis",
-        dialogue: "Commander: \"The Eagle has landed\". \"Houston, Tranquility Base here.\"",
-        action: "LM Eagle soft-lands, dust settles",
-        pov: "LM window view, lunar surface rushing up",
-        sounds: ["landing-engine", "dust", "breathing"]
-      },
-      {
-        phase: "EVA",
-        title: "First Moonwalk",
-        dialogue: "Commander: \"That's one small step for man, one giant leap for mankind\". \"Okay, let me give you a hand.\"",
-        action: "Astronauts step onto moon, collect samples, plant flag",
-        pov: "astronaut's POV, looking up at Earth (Moon in background)",
-        sounds: ["life-support", "footsteps", "radio"]
-      },
-      {
-        phase: "samples",
-        title: "Lunar Samples",
-        dialogue: "Commander: \"We also got lots of samples\". \"The dust is fine and powdery.\"",
-        action: "Rocks collected, filmed, documented, placed in containers",
-        pov: "handheld camera, sampling the surface",
-        sounds: ["rock-sample", "brush", "container-close"]
-      },
-      {
-        phase: "return",
-        title="Splashdown",
-        dialogue="Commander: \"America, Splashdown\". \"We've completed our lunar mission.\"",
-        action="Splashdown, recovery helicopter, exiting capsule",
-        pov="window view, ocean approaching",
-        sounds=["splash","helicopter","bubbles"]
-      },
-      {
-        phase: "takeaway",
-        title="Key Takeaway",
-        dialogue="Commander: \"The Eagle has flown\". \"We came in peace for all mankind.\"",
-        action="Mission summary, scientific achievements displayed",
-        pov="overview of mission achievements",
-        sounds=["ambient","concluding"]
-      }
-    ],
-    unique: "First human landing on another world; proved humans can survive and work on another celestial body"
-  },
-
-  // Mars Pathfinder with rover Sojourner
-  mars-pathfinder: {
-    title: "Mars Pathfinder & Sojourner",
-    beats: [
-      {
-        phase: "launch",
-        title: "Delta II Launch from Cape Canaveral",
-        dialogue: "Launch control: \"T-minus 10, 9, 8... liftoff!\"",
-        action="Rocket ascends, deployed in Earth orbit, trans-Mars injection",
-        pov="window view, Earth departing",
-        sounds=["rocket-engine","stage-separation"]
-      },
-      {
-        phase: "cruise",
-        title="Interplanetary Cruise",
-        dialogue="CAPCOM: \"Mars Pathfinder healthy. All systems nominal during cruise.\"",
-        action="6-month journey, instrument checks, trajectory corrections",
-        pov="deep space view, star field, occasional planet views",
-        sounds=["engine-thruster","communication"]
-      },
-      {
-        phase: "entry",
-        title="Mars Atmospheric Entry",
-        dialogue="Mission: \"Entering Mars atmosphere in 30 seconds.\"",
-        action="Aerobraking, parachute deployment, airbag inflation",
-        pov="lander window, Mars surface approaching fast",
-        sounds=["atmospheric-friction","parachute-deploy","airbag-inflate"]
-      },
-      {
-        phase: "landing",
-        title="Bouncing Ball Landing",
-        dialogue="Mission: \"We have touchdown! The airbags are holding.\"",
-        action="Bouncing ball landing, multiple bounces, eventual stop",
-        pov="lander view, surface rushing up, multiple impacts",
-        sounds=["impact","airbag-rattle","engines"]
-      },
-      {
-        phase: "rovers-deploy",
-        title="Sojourner Deployed",
-        dialogue="Mission: \"Ramp down, we have a rover on the surface.\"",
-        action="Rover rolls out, extends instruments, first images",
-        pov="lander camera, rover driving down ramp",
-        sounds=["motor","ramp-deploy"]
-      },
-      {
-        phase: "exploration",
-        title="Exploring Mars",
-        dialogue="Rover: \"Rocks ahead. Checking instruments.\"",
-        action="Rover drives, analyzes rocks, takes photographs, sends data to Earth",
-        pov="rover POC, surface textures, rock targets, high-gain antenna tilt",
-        sounds=["motor","instrument-click","data-transmit"]
-      },
-      {
-        phase: "takeaway",
-        title="Key Takeaway",
-        dialogue="Mission: \"We have proven we can operate rovers on Mars.\"",
-        action="Mission summary: Sojourner's discoveries, pathfinder technology demonstrations",
-        pov="overview of Mars exploration achievements",
-        sounds=["ambient","concluding"]
-      }
-    ],
-    unique="First successful Mars rover demonstration; proved small rovers can operate and return science from the surface"
-  },
-
-  // Mars Science Laboratory / Curiosity
-  mars-science-lab: {
-    title: "Mars Science Laboratory - Curiosity",
-    beats: [
-      {
-        phase: "launch",
-        title="Atlas V Launch",
-        dialogue="Launch control: \"Atlas V igniting... liftoff of the Mars Science Laboratory!\"",
-        action="Rocket ascent, Earth departure, cruise trajectory",
-        pov="fairing separation, Earth receding",
-        sounds=["rocket-engine","fairing-separate"]
-      },
-      {
-        phase: "cruise",
-        title="8-Month Cruise to Mars",
-        dialogue="Mission: \"All systems healthy. Instrument checkout in progress.\"",
-        action="Interplanetary cruise, instrument calibrations, daily health checks",
-        pov="spacecraft interior, view ports, Mars growing larger",
-        sounds=["thruster-fire","health-check"]
-      },
-      {
-        phase: "entry",
-        title="Precision Entry, Descent, Landing",
-        dialogue="Mission: \"Entry interface in 5 minutes.\"",
-        action="Guided entry, parachute, sky crane maneuver, powered descent",
-        pov="heat shield view, ground rushing up, sky crane lowering rover",
-        sounds=["aero-friction","parachute-deploy","sky-crane"]
-      },
-      {
-        phase: "landing",
-        title="Curiosity Touchdown in Gale Crater",
-        dialogue="Mission: \"Rover has touched down inside Gale Crater!\"",
-        action="Sky crane sets down, rover drops, drives away",
-        pov="rover downward-looking camera, dust cloud settling",
-        sounds=["thrusters","dust","motor-start"]
-      },
-      {
-        phase: "operations",
-        title="Surface Operations",
-        dialogue="Rover: \"Driving to investigate that rock pattern.\"",
-        action="Rover drives, uses instruments (Drill, ChemCam, Mastcam), samples analysis",
-        pov="rover POV, wheel tracks, rock textures, instrument deployment",
-        sounds=["motor","drill","zap-chemcam"]
-      },
-      {
-        phase: "takeaway",
-        title="Key Takeaway",
-        dialogue="Mission: \"Curiosity is climbing Mount Sharp, reading Mars' climate history.\"",
-        action="Mission summary: discoveries of past habitable environments, organic molecules",
-        pov="orbit view, rover track line over mountains",
-        sounds=["ambient","concluding"]
-      }
-    ],
-    unique="Largest rover sent to Mars at the time; primary mission designed for 1 Martian year but still operating; proved long-range mobility and sophisticated science on Mars surface"
-  },
-
-  // Generic rover mission template
-  rover-template: {
-    title: "Rover Mission",
-    beats: [
-      {
-        phase: "launch",
-        title="Rocket Launch",
-        dialogue="Launch control: \"Rocket standing by for launch.\"",
-        action="Vehicle lifts off, ascent to orbit, departure trajectory",
-        pov="window view, planet below",
-        sounds=["rocket-engine"]
-      },
-      {
-        phase: "cruise",
-        title="Interplanetary Cruise",
-        dialogue="Mission: \"Spacecraft healthy. All instruments checked.\"",
-        action="Months-long journey, hibernation periods, instrument health checks",
-        pov="deep space view, occasional planet images",
-        sounds=["thruster-fire","status-beep"]
-      },
-      {
-        phase: "entry",
-        title="Planetary Entry",
-        dialogue="Mission: \"Entering atmosphere.\"",
-        action="Aerobraking, parachute, final descent",
-        pov="window view, surface approaching",
-        sounds=["atmospheric-friction","parachute-deploy"]
-      },
-      {
-        phase: "landing",
-        title="Surface Landing",
-        dialogue="Mission: \"We have touchdown.\"",
-        action="Land impact, airbags/retro-rockets, settle",
-        pov="lander view, dust cloud",
-        sounds=["impact","motors"]
-      },
-      {
-        phase: "explore",
-        title="Exploring the Surface",
-        dialogue="Rover: \"Navigation online. Target in sight.\"",
-        action="Rover drives, analyzes terrain, takes samples, sends data",
-        pov="rover POV, wheel tracks, rock/soil textures, instrument cam",
-        sounds=["motor","instrument"]
-      },
-      {
-        phase: "takeaway",
-        title="Key Takeaway",
-        dialogue="Mission: \"Rover mission complete. New knowledge returned.\"",
-        action="Summary of discoveries, mission duration, distance traveled",
-        pov="overview of mission achievements",
-        sounds=["ambient"]
-      }
-    ],
-    generic:"A robotic explorer mission to another world's surface; proves surface operations and remote science return"
-  },
-
-  // Generic telecrop/orbiter mission
-  telecrop-template: {
-    title: "Orbiter/Telecrop Mission",
-    beats: [
-      {
-        phase: "launch",
-        title="Launch to Orbit",
-        dialogue="Launch control: \"We have liftoff!\"",
-        action="Rocket ascent to transfer orbit, checkout",
-        pov="fairing view, Earth from above",
-        sounds=["rocket-engine","fairing-separate"]
-      },
-      {
-        phase: "cruise",
-        title="Transfer Orbit & Checkout",
-        dialogue="Mission: \"Spacecraft operating nominally.\"",
-        action="Orbit raises, instrument checkout, trajectory to target",
-        pov="orbital view, planet growing, instrument deployment",
-        sounds=["thruster-fire","status-beep"]
-      },
-      {
-        phase: "arrival",
-        title="Orbital Arrival",
-        dialogue="Mission: \"We are now in orbit around [target].\"",
-        action="Orbital insertion burn, science instruments activated",
-        pov="window view, planet capture, instrument boom deployment",
-        sounds["orbital-insertion"]
-      },
-      {
-        phase: "operations",
-        title="Remote Science Operations",
-        dialogue="Operator: \"Instrument suite online. Acquiring target.\"",
-        action="Remote sensing, imaging, spectroscopy, data transmission to Earth",
-        pov="orbiter view, target planet/feature, instrument articulation",
-        sounds["sensor-whir","data-downlink"]
-      },
-      {
-        phase: "takeaway",
-        title="Key Takeaway",
-        dialogue="Mission: \"Our data reveals [key finding].\"",
-        action="Summary of scientific results, mission contributions",
-        pov="orbital overview, data visualizations",
-        sounds["ambient"]
-      }
-    ],
-    generic="Orbital mission studying a planet, moon, or small body from above; proves remote sensing and global mapping from orbit"
-  }
-};
-
-// Helper: find story for a mission group
-function storyFor(missionKey) {
-  // Try exact match first
-  if (MISSION_STORIES[missionKey]) return MISSION_STORIES[missionKey];
-  // Try base name (strip numbers/suffixes)
-  const base = missionKey.replace(/-[a-z0-9]+$/, '');
-  if (MISSION_STORIES[base]) return MISSION_STORIES[base];
-  // Fall back to template
-  return MISSION_STORIES.rover-template;
-}
-
-// ---- Show a mission's story in first-person POV ----
-function showMissionStory(missionKey) {
-  const story = storyFor(missionKey);
-  if (!story) return;
-
-  // Update UI titles
-  const storyTitle = document.querySelector('.story-title');
-  const storyPhase = document.querySelector('.story-phase');
-  const storyDialogue = document.querySelector('.story-dialogue');
-  const storyAction = document.querySelector('.story-action');
-  const storyCanvas = document.getElementById('story-canvas');
-  const storyPrev = document.querySelector('.story-prev');
-  const storyNext = document.querySelector('.story-next');
-  const storyTakeaway = document.querySelector('.story-takeaway');
-  const takeawayH3 = storyTakeaway.querySelector('h3');
-  const takeawayP = storyTakeaway.querySelector('p');
-
-  if (storyTitle) storyTitle.textContent = story.title;
-  if (storyPhase) storyPhase.textContent = story.beats[0].phase;
-
-  // Initialize to first beat
-  let currentBeat = 0;
-
-  function showBeat(index) {
-    if (index < 0 || index >= story.beats.length) return;
-    currentBeat = index;
-
-    const beat = story.beats[index];
-
-    // Update phase header
-    if (storyPhase) storyPhase.textContent = beat.phase;
-
-    // Update dialogue
-    if (storyDialogue) {
-      storyDialogue.innerHTML = '';
-      if (beat.dialogue) {
-        const parts = beat.dialogue.split('. ');
-        parts.forEach((part, i) => {
-          if (part) {
-            const span = document.createElement('span');
-            span.className = i === 0 ? 'speaker' : '';
-            span.textContent = part.trim() + (i < parts.length - 1 ? '. ' : '. ');
-            storyDialogue.appendChild(span);
-          }
-        });
-      }
-    }
-
-    // Update action
-    if (storyAction) storyAction.textContent = beat.action || '';
-
-    // Update POV canvas - for now, just set background and note the beat
-    if (storyCanvas) {
-      const ctx = storyCanvas.getContext('2d');
-      ctx.clearRect(0, 0, storyCanvas.width, storyCanvas.height);
-      ctx.fillStyle = '#0a2237';
-      ctx.fillRect(0, 0, storyCanvas.width, storyCanvas.height);
-      ctx.fillStyle = '#56d4f0';
-      ctx.fillText(`Beat ${index + 1} of ${story.beats.length}`, 20, 40);
-      ctx.fillStyle = '#fff';
-      ctx.fillText(beat.title, 20, 80);
-    }
-
-    // Update navigation button states
-    if (storyPrev) storyPrev.disabled = index <= 0;
-    if (storyNext) storyNext.disabled = index >= story.beats.length - 1;
-
-    // Hide takeaway if not on last beat
-    if (storyTakeaway) {
-      storyTakeaway.hidden = index < story.beats.length - 1;
-      if (index === story.beats.length - 1) {
-        takeawayH3.textContent = 'Key Takeaway';
-        takeawayP.textContent = story.unique || story.generic || 'Mission complete. New knowledge returned.';
-      }
-    }
-  }
-
-  // Show first beat
-  showBeat(0);
-
-  // Navigation
-  if (storyPrev) {
-    storyPrev.addEventListener('click', () => showBeat(currentBeat - 1));
-  }
-  if (storyNext) {
-    storyNext.addEventListener('click', () => showBeat(currentBeat + 1));
-  }
-
-  // Show the story viewer
-  const storyViewer = document.querySelector('.story-viewer');
-  if (storyViewer) storyViewer.hidden = false;
-}
-
-// Helper: find story for a mission group (already defined above)
-const paintPop = { el: null, anchor: null, slot: null, sync: null, h: 0, s: 0, v: 1 };
-
-function hsvToRgb(h, s, v) {
-  const c = v * s;
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-  const m = v - c;
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  if (h < 60) { r = c; g = x; }
-  else if (h < 120) { r = x; g = c; }
-  else if (h < 180) { g = c; b = x; }
-  else if (h < 240) { g = x; b = c; }
-  else if (h < 300) { r = x; b = c; }
-  else { r = c; b = x; }
-  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
-}
-
-function rgbToHsv(r, g, b) {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const d = max - min;
-  let h = 0;
-  if (d) {
-    if (max === r) h = 60 * (((g - b) / d) % 6);
-    else if (max === g) h = 60 * ((b - r) / d + 2);
-    else h = 60 * ((r - g) / d + 4);
-  }
-  if (h < 0) h += 360;
-  return [h, max ? d / max : 0, max];
-}
-
-function paintParts() {
-  const el = paintPop.el;
-  return {
-    title: el.querySelector(".paint-title"),
-    sv: el.querySelector(".paint-sv"),
-    dot: el.querySelector(".paint-sv-dot"),
-    hue: el.querySelector(".paint-hue"),
-    thumb: el.querySelector(".paint-hue-thumb"),
-    chip: el.querySelector(".paint-chip"),
-    hex: el.querySelector(".paint-hex"),
-    original: el.querySelector(".paint-original")
-  };
-}
-
-// Move the dot, the hue thumb, the chip and the hex text to match paintPop's h/s/v
-function paintDraw() {
-  const p = paintParts();
-  const rgb = hsvToRgb(paintPop.h, paintPop.s, paintPop.v);
-  const text = "#" + rgb.map(function (c) { return c.toString(16).padStart(2, "0"); }).join("");
-  p.sv.style.setProperty("--hue", "hsl(" + paintPop.h.toFixed(1) + " 100% 50%)");
-  p.dot.style.setProperty("--x", (paintPop.s * 100).toFixed(2) + "%");
-  p.dot.style.setProperty("--y", ((1 - paintPop.v) * 100).toFixed(2) + "%");
-  p.thumb.style.left = ((paintPop.h / 360) * 100).toFixed(2) + "%";
-  p.chip.style.setProperty("--swatch", text);
-  if (document.activeElement !== p.hex) p.hex.value = text;
-}
-
-function paintApply() {
-  const rgb = hsvToRgb(paintPop.h, paintPop.s, paintPop.v);
-  if (paintPop.slot) state.look[paintPop.slot.key] = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
-  paintDraw();
-  if (paintPop.sync) paintPop.sync();
-  recolourLabRocket();
-}
-
-function paintDrag(el, onMove) {
-  el.addEventListener("pointerdown", function (e) {
-    e.preventDefault();
-    el.focus();
-    try { el.setPointerCapture(e.pointerId); } catch (error) { /* synthetic or already gone */ }
-    onMove(e);
-    const move = function (ev) { onMove(ev); };
-    const up = function () {
-      el.removeEventListener("pointermove", move);
-      el.removeEventListener("pointerup", up);
-      el.removeEventListener("pointercancel", up);
-    };
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", up);
-    el.addEventListener("pointercancel", up);
-  });
-}
-
-function paintPanel() {
-  if (paintPop.el) return paintPop.el;
-  const el = document.createElement("div");
-  el.className = "paint-pop";
-  el.hidden = true;
-  el.setAttribute("role", "dialog");
-  el.setAttribute("aria-label", "Colour picker");
-  el.innerHTML =
-    '<span class="paint-title"></span>' +
-    '<div class="paint-sv" role="slider" tabindex="0" aria-label="Saturation and brightness"><span class="paint-sv-dot"></span></div>' +
-    '<div class="paint-hue" role="slider" tabindex="0" aria-label="Hue"><span class="paint-hue-thumb"></span></div>' +
-    '<div class="paint-foot">' +
-      '<span class="paint-chip" aria-hidden="true"></span>' +
-      '<input class="paint-hex" type="text" id="paint-hex" name="paint-hex" spellcheck="false" maxlength="7" aria-label="Colour value">' +
-      '<button type="button" class="paint-original">Original</button>' +
-    '</div>';
-  document.body.appendChild(el);
-  paintPop.el = el;
-
-  const p = paintParts();
-
-  function svAt(e) {
-    const box = p.sv.getBoundingClientRect();
-    paintPop.s = Math.min(1, Math.max(0, (e.clientX - box.left) / box.width));
-    paintPop.v = 1 - Math.min(1, Math.max(0, (e.clientY - box.top) / box.height));
-    paintApply();
-  }
-  function hueAt(e) {
-    const box = p.hue.getBoundingClientRect();
-    paintPop.h = Math.min(359.9, Math.max(0, ((e.clientX - box.left) / box.width) * 360));
-    paintApply();
-  }
-  paintDrag(p.sv, svAt);
-  paintDrag(p.hue, hueAt);
-
-  p.sv.addEventListener("keydown", function (e) {
-    const step = e.shiftKey ? 0.1 : 0.02;
-    if (e.key === "ArrowLeft") paintPop.s = Math.max(0, paintPop.s - step);
-    else if (e.key === "ArrowRight") paintPop.s = Math.min(1, paintPop.s + step);
-    else if (e.key === "ArrowUp") paintPop.v = Math.min(1, paintPop.v + step);
-    else if (e.key === "ArrowDown") paintPop.v = Math.max(0, paintPop.v - step);
-    else return;
-    e.preventDefault();
-    paintApply();
-  });
-  p.hue.addEventListener("keydown", function (e) {
-    const step = e.shiftKey ? 10 : 2;
-    if (e.key === "ArrowLeft") paintPop.h = (paintPop.h - step + 360) % 360;
-    else if (e.key === "ArrowRight") paintPop.h = (paintPop.h + step) % 360;
-    else return;
-    e.preventDefault();
-    paintApply();
-  });
-
-  // typed value: #rgb or #rrggbb, with or without the hash
-  p.hex.addEventListener("input", function () {
-    const found = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(p.hex.value.trim());
-    if (!found) return;
-    let text = found[1];
-    if (text.length === 3) text = text[0] + text[0] + text[1] + text[1] + text[2] + text[2];
-    const hsv = rgbToHsv(parseInt(text.slice(0, 2), 16), parseInt(text.slice(2, 4), 16), parseInt(text.slice(4, 6), 16));
-    if (hsv[1] > 0) paintPop.h = hsv[0]; // greys keep the hue you were on
-    paintPop.s = hsv[1];
-    paintPop.v = hsv[2];
-    paintApply();
-  });
-
-  p.original.addEventListener("click", function () {
-    if (paintPop.slot) state.look[paintPop.slot.key] = null;
-    if (paintPop.sync) paintPop.sync();
-    recolourLabRocket();
-    // the picker goes back to the original colour too, so the chip and the hex agree with the row
-    if (paintPop.slot) {
-      const base = paintPop.slot.base;
-      const hsv = rgbToHsv((base >> 16) & 255, (base >> 8) & 255, base & 255);
-      paintPop.h = hsv[0];
-      paintPop.s = hsv[1];
-      paintPop.v = hsv[2];
-      paintDraw();
-    }
-  });
-
-  document.addEventListener("pointerdown", function (e) {
-    if (el.hidden) return;
-    if (el.contains(e.target) || e.target === paintPop.anchor) return;
-    closePaintPop();
-  }, true);
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") closePaintPop();
-  });
-  window.addEventListener("resize", closePaintPop);
-  document.addEventListener("scroll", closePaintPop, true);
-  return el;
-}
-
-function openPaintPop(slot, anchor, sync) {
-  const el = paintPanel();
-  if (!el.hidden && paintPop.anchor === anchor) { closePaintPop(); return; }
-  if (paintPop.anchor) paintPop.anchor.setAttribute("aria-expanded", "false");
-  paintPop.anchor = anchor;
-  paintPop.slot = slot;
-  paintPop.sync = sync;
-  anchor.setAttribute("aria-expanded", "true");
-
-  const value = state.look[slot.key];
-  const rgb = value === null || value === undefined
-    ? [(slot.base >> 16) & 255, (slot.base >> 8) & 255, slot.base & 255]
-    : [(value >> 16) & 255, (value >> 8) & 255, value & 255];
-  const hsv = rgbToHsv(rgb[0], rgb[1], rgb[2]);
-  paintPop.h = hsv[0];
-  paintPop.s = hsv[1];
-  paintPop.v = hsv[2];
-
-  el.querySelector(".paint-title").textContent = slot.label;
-  el.hidden = false;
-  paintDraw();
-
-  // under the well, flipped up or sideways if that would run off the window
-  const a = anchor.getBoundingClientRect();
-  const width = el.offsetWidth;
-  const height = el.offsetHeight;
-  let left = a.left;
-  let top = a.bottom + 8;
-  if (left + width > window.innerWidth - 10) left = window.innerWidth - width - 10;
-  if (left < 10) left = 10;
-  if (top + height > window.innerHeight - 10) top = a.top - height - 8;
-  if (top < 10) top = 10;
-  el.style.left = Math.round(left) + "px";
-  el.style.top = Math.round(top) + "px";
-}
-
-function closePaintPop() {
-  if (!paintPop.el || paintPop.el.hidden) return;
-  paintPop.el.hidden = true;
-  if (paintPop.anchor) paintPop.anchor.setAttribute("aria-expanded", "false");
-  paintPop.anchor = null;
-  paintPop.slot = null;
-  paintPop.sync = null;
-}
-
 const UPGRADES = [
   { key: "thrust", name: "Engine thrust", effect: "Shorter cruise in the replay" },
   { key: "efficiency", name: "Fuel efficiency", effect: "More fuel for the Lunar Module game" },
-  { key: "payload", name: "Payload capacity", effect: "Shown on your mission results" },
-  // Master Doc 14: more upgrades (fictional game mode); each one is listed on the mission results
-  { key: "heatshield", name: "Heat shield", effect: "Shown on your mission results" },
-  { key: "solar", name: "Solar panels", effect: "Shown on your mission results" },
-  { key: "comms", name: "Comms antenna", effect: "Shown on your mission results" }
+  { key: "payload", name: "Payload capacity", effect: "Shown on your mission review" }
 ];
-// Accessories and patches (Workshop, Master Doc 14): fictional, Free Build only
-const ACCESSORIES = [
-  { key: "fins", name: "Tail fins", text: "Four fins at the base" },
-  { key: "stripe", name: "Body stripe", text: "A coloured band high on the body" },
-  { key: "camera", name: "Camera pod", text: "An outside camera on the side" },
-  { key: "flag", name: "Team flag", text: "A made-up team flag (not a real country's)" }
-];
-const PATCH_SHAPES = [["circle", "Round"], ["shield", "Shield"], ["hexagon", "Hexagon"], ["star", "Star"]];
-const PATCH_COLORS = ["#2f5fb8", "#b5482a", "#c9a13b", "#3b8f6a", "#6a4cb8", "#3b3f46"];
-
-// The mission patch: a shape in a colour, with the mission's initials
-function patchSvg(patch, name) {
-  const c = patch.color;
-  const shapes = {
-    circle: '<circle cx="40" cy="40" r="34"/>',
-    shield: '<path d="M40 6 L70 16 V40 C70 58 56 70 40 76 C24 70 10 58 10 40 V16 Z"/>',
-    hexagon: '<path d="M40 5 L71 22.5 V57.5 L40 75 L9 57.5 V22.5 Z"/>',
-    star: '<path d="M40 5 L49 29 L75 30 L54 46 L62 72 L40 57 L18 72 L26 46 L5 30 L31 29 Z"/>'
-  };
-  const initials = String(name || "FB").split(/\s+/).filter(Boolean).map(function (w) { return w[0]; }).join("").slice(0, 3).toUpperCase() || "FB";
-  const safe = initials.replace(/[^A-Z0-9]/g, "") || "FB";
-  return '<svg viewBox="0 0 80 80" role="img" aria-label="Mission patch"><g fill="' + c + '" stroke="#e8eef8" stroke-width="2.5">' + (shapes[patch.shape] || shapes.circle) + '</g>' +
-    '<text x="40" y="47" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="17" font-weight="700" fill="#ffffff">' + safe + '</text></svg>';
-}
 
 function fillRocketSelect(select, withNone) {
   select.innerHTML = "";
@@ -2699,6 +936,8 @@ function fillRocketSelect(select, withNone) {
     select.appendChild(option);
   });
 }
+fillRocketSelect(labCompare, true);
+labCompare.addEventListener("change", function () { state.labCompare = labCompare.value; renderLab(); });
 
 function specsOf(key) {
   const item = findItem(key);
@@ -2736,57 +975,10 @@ function renderBay() {
   });
 }
 
-// The + and - buttons over the builder's 3D view: each press moves the camera closer or farther (to the
-// same limits as the mouse wheel), smoothly over a few frames
-function zoomLab(factor) {
-  if (!lab) return;
-  const c = lab.controls;
-  const offset = lab.camera.position.clone().sub(c.target);
-  const goal = Math.max(c.minDistance, Math.min(c.maxDistance, offset.length() * factor));
-  const start = offset.length();
-  const began = performance.now();
-  // beyond the walls, the camera also rises to look down into the building (a cut-away view)
-  const spherical = new THREE.Spherical().setFromVector3(offset);
-  const startPhi = spherical.phi;
-  const goalPhi = startPhi; // (zooming out stops at the walls: the view stays inside the building)
-  play("tick");
-  (function step() {
-    const k = Math.min(1, (performance.now() - began) / 280);
-    const eased = k * k * (3 - 2 * k);
-    spherical.radius = start + (goal - start) * eased;
-    spherical.phi = startPhi + (goalPhi - startPhi) * eased;
-    lab.camera.position.copy(c.target).add(offset.setFromSpherical(spherical));
-    c.update();
-    if (k < 1) requestAnimationFrame(step);
-  })();
-}
-const zoomInButton = el("lab-zoom-in");
-const zoomOutButton = el("lab-zoom-out");
-if (zoomInButton) zoomInButton.addEventListener("click", function () { zoomLab(0.7); });
-if (zoomOutButton) zoomOutButton.addEventListener("click", function () { zoomLab(1.45); });
-
 function bar(label, value, max, text, fictional) {
   const pct = Math.max(4, Math.min(100, (value / max) * 100));
   return '<div class="lab-stat' + (fictional ? " fictional" : "") + '"><span class="lab-stat-label">' + label + '</span>' +
     '<span class="lab-stat-bar"><i style="width:' + pct.toFixed(0) + '%"></i></span><b>' + text + "</b></div>";
-}
-
-// Recolour the rocket already standing in the Lab. Used while a colour picker is open: rebuilding
-// the whole model would close the picker and reset the camera, so we only swap the colours.
-function recolourLabRocket() {
-  if (!lab || state.mode !== "sandbox") return;
-  const rocket = lab.holder.children[0];
-  if (!rocket || !rocket.userData) return;
-  const data = rocket.userData;
-  PAINT_SLOTS.forEach(function (slot) {
-    const material = slot.key === "paint" ? data.paintMaterial
-      : slot.key === "accent" ? data.accentMaterial
-      : slot.key === "finColor" ? data.finMaterial
-      : data.stripeMaterial;
-    if (!material) return;
-    const value = state.look[slot.key];
-    material.color.set(value === null || value === undefined ? slot.base : value);
-  });
 }
 
 function renderLab() {
@@ -2797,9 +989,9 @@ function renderLab() {
     try {
       const pmrem = new THREE.PMREMGenerator(lab.renderer);
       lab.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-      if ("environmentIntensity" in lab.scene) lab.scene.environmentIntensity = 0.45;
-      lab.scene.background = new THREE.Color(0x2a2f37);
-      lab.scene.fog = new THREE.Fog(0x2a2f37, 200, 900);
+      if ("environmentIntensity" in lab.scene) lab.scene.environmentIntensity = 0.6;
+      lab.scene.background = new THREE.Color(0x14171d);
+      lab.scene.fog = new THREE.Fog(0x14171d, 200, 900);
     } catch (error) {
       // reflections are optional
     }
@@ -2831,136 +1023,86 @@ function renderLab() {
       ? bar("Thrust (fictional)", statLevels.thrust || 0, 3, "Level " + (statLevels.thrust || 0), true) +
         bar("Efficiency (fictional)", statLevels.efficiency || 0, 3, "Level " + (statLevels.efficiency || 0), true)
       : "");
+  labCompare.value = state.labCompare;
   const look = state.mode === "sandbox" ? state.look : null;
   let craftModel = null;
-  const plateNasa = labPlate.querySelector ? labPlate.querySelector("i") : null;
   if (craft) {
     craftModel = createModel(craft.model);
     const box = new THREE.Box3().setFromObject(craftModel);
     const size = new THREE.Vector3();
     box.getSize(size);
     craftModel.scale.multiplyScalar(Math.max(3, rocketModel.userData.height * 0.4) / (Math.max(size.x, size.y, size.z) || 1)); // shown enlarged beside the rocket
-    // NASA's official model where NASA has one (Master Doc 14), labelled on the plate
-    if (nasaModelInfo(craft.model)) {
-      const shownModel = craftModel;
-      upgradeToNasaModel(shownModel, craft.model).then(function (shown) {
-        if (!shown || !plateNasa || !shownModel.parent) return;
-        plateNasa.textContent += " \u00B7 NASA 3D model";
-      });
-    }
   }
-  // the chosen surface vehicle stands beside the spacecraft
-  let vehicleModel = null;
-  if (state.vehicle) {
-    vehicleModel = createModel(state.vehicle);
-    const vbox = new THREE.Box3().setFromObject(vehicleModel);
-    const vsize = new THREE.Vector3();
-    vbox.getSize(vsize);
-    vehicleModel.scale.multiplyScalar(Math.max(2.4, rocketModel.userData.height * 0.25) / (Math.max(vsize.x, vsize.y, vsize.z) || 1));
-  }
-  fill(lab, [createRocket(padKey, look), craftModel, vehicleModel, state.labCompare && state.labCompare !== padKey ? createRocket(state.labCompare) : null]);
+  fill(lab, [createRocket(padKey, look), craftModel, state.labCompare && state.labCompare !== padKey ? createRocket(state.labCompare) : null]);
   sizeViewer(lab);
 
-  // ----- Workshop: one box in four (Master Doc 14) -----
+  // Parts, as numbered component cards
+  const partRows = parts.length ? parts : (item && item.specs ? item.specs : []);
+  labParts.innerHTML = "";
+  partRows.forEach(function (part, i) {
+    const li = document.createElement("li");
+    li.className = "part-card";
+    li.innerHTML = '<span class="part-num"></span><strong></strong><span class="part-text"></span>';
+    if (li.querySelector) {
+      li.querySelector(".part-num").textContent = String(i + 1).padStart(2, "0");
+      li.querySelector("strong").textContent = part[0];
+      li.querySelector(".part-text").textContent = part[1];
+    }
+    labParts.appendChild(li);
+  });
+
+  // Comparison table
+  const a = specsOf(padKey);
+  const b = state.labCompare ? specsOf(state.labCompare) : null;
+  const rows = Array.from(new Set(Object.keys(a).concat(b ? Object.keys(b) : [])));
+  let html = "<thead><tr><th></th><th>" + rocketName(padKey) + "</th>" + (b ? "<th>" + rocketName(state.labCompare) + "</th>" : "") + "</tr></thead><tbody>";
+  rows.forEach(function (row) {
+    html += "<tr><th>" + row + "</th><td>" + (a[row] || "—") + "</td>" + (b ? "<td>" + (b[row] || "—") + "</td>" : "") + "</tr>";
+  });
+  labTable.innerHTML = html + "</tbody>";
+
+  // Customization: sandbox only
   const sandbox = state.mode === "sandbox";
   labLock.textContent = sandbox
-    ? "FREE BUILD \u00B7 FICTIONAL: paint, accessories, upgrades and the patch are game changes, not real specifications."
-    : "Real Missions keeps every rocket exactly as it flew.";
+    ? "SANDBOX · FICTIONAL: paint and upgrades below are game changes, not real rocket specifications."
+    : "Real Missions keeps every rocket exactly as it flew. Switch to Free Build to customize.";
   labLock.className = "lab-lock " + (sandbox ? "fictional" : "historical");
-
-  // 1. Paint: a real colour picker for each part, with its hex value and a way back to the original.
-  // The panel stays open while you drag, so the rocket is recoloured in place (recolourLabRocket).
   labCustom.innerHTML = "";
-  PAINT_SLOTS.forEach(function (slot) {
+  [["paint", "Body paint"], ["accent", "Band color"]].forEach(function (pair) {
     const row = document.createElement("div");
     row.className = "lab-row";
     const label = document.createElement("span");
-    label.textContent = slot.label;
+    label.textContent = pair[1];
     row.appendChild(label);
-
-    const field = document.createElement("span");
-    field.className = "lab-color";
-
-    const well = document.createElement("button");
-    well.type = "button";
-    well.className = "lab-color-well";
-    well.disabled = !sandbox;
-    well.title = "Pick any colour for the " + slot.label.toLowerCase();
-    well.setAttribute("aria-label", slot.label + " colour");
-    well.setAttribute("aria-haspopup", "dialog");
-    well.setAttribute("aria-expanded", "false");
-    field.appendChild(well);
-
-    const readout = document.createElement("code");
-    readout.className = "lab-color-hex";
-    field.appendChild(readout);
-
-    const reset = document.createElement("button");
-    reset.type = "button";
-    reset.className = "lab-color-reset";
-    reset.textContent = "\u00D7";
-    reset.title = "Back to the original " + slot.label.toLowerCase() + " colour";
-    reset.setAttribute("aria-label", "Reset the " + slot.label.toLowerCase() + " colour");
-    field.appendChild(reset);
-
-    // the well, the value and the reset always show what state.look says
-    function syncRow() {
-      const value = state.look[slot.key];
-      const painted = value !== null && value !== undefined;
-      well.style.setProperty("--swatch", hexOf(painted ? value : slot.base));
-      readout.textContent = painted ? hexOf(value) : "original";
-      reset.disabled = !sandbox || !painted;
-    }
-    syncRow();
-
-    well.addEventListener("click", function () { openPaintPop(slot, well, syncRow); });
-    reset.addEventListener("click", function () {
-      state.look[slot.key] = null;
-      play("tick");
-      render();
+    PAINTS.forEach(function (paint) {
+      const swatch = document.createElement("button");
+      swatch.className = "lab-swatch" + (state.look[pair[0]] === paint.value ? " active" : "");
+      swatch.title = paint.name;
+      swatch.disabled = !sandbox;
+      swatch.style.setProperty("--swatch", paint.value === null ? "transparent" : "#" + paint.value.toString(16).padStart(6, "0"));
+      swatch.textContent = paint.value === null ? "×" : "";
+      swatch.addEventListener("click", function () {
+        state.look[pair[0]] = paint.value;
+        play("tick");
+        render();
+      });
+      row.appendChild(swatch);
     });
-
-    row.appendChild(field);
     labCustom.appendChild(row);
   });
 
-  // 2. Accessories
-  wsAccessories.innerHTML = "";
-  ACCESSORIES.forEach(function (a) {
-    const on = Boolean(state.look.acc[a.key]);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "ws-toggle" + (on ? " on" : "");
-    button.setAttribute("aria-pressed", on ? "true" : "false");
-    button.disabled = !sandbox;
-    button.innerHTML = '<b></b><span></span>';
-    if (button.querySelector) {
-      button.querySelector("b").textContent = a.name;
-      button.querySelector("span").textContent = a.text;
-    }
-    button.addEventListener("click", function () {
-      state.look.acc[a.key] = !state.look.acc[a.key];
-      play(state.look.acc[a.key] ? "toggleOn" : "toggleOff");
-      render();
-    });
-    wsAccessories.appendChild(button);
-  });
-
-  // 3. Upgrades, with the points next to the title
-  labPoints.textContent = getPoints() + " point" + (getPoints() === 1 ? "" : "s");
-  labPoints.title = "Earn one point for each object you record while exploring";
+  labPoints.textContent = getPoints() + " upgrade point" + (getPoints() === 1 ? "" : "s") + " (earn one for each object you record while exploring)";
   labUpgrades.innerHTML = "";
   const levels = getUpgrades();
   UPGRADES.forEach(function (up) {
     const row = document.createElement("div");
     row.className = "lab-row";
     const label = document.createElement("span");
-    label.textContent = up.name + " \u00B7 " + (levels[up.key] || 0) + "/3 \u00B7 " + up.effect;
+    label.textContent = up.name + " · level " + (levels[up.key] || 0) + "/3 · " + up.effect;
     row.appendChild(label);
     const button = document.createElement("button");
     button.className = "small-button";
-    button.textContent = "Upgrade";
-    button.title = "Fictional game upgrade (costs 1 point)";
+    button.textContent = "Upgrade (fictional)";
     button.disabled = !sandbox || getPoints() < 1 || (levels[up.key] || 0) >= 3;
     button.addEventListener("click", function () {
       if (spendPoint(up.key)) { play("success"); render(); }
@@ -2968,45 +1110,7 @@ function renderLab() {
     row.appendChild(button);
     labUpgrades.appendChild(row);
   });
-
-  // 4. Mission name & patch
-  if (document.activeElement !== wsName) wsName.value = state.missionName;
-  wsPatch.innerHTML = "";
-  const preview = document.createElement("div");
-  preview.className = "ws-patch-preview";
-  preview.innerHTML = patchSvg(state.patch, state.missionName);
-  wsPatch.appendChild(preview);
-  const pickers = document.createElement("div");
-  pickers.className = "ws-patch-pickers";
-  PATCH_SHAPES.forEach(function (shape) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "small-button" + (state.patch.shape === shape[0] ? " active" : "");
-    b.textContent = shape[1];
-    b.setAttribute("aria-pressed", state.patch.shape === shape[0] ? "true" : "false");
-    b.addEventListener("click", function () { state.patch.shape = shape[0]; play("tick"); render(); });
-    pickers.appendChild(b);
-  });
-  const colors = document.createElement("div");
-  colors.className = "lab-swatches";
-  PATCH_COLORS.forEach(function (color) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "lab-swatch" + (state.patch.color === color ? " active" : "");
-    b.style.setProperty("--swatch", color);
-    b.setAttribute("aria-label", "Patch colour " + color);
-    b.addEventListener("click", function () { state.patch.color = color; play("tick"); render(); });
-    colors.appendChild(b);
-  });
-  pickers.appendChild(colors);
-  wsPatch.appendChild(pickers);
 }
-
-wsName.addEventListener("input", function () {
-  state.missionName = wsName.value.slice(0, 40);
-  const preview = wsPatch.querySelector ? wsPatch.querySelector(".ws-patch-preview") : null;
-  if (preview) preview.innerHTML = patchSvg(state.patch, state.missionName);
-});
 
 onProgressChange(function () { if (state.step === "lab") renderLab(); });
 
@@ -3018,55 +1122,18 @@ const LOCKER_VEHICLES = [
   { key: "curiosity", name: "Curiosity rover", text: "Climbing Mount Sharp in Gale Crater." }
 ];
 
-// Surface vehicles: the rovers and the Lunar Roving Vehicle (Master Doc 14: rovers moved here from the
-// spacecraft list). One can ride along with the spacecraft; it is only marked as chosen.
+// Surface vehicles are machines, so they sit with the spacecraft (not with the suits)
+let vehiclesBuilt = false;
 function renderVehicles() {
+  if (vehiclesBuilt) return;
+  vehiclesBuilt = true;
   lockerVehicles.innerHTML = "";
   LOCKER_VEHICLES.forEach(function (v) {
-    const real = ROVERS[v.key] ? state.spacecraft === "skycrane" && state.rocket === "atlas-v-541" : state.spacecraft === "apollo";
-    lockerVehicles.appendChild(card(v.name,
-      real ? "Surface vehicle \u00B7 rides along as it really did" : "Surface vehicle" + (state.spacecraft ? " \u00B7 FICTIONAL with this spacecraft" : ""),
-      v.text + (ROVERS[v.key] ? " Really delivered by a cruise stage and sky crane on an Atlas V 541." : ""),
-      state.vehicle === v.key,
-      function () {
-        state.vehicle = state.vehicle === v.key ? null : v.key; // click again to leave it behind
-        state.site = null;
-        play("select");
-        render();
-        renderVehicles();
-      }, { fictional: Boolean(state.spacecraft) && !real, picture: { type: "model", key: v.key } }));
+    lockerVehicles.appendChild(card(v.name, "Surface vehicle", v.text, false, function () {
+      play("select");
+      showSimStep("explore");
+    }, { picture: { type: "model", key: v.key } }));
   });
-}
-
-// A hand tool on the turntable, with its facts and a way back to the suit
-function showLockerTool() {
-  const eq = EQUIPMENT[state.lockerTool];
-  const tool = createEquipment(state.lockerTool);
-  const box = new THREE.Box3().setFromObject(tool);
-  const size = new THREE.Vector3();
-  box.getSize(size);
-  tool.scale.multiplyScalar(0.8 / (Math.max(size.x, size.y, size.z) || 1));
-  tool.updateMatrixWorld(true);
-  tool.position.y -= new THREE.Box3().setFromObject(tool).min.y;
-  locker.holder.add(tool);
-  locker.astronaut = null;
-  // the view is shifted so the tool stands clear of the tools list on the left
-  locker.camera.position.set(1.6, 1.3, 3.4);
-  locker.controls.target.set(-0.45, 0.4, 0);
-  locker.controls.update();
-  sizeViewer(locker);
-  lockerPoses.innerHTML = "";
-  const back = document.createElement("button");
-  back.className = "small-button active";
-  back.textContent = "\u2190 Back to the suit";
-  back.addEventListener("click", function () { state.lockerTool = null; play("tick"); renderLocker(); });
-  lockerPoses.appendChild(back);
-  lockerName.textContent = eq.name;
-  factList(lockerFacts, [
-    ["What it is", eq.text],
-    ["Carried by", "The crew (Free Build: any suit can carry it)"]
-  ]);
-  renderToolList();
 }
 
 function renderLocker() {
@@ -3090,19 +1157,14 @@ function renderLocker() {
     door.addEventListener("click", function () {
       state.suit = key;
       state.suitSeen = true;
-      state.lockerTool = null;
       play("open");
       renderLocker();
     });
     lockerSuits.appendChild(door);
   });
 
-  // The astronaut (or the chosen tool) on the turntable
+  // The astronaut on the turntable
   while (locker.holder.children.length) locker.holder.remove(locker.holder.children[0]);
-  if (state.lockerTool && EQUIPMENT[state.lockerTool]) {
-    showLockerTool();
-    return;
-  }
   const astronaut = createSuitedAstronaut(state.suit);
   // Stand the boots on the turntable (the model's soles sit a few centimetres below its origin)
   astronaut.updateMatrixWorld(true);
@@ -3110,8 +1172,8 @@ function renderLocker() {
   locker.holder.add(astronaut);
   locker.holder.position.x = 0;
   locker.astronaut = astronaut;
-  locker.camera.position.set(3.0, 1.5, 4.8);
-  locker.controls.target.set(-0.55, 0.85, 0); // (shifted: the tools list sits on the left of the view)
+  locker.camera.position.set(3.4, 1.5, 4.8);
+  locker.controls.target.set(0, 0.85, 0);
   locker.controls.update();
   sizeViewer(locker);
 
@@ -3141,32 +1203,33 @@ function renderLocker() {
     ["Source", suit.sources.map(function (src) { return src.label; }).join(" · ")]
   ]);
 
-  renderToolList();
-}
-
-function renderToolList() {
-  // Hand tools and kit: a side list inside the viewer box; click one to see it on the turntable
+  // Equipment rack and vehicle bay
   lockerEquipment.innerHTML = "";
   Object.keys(EQUIPMENT).forEach(function (key) {
     const eq = EQUIPMENT[key];
-    const item = document.createElement("button");
-    item.type = "button";
-    item.className = "locker-tool" + (state.lockerTool === key ? " active" : "");
-    item.title = eq.text;
-    item.setAttribute("aria-pressed", state.lockerTool === key ? "true" : "false");
-    item.innerHTML = '<b class="rack-pic"></b><span></span>';
-    if (item.querySelector) {
-      setPicture(item.querySelector("b"), { type: "equipment", key: key });
-      item.querySelector("span").textContent = eq.name;
+    const chip = document.createElement("span");
+    chip.className = "rack-item";
+    chip.title = eq.text;
+    chip.innerHTML = '<b class="rack-pic"></b><span></span>';
+    if (chip.querySelector) {
+      setPicture(chip.querySelector("b"), { type: "equipment", key: key });
+      chip.querySelector("span").textContent = eq.name;
     }
-    item.addEventListener("click", function () {
-      state.lockerTool = state.lockerTool === key ? null : key;
-      play("open");
-      renderLocker();
-    });
-    lockerEquipment.appendChild(item);
+    lockerEquipment.appendChild(chip);
   });
+
+  // Sandbox: wear this suit everywhere (fictional)
+  lockerWear.disabled = state.mode !== "sandbox";
+  lockerWear.checked = state.mode === "sandbox" && state.wearSuit;
+  lockerWearNote.textContent = state.mode === "sandbox"
+    ? "Free Build: wear the " + suit.name + " on every site. Any site where this suit was not really used is fictional."
+    : "Real Missions: each site uses the suit really worn there. Switch to Free Build to try other suits.";
 }
+
+lockerWear.addEventListener("change", function () {
+  state.wearSuit = lockerWear.checked;
+  play(state.wearSuit ? "toggleOn" : "toggleOff");
+});
 
 // ----- Results after a mission -----
 export function showResults(mission) {
@@ -3184,29 +1247,6 @@ export function showResults(mission) {
     (mission.discoveries.length ? " · Discoveries: " + mission.discoveries.join(", ") : "") +
     (mission.mode === "sandbox" ? " · Free Build mission (fictional elements labelled)" : " · Real mission");
   resultsBox.appendChild(p);
-  // Free Build: the mission's patch, and the fictional upgrades and accessories it flew with
-  if (mission.mode === "sandbox") {
-    const extras = document.createElement("div");
-    extras.className = "results-extras";
-    if (mission.patch) {
-      const patch = document.createElement("span");
-      patch.className = "results-patch";
-      patch.innerHTML = patchSvg(mission.patch, mission.missionName);
-      extras.appendChild(patch);
-    }
-    const ups = mission.upgrades ? Object.keys(mission.upgrades).filter(function (k) { return mission.upgrades[k]; }) : [];
-    const accs = mission.look && mission.look.acc ? Object.keys(mission.look.acc).filter(function (k) { return mission.look.acc[k]; }) : [];
-    const note = document.createElement("p");
-    note.textContent = (ups.length ? "Fictional upgrades: " + ups.map(function (k) {
-      const up = UPGRADES.find(function (u) { return u.key === k; });
-      return (up ? up.name : k) + " " + mission.upgrades[k] + "/3";
-    }).join(", ") : "No upgrades") + (accs.length ? " · Accessories: " + accs.map(function (k) {
-      const a = ACCESSORIES.find(function (x) { return x.key === k; });
-      return a ? a.name : k;
-    }).join(", ") : "");
-    extras.appendChild(note);
-    resultsBox.appendChild(extras);
-  }
   const list = document.createElement("ul");
   mission.objectives.forEach(function (o) {
     const li = document.createElement("li");

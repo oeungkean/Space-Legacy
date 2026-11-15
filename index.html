@@ -70,10 +70,7 @@
     </div>
     <p id="hero-now" class="hero-now" aria-live="off"><span class="hero-now-dot"></span><span id="hero-now-name">Earth</span></p>
 
-    <div class="welcome-links">
-      <button id="welcome-about" class="credit-link" data-silent>About us</button>
-      <button id="welcome-credits" class="credit-link" data-silent>Credits &amp; sources</button>
-    </div>
+    <button id="welcome-credits" class="credit-link" data-silent>Credits &amp; sources</button>
   </section>
 
   <!-- SCREEN 2: Launch cinematic (3 scenes) -->
@@ -133,17 +130,6 @@
       </div>
     </div>
 
-    <!-- Where this launch really happened (js/launch-cinematic.js, data/launch-sites.js) -->
-    <aside id="cinema-site" class="cinema-site hidden" aria-label="Launch site">
-      <div class="cs-map"><img alt="Map of Earth with the launch site marked" decoding="async" src="assets/textures/earth_atmos_2048.jpg"><span class="cs-dot" aria-hidden="true"></span></div>
-      <div class="cs-text">
-        <em>Launch site</em>
-        <b id="cinema-site-pad"></b>
-        <span id="cinema-site-place"></span>
-        <span id="cinema-site-coords" class="cs-coords"></span>
-      </div>
-    </aside>
-
     <div id="cinema-fade" class="cinema-fade"></div>
   </section>
 
@@ -161,8 +147,8 @@
       <span class="tb-divider" aria-hidden="true"></span>
       <nav class="nav-tabs" aria-label="Sections">
         <span class="nav-group" data-group="Explore">
-        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.4"/><ellipse cx="12" cy="12" rx="10.4" ry="3.4" transform="rotate(-18 12 12)"/></svg><span>Solar System</span></button>
-        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5Q16 6 16 13l-1.5 3h-5L8 13q0-7 4-10.5z"/><circle cx="12" cy="9.5" r="1.6"/><path d="M8.5 13.5L6 17l3-.5M15.5 13.5L18 17l-3-.5"/></svg><span>Missions</span></button>
+        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(-24 12 12)"/></svg><span>Solar System</span></button>
+        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2.6 2.2 3.8 5.4 3.8 9.2L12 16l-3.8-3.8C8.2 8.4 9.4 5.2 12 3z"/><path d="M8.4 13.6 6 16.8l2.6.4M15.6 13.6l2.4 3.2-2.6.4M12 16v4"/><circle cx="12" cy="9" r="1.4"/></svg><span>Missions</span></button>
         </span>
         <span class="nav-group" data-group="Experience">
         <button class="nav-tab" data-nav="simulator" data-silent title="Build and fly your own mission"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5v7l5.6-3.5z"/></svg><span>Simulator</span></button>
@@ -170,7 +156,6 @@
         </span>
         <span class="nav-group nav-group-end" data-group="About">
         <button class="nav-tab" data-nav="credits" data-silent title="Sources, licenses and fonts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6z"/><path d="M9 10h6M9 13.5h6M9 17h4"/></svg><span>Credits</span></button>
-        <button class="nav-tab" data-nav="about" data-silent title="The Kampu Space team"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="3.2"/><circle cx="18" cy="9.5" r="2.5"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M14.6 14.6c2.6-.6 5.2.8 5.9 4.4"/></svg><span>About us</span></button>
         </span>
       </nav>
       <span class="breadcrumb" id="breadcrumb"></span>
@@ -320,7 +305,7 @@
   </section>
 
   <!-- SCREEN 4: Moon / Mars exploration -->
-  <section id="destination-screen" class="screen hidden can-hide-sidebar">
+  <section id="destination-screen" class="screen hidden">
     <canvas id="destination-canvas"></canvas>
 
     <header class="top-bar">
@@ -332,8 +317,8 @@
       <span class="tb-divider" aria-hidden="true"></span>
       <nav class="nav-tabs" aria-label="Sections">
         <span class="nav-group" data-group="Explore">
-        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.4"/><ellipse cx="12" cy="12" rx="10.4" ry="3.4" transform="rotate(-18 12 12)"/></svg><span>Solar System</span></button>
-        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5Q16 6 16 13l-1.5 3h-5L8 13q0-7 4-10.5z"/><circle cx="12" cy="9.5" r="1.6"/><path d="M8.5 13.5L6 17l3-.5M15.5 13.5L18 17l-3-.5"/></svg><span>Missions</span></button>
+        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(-24 12 12)"/></svg><span>Solar System</span></button>
+        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2.6 2.2 3.8 5.4 3.8 9.2L12 16l-3.8-3.8C8.2 8.4 9.4 5.2 12 3z"/><path d="M8.4 13.6 6 16.8l2.6.4M15.6 13.6l2.4 3.2-2.6.4M12 16v4"/><circle cx="12" cy="9" r="1.4"/></svg><span>Missions</span></button>
         </span>
         <span class="nav-group" data-group="Experience">
         <button class="nav-tab" data-nav="simulator" data-silent title="Build and fly your own mission"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5v7l5.6-3.5z"/></svg><span>Simulator</span></button>
@@ -341,7 +326,6 @@
         </span>
         <span class="nav-group nav-group-end" data-group="About">
         <button class="nav-tab" data-nav="credits" data-silent title="Sources, licenses and fonts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6z"/><path d="M9 10h6M9 13.5h6M9 17h4"/></svg><span>Credits</span></button>
-        <button class="nav-tab" data-nav="about" data-silent title="The Kampu Space team"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="3.2"/><circle cx="18" cy="9.5" r="2.5"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M14.6 14.6c2.6-.6 5.2.8 5.9 4.4"/></svg><span>About us</span></button>
         </span>
       </nav>
       <button id="back-button" class="small-button" title="Back (Esc)">&larr; Back</button>
@@ -362,11 +346,11 @@
       <div class="sidebar-head">
         <p class="sidebar-sub">Sites</p>
         <p class="sidebar-title" id="dest-sidebar-title"></p>
-        <button class="sidebar-close panel-close sidebar-hide" data-sidebar="dest-sidebar" aria-label="Collapse the list" title="Collapse the list"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9 4.5v15"/></svg></button>
+        <button class="sidebar-close panel-close" data-sidebar="dest-sidebar" aria-label="Close the list">&times;</button>
       </div>
       <div id="dest-sidebar-list" class="sidebar-list"></div>
-      <button id="dest-explorer-link" class="small-button sidebar-explorer-link">&larr; Go back</button>
-      <p class="sidebar-foot">Positions approximate &middot; flyby and orbit paths not to scale</p>
+      <button id="dest-explorer-link" class="small-button sidebar-explorer-link">All hardware from this world &rarr;</button>
+      <p class="sidebar-foot">Positions approximate</p>
     </nav>
 
     <!-- Hardware profile panel (hidden until a marker is clicked) -->
@@ -383,9 +367,9 @@
       <p id="hw-kind" class="kind-tag"></p>
       <h3 id="hw-name"></h3>
       <p id="hw-summary"></p>
-      <button id="hw-landing" class="hw-replay primary">Replay Mission</button>
+      <button id="hw-landing" class="hw-replay primary">Watch the landing</button>
       <button id="hw-replay" class="hw-replay accent">Replay Mission</button>
-      <button id="hw-explorer" class="small-button hw-explorer">&larr; Go back</button>
+      <button id="hw-explorer" class="small-button hw-explorer">Open in Missions</button>
 
       <div id="hw-details">
         <h4>Mission</h4>
@@ -412,18 +396,6 @@
       </div>
     </aside>
 
-    <!-- A mission that came to this world without landing (flyby or orbiter), from data/world-visits.js -->
-    <aside id="visit-panel" class="info-panel hardware-panel visit-panel hidden" aria-label="Flyby or orbit">
-      <button id="visit-close" class="panel-close" aria-label="Close panel">&times;</button>
-      <p id="visit-kind" class="kind-tag"></p>
-      <h3 id="visit-name"></h3>
-      <p id="visit-text"></p>
-      <ul id="visit-facts" class="visit-facts"></ul>
-      <button id="visit-replay" class="hw-replay primary">Replay Mission</button>
-      <button id="visit-back" class="small-button hw-explorer">&larr; Go back</button>
-      <p class="source-note">The path on the globe shows that this mission came here; its shape and distance are not to scale. Facts from the Missions catalog and its NASA sources.</p>
-    </aside>
-
     <div id="marker-tooltip" class="marker-tooltip hidden"></div>
 
     <p class="hint" id="dest-hint"></p>
@@ -432,7 +404,7 @@
   <!-- SCREEN 5: Close-up landing scene -->
 
   <!-- SCREEN: Spacecraft & Hardware Explorer (filled in by explorer.js from data/catalog.js) -->
-  <section id="explorer-screen" class="screen hidden explorer-screen can-hide-sidebar" aria-label="Missions and hardware">
+  <section id="explorer-screen" class="screen hidden explorer-screen" aria-label="Missions and hardware">
     <header class="top-bar">
       <button class="sidebar-toggle small-button icon-btn" data-sidebar="explorer-sidebar" aria-label="Show the categories" aria-controls="explorer-sidebar">&#9776;</button>
       <a class="brand" href="#" data-home aria-label="Space Legacy home">
@@ -442,8 +414,8 @@
       <span class="tb-divider" aria-hidden="true"></span>
       <nav class="nav-tabs" aria-label="Sections">
         <span class="nav-group" data-group="Explore">
-        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.4"/><ellipse cx="12" cy="12" rx="10.4" ry="3.4" transform="rotate(-18 12 12)"/></svg><span>Solar System</span></button>
-        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5Q16 6 16 13l-1.5 3h-5L8 13q0-7 4-10.5z"/><circle cx="12" cy="9.5" r="1.6"/><path d="M8.5 13.5L6 17l3-.5M15.5 13.5L18 17l-3-.5"/></svg><span>Missions</span></button>
+        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(-24 12 12)"/></svg><span>Solar System</span></button>
+        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2.6 2.2 3.8 5.4 3.8 9.2L12 16l-3.8-3.8C8.2 8.4 9.4 5.2 12 3z"/><path d="M8.4 13.6 6 16.8l2.6.4M15.6 13.6l2.4 3.2-2.6.4M12 16v4"/><circle cx="12" cy="9" r="1.4"/></svg><span>Missions</span></button>
         </span>
         <span class="nav-group" data-group="Experience">
         <button class="nav-tab" data-nav="simulator" data-silent title="Build and fly your own mission"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5v7l5.6-3.5z"/></svg><span>Simulator</span></button>
@@ -451,7 +423,6 @@
         </span>
         <span class="nav-group nav-group-end" data-group="About">
         <button class="nav-tab" data-nav="credits" data-silent title="Sources, licenses and fonts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6z"/><path d="M9 10h6M9 13.5h6M9 17h4"/></svg><span>Credits</span></button>
-        <button class="nav-tab" data-nav="about" data-silent title="The Kampu Space team"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="3.2"/><circle cx="18" cy="9.5" r="2.5"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M14.6 14.6c2.6-.6 5.2.8 5.9 4.4"/></svg><span>About us</span></button>
         </span>
       </nav>
       <span class="breadcrumb" id="explorer-breadcrumb"></span>
@@ -468,62 +439,14 @@
       <div class="sidebar-head">
         <p class="sidebar-sub">Browse</p>
         <p class="sidebar-title">Missions</p>
-        <button class="sidebar-close panel-close sidebar-hide" data-sidebar="explorer-sidebar" aria-label="Collapse the list" title="Collapse the list"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9 4.5v15"/></svg></button>
+        <button class="sidebar-close panel-close" data-sidebar="explorer-sidebar" aria-label="Close the list">&times;</button>
       </div>
       <p id="explorer-view-note" class="sim-mode-note hidden"></p>
-      <!-- Master Doc 12: the Missions page IS the "Real Missions" mode (what really happened); the builder
-           is Free Build. The mode card, then All missions / All hardware, then the switch button. -->
-      <!-- Master Doc 13: one panel, so it reads as one thing: the Real Missions card on top and its two
-           lists (All missions / All hardware) joined to it by a rail -->
-      <p class="sidebar-heading explorer-mode-heading">Mode</p>
-      <div class="explorer-panel">
-      <div class="sim-mode explorer-mode">
-        <div class="sim-mode-btn mode-card mode-real active" aria-current="true">
-          <span class="mode-art" aria-hidden="true">
-            <span class="mode-icon">
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 5.8c1.7 1.4 2.5 3.5 2.5 5.8v2.8h-5v-2.8c0-2.3.8-4.4 2.5-5.8z"/><path d="M9.5 12.6l-1.6 2v1.6l1.6-.6M14.5 12.6l1.6 2v1.6l-1.6-.6M11 16.2l1 2 1-2"/><path d="M6.2 8.6h.01M17.8 8.2h.01M7 16.4h.01"/></svg>
-            </span>
-            <span class="mode-art-tag">History</span>
-          </span>
-          <span class="mode-row">
-            <span class="mode-text"><b>Real Missions</b><span>Missions that really flew</span></span>
-            <span class="mode-radio" aria-hidden="true"></span>
-          </span>
-        </div>
-      </div>
       <div id="explorer-categories" class="sidebar-list"></div>
-      </div>
+      <p class="sidebar-foot">Representative 3D models &middot; not official NASA models</p>
     </nav>
 
-    <!-- Master Doc 17: pick a mode first; the missions and hardware appear after you choose Real Missions -->
-    <section id="explorer-chooser" class="explorer-chooser" aria-labelledby="chooser-title">
-      <p class="eyebrow">Missions</p>
-      <h2 id="chooser-title">What would you like to do?</h2>
-      <p class="chooser-sub">Pick one to start. You can switch at any time with the switch at the top.</p>
-      <div class="chooser-cards">
-        <button type="button" id="chooser-real" class="chooser-card chooser-real">
-          <span class="chooser-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 5.8c1.7 1.4 2.5 3.5 2.5 5.8v2.8h-5v-2.8c0-2.3.8-4.4 2.5-5.8z"/><path d="M9.5 12.6l-1.6 2v1.6l1.6-.6M14.5 12.6l1.6 2v1.6l-1.6-.6M11 16.2l1 2 1-2"/></svg></span>
-          <span class="chooser-tag">History</span>
-          <b>Real Missions</b>
-          <span class="chooser-text">Explore missions that really flew and the machines they used, then watch each one replayed from launch to landing.</span>
-          <span class="chooser-go">Explore missions &rarr;</span>
-        </button>
-        <button type="button" id="chooser-free" class="chooser-card chooser-free">
-          <span class="chooser-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg></span>
-          <span class="chooser-tag">Engineer</span>
-          <b>Free Build</b>
-          <span class="chooser-text">Design your own mission: choose a rocket, a spacecraft, a suit and a destination, then launch it.</span>
-          <span class="chooser-go">Start building &rarr;</span>
-        </button>
-      </div>
-    </section>
-
     <main class="explorer-main">
-      <!-- Master Doc 17: the two modes, switched in the middle of the page -->
-      <div class="mode-segment" role="group" aria-label="Mode">
-        <button type="button" class="mode-seg active" aria-pressed="true" disabled>Real Missions</button>
-        <button id="explorer-to-free" type="button" class="mode-seg" aria-pressed="false" title="Switch to Free Build">Free Build</button>
-      </div>
       <div class="explorer-hero">
         <p class="eyebrow" id="explorer-eyebrow">Missions and the hardware they used</p>
         <h2 id="explorer-title">All missions</h2>
@@ -577,8 +500,6 @@
         <section><h4>Historical background</h4><p id="detail-background"></p></section>
         <section><h4>Mission purpose</h4><p id="detail-purpose"></p></section>
         <section><h4>Specifications</h4><ul id="detail-specs" class="detail-facts"></ul></section>
-        <!-- Rover pages: how far this rover drove, next to every other rover on the Moon and Mars (NASA/JPL data) -->
-        <section id="detail-distance-section" class="hidden"><h4>How far it drove</h4><div id="detail-distance" class="rover-race"></div></section>
         <section><h4>Mission timeline</h4><ul id="detail-timeline" class="detail-timeline"></ul></section>
         <section><h4>Current or final status</h4><p id="detail-status-text"></p></section>
         <section><h4>Related hardware</h4><div id="detail-related" class="related-chips"></div></section>
@@ -589,7 +510,7 @@
   </section>
 
   <!-- SCREEN: Mission Simulator (js/simulator.js, data from data/simulator.js) -->
-  <section id="simulator-screen" class="screen hidden sim-screen" data-section="simulator" aria-label="Mission builder">
+  <section id="simulator-screen" class="screen hidden sim-screen" aria-label="Mission Simulator">
     <header class="top-bar">
       <button class="sidebar-toggle small-button icon-btn" data-sidebar="sim-sidebar" aria-label="Show the mission steps" aria-controls="sim-sidebar">&#9776;</button>
       <a class="brand" href="#" data-home aria-label="Space Legacy home">
@@ -599,8 +520,8 @@
       <span class="tb-divider" aria-hidden="true"></span>
       <nav class="nav-tabs" aria-label="Sections">
         <span class="nav-group" data-group="Explore">
-        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.4"/><ellipse cx="12" cy="12" rx="10.4" ry="3.4" transform="rotate(-18 12 12)"/></svg><span>Solar System</span></button>
-        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5Q16 6 16 13l-1.5 3h-5L8 13q0-7 4-10.5z"/><circle cx="12" cy="9.5" r="1.6"/><path d="M8.5 13.5L6 17l3-.5M15.5 13.5L18 17l-3-.5"/></svg><span>Missions</span></button>
+        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(-24 12 12)"/></svg><span>Solar System</span></button>
+        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2.6 2.2 3.8 5.4 3.8 9.2L12 16l-3.8-3.8C8.2 8.4 9.4 5.2 12 3z"/><path d="M8.4 13.6 6 16.8l2.6.4M15.6 13.6l2.4 3.2-2.6.4M12 16v4"/><circle cx="12" cy="9" r="1.4"/></svg><span>Missions</span></button>
         </span>
         <span class="nav-group" data-group="Experience">
         <button class="nav-tab" data-nav="simulator" data-silent title="Build and fly your own mission"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5v7l5.6-3.5z"/></svg><span>Simulator</span></button>
@@ -608,7 +529,6 @@
         </span>
         <span class="nav-group nav-group-end" data-group="About">
         <button class="nav-tab" data-nav="credits" data-silent title="Sources, licenses and fonts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6z"/><path d="M9 10h6M9 13.5h6M9 17h4"/></svg><span>Credits</span></button>
-        <button class="nav-tab" data-nav="about" data-silent title="The Kampu Space team"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="3.2"/><circle cx="18" cy="9.5" r="2.5"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M14.6 14.6c2.6-.6 5.2.8 5.9 4.4"/></svg><span>About us</span></button>
         </span>
       </nav>
       <span class="breadcrumb" id="sim-breadcrumb"></span>
@@ -623,13 +543,11 @@
 
     <nav class="sidebar sim-steps" id="sim-sidebar" aria-label="Mission steps">
       <div class="sidebar-head">
-        <p class="sidebar-sub" id="sim-sidebar-sub">Simulator</p>
-        <p class="sidebar-title" id="sim-sidebar-title">Free Build Simulator</p>
+        <p class="sidebar-sub">Simulator</p>
+        <p class="sidebar-title">Mission Builder</p>
         <button class="sidebar-close panel-close" data-sidebar="sim-sidebar" aria-label="Close the steps">&times;</button>
       </div>
-      <!-- Two sections, one builder (Master Doc 11): opened from Missions it rebuilds a real mission;
-           opened from Simulator it is Free Build. Each shows its own card and a link to the other. -->
-      <p class="sidebar-heading" id="sim-mode-heading">Mode</p>
+      <p class="sidebar-heading">Choose a mode</p>
       <div class="sim-mode" role="radiogroup" aria-label="Mode">
         <!-- Each mode is a card with a picture strip: a starfield with a mission patch (history),
              or a gold blueprint grid with a pencil (your own design) -->
@@ -649,10 +567,10 @@
         <button class="sim-mode-btn mode-card mode-free" data-sim-mode="sandbox" role="radio" aria-checked="false">
           <span class="mode-art" aria-hidden="true">
             <span class="mode-icon">
-              <!-- engineering: a rocket -->
-              <svg viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+              <!-- a blueprint: a pencil drawing inside a dashed frame -->
+              <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2" stroke-dasharray="2.2 2.2"/><path d="M8 16.5l.9-3.3 6.4-6.4 2.4 2.4-6.4 6.4z"/><path d="M14 8.1l2.4 2.4"/></svg>
             </span>
-            <span class="mode-art-tag">Engineer</span>
+            <span class="mode-art-tag">Your design</span>
           </span>
           <span class="mode-row">
             <span class="mode-text"><b>Free Build</b><span>Mix any parts (marked fictional)</span></span>
@@ -660,15 +578,9 @@
           </span>
         </button>
       </div>
-      <!-- the way to the other mode (Real Missions is the Missions page) -->
-
     </nav>
 
     <main class="sim-main">
-      <div class="mode-segment" role="group" aria-label="Mode">
-        <button id="sim-switch" type="button" class="mode-seg" aria-pressed="false" title="Switch to Real Missions">Real Missions</button>
-        <button type="button" class="mode-seg active" aria-pressed="true" disabled>Free Build</button>
-      </div>
       <div id="sim-results" class="sim-results hidden"></div>
       <section id="sim-step-lab" class="sim-step-panel garage">
         <div class="garage-head">
@@ -683,40 +595,28 @@
           <canvas id="lab-canvas" aria-label="The rocket and spacecraft on the garage pad, in 3D"></canvas>
           <div id="lab-plate" class="lab-plate"></div>
           <div id="lab-stats" class="lab-stats"></div>
-          <!-- Zoom in and out; zooming out far enough shows the whole building from outside -->
-          <div class="lab-zoom" role="group" aria-label="Zoom the view">
-            <button id="lab-zoom-in" type="button" class="lab-zoom-btn" aria-label="Zoom in" title="Zoom in"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>
-            <button id="lab-zoom-out" type="button" class="lab-zoom-btn" aria-label="Zoom out" title="Zoom out (stops at the walls: the view stays inside the building)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button>
-          </div>
           <div class="garage-hazard" aria-hidden="true"></div>
         </div>
-        <!-- Master Doc 14: a progress bar (not clickable) with the step icons; the Suit step only shows for
-             spacecraft that carry people. One "next" button, always in the bottom-right corner, moves on. -->
         <div class="bay-progress" aria-hidden="true"><span id="bay-progress-bar"></span></div>
-        <p id="bay-progress-text" class="bay-progress-text sr-only" aria-live="polite"></p>
-        <ol class="station-tabs build-progress" aria-label="Mission build progress">
-          <li class="station-tab" data-bay-tab="rocket"><span class="station-icon" data-ui-icon="rocket"></span><span><em>01</em>Rocket</span></li>
-          <li class="station-tab" data-bay-tab="spacecraft"><span class="station-icon" data-ui-icon="spacecraft"></span><span><em>02</em>Spacecraft</span></li>
-          <li class="station-tab" data-bay-tab="suit"><span class="station-icon" data-ui-icon="suit"></span><span><em>03</em>Suit</span></li>
-          <li class="station-tab" data-bay-tab="destination"><span class="station-icon" data-ui-icon="destination"></span><span><em>04</em>Destination</span></li>
-          <li class="station-tab" data-bay-tab="workshop"><span class="station-icon" data-ui-icon="wrench"></span><span><em>05</em>Workshop</span></li>
-          <li class="station-tab" data-bay-tab="review"><span class="station-icon" data-ui-icon="launch"></span><span><em>06</em>Launch</span></li>
-        </ol>
+        <p id="bay-progress-text" class="bay-progress-text"></p>
+        <div class="station-tabs" role="tablist" aria-label="Build your mission">
+          <button class="station-tab" data-bay-tab="rocket" role="tab"><span class="station-icon" data-ui-icon="rocket"></span><span><em>01</em>Rocket</span></button>
+          <button class="station-tab" data-bay-tab="spacecraft" role="tab"><span class="station-icon" data-ui-icon="spacecraft"></span><span><em>02</em>Spacecraft</span></button>
+          <button class="station-tab" data-bay-tab="suit" role="tab"><span class="station-icon" data-ui-icon="suit"></span><span><em>03</em>Suit</span></button>
+          <button class="station-tab" data-bay-tab="destination" role="tab"><span class="station-icon" data-ui-icon="destination"></span><span><em>04</em>Destination</span></button>
+          <button class="station-tab" data-bay-tab="review" role="tab"><span class="station-icon" data-ui-icon="launch"></span><span><em>05</em>Launch</span></button>
+          <button class="station-tab station-extra" data-bay-tab="workshop" role="tab"><span class="station-icon" data-ui-icon="wrench"></span><span><em>Optional</em>Workshop</span></button>
+        </div>
         <div class="station-pane" data-bay-pane="rocket" id="sim-step-rocket">
-          <div class="rocket-split">
-            <div class="rocket-left">
-              <p class="station-hint">Click a bay to roll that rocket onto the pad. Shift+click a second bay to park it beside for comparison.</p>
-              <div id="lab-bay" class="lab-bay" aria-label="Rocket bays"></div>
-            </div>
-            <div class="rocket-right">
-              <ul id="sim-rocket-info" class="detail-facts sim-info"></ul>
-            </div>
-          </div>
+          <p class="station-hint">Click a bay to roll that rocket onto the pad. Shift+click a second bay to park it beside for comparison.</p>
+          <div id="lab-bay" class="lab-bay" aria-label="Rocket bays"></div>
+          <ul id="sim-rocket-info" class="detail-facts sim-info"></ul>
         </div>
         <div class="station-pane hidden" data-bay-pane="spacecraft" id="sim-step-spacecraft">
-          <h4 class="sim-sub sim-sub-big">Spacecraft <small>machines that fly</small></h4>
+          <h4 class="sim-sub">Spacecraft <small>machines that fly</small></h4>
           <div id="sim-craft-list" class="sim-grid"></div>
-          <h4 class="sim-sub sim-sub-big">Surface vehicles <small>machines that drive (optional: rides along and is driven at the landing site)</small></h4>
+          <ul id="sim-craft-info" class="detail-facts sim-info"></ul>
+          <h4 class="sim-sub">Surface vehicles <small>machines that drive</small></h4>
           <div id="locker-vehicles" class="sim-grid"></div>
         </div>
         <div class="station-pane hidden locker" data-bay-pane="suit" id="sim-step-locker">
@@ -724,90 +624,68 @@
           <div id="locker-suits" class="locker-row" aria-label="Spacesuits"></div>
           <div class="locker-room">
             <div class="locker-stage">
-              <canvas id="locker-canvas" aria-label="The astronaut or a piece of kit on a turntable, in 3D"></canvas>
-              <!-- the crew's hand tools and kit, in a side list inside the viewer: click one to see it -->
-              <aside class="locker-tools" aria-label="Hand tools and kit">
-                <p class="locker-tools-head">Hand tools &amp; kit</p>
-                <div id="locker-equipment" class="locker-tools-list"></div>
-              </aside>
+              <canvas id="locker-canvas" aria-label="The astronaut on a turntable, in 3D"></canvas>
               <div id="locker-poses" class="locker-poses"></div>
             </div>
             <div class="locker-info">
               <h3 id="locker-name"></h3>
               <ul id="locker-facts" class="detail-facts locker-facts"></ul>
+              <label class="locker-wear"><input id="locker-wear" type="checkbox"> Wear this suit on every site</label>
+              <p id="locker-wear-note" class="sim-mode-note"></p>
             </div>
           </div>
+          <h4 class="sim-sub">Hand tools &amp; kit <small>what the crew carries</small></h4>
+          <div id="locker-equipment" class="rack"></div>
         </div>
         <div class="station-pane hidden" data-bay-pane="destination" id="sim-step-destination">
-          <div id="sim-dest-list"></div>
-        </div>
-        <div class="station-pane hidden" data-bay-pane="workshop" id="sim-step-workshop">
-          <p id="lab-lock" class="lab-lock"></p>
-          <!-- one box in four: each kind of change has its own quarter -->
-          <div class="workshop-grid">
-            <section class="ws-box">
-              <h4 class="sim-sub">Paint <small>fictional</small></h4>
-              <div id="lab-custom"></div>
-            </section>
-            <section class="ws-box">
-              <h4 class="sim-sub">Accessories <small>fictional</small></h4>
-              <div id="ws-accessories"></div>
-            </section>
-            <section class="ws-box">
-              <h4 class="sim-sub">Upgrades <span id="lab-points" class="ws-points"></span></h4>
-              <div id="lab-upgrades"></div>
-            </section>
-            <section class="ws-box">
-              <h4 class="sim-sub">Mission name &amp; patch <small>Free Build</small></h4>
-              <label class="ws-name"><span>Mission name</span><input id="ws-name" type="text" maxlength="40" placeholder="My Free Build mission" autocomplete="off"></label>
-              <div id="ws-patch"></div>
-            </section>
-          </div>
+          <div id="sim-dest-list" class="sim-grid"></div>
+          <section id="sim-step-explore" class="dest-sites">
+            <h4 class="sim-sub">Or go straight to the surface <small>no launch needed</small></h4>
+            <p class="sim-mode-note sim-explore-note" id="sim-explore-note"></p>
+            <div id="sim-site-list"></div>
+          </section>
         </div>
         <div class="station-pane hidden" data-bay-pane="review" id="sim-step-review">
-          <div class="launch-center">
-            <div id="sim-patch-preview" class="sim-patch-preview" aria-hidden="true"></div>
-            <h4 class="sim-sub" id="sim-objectives-title">Mission objectives</h4>
-            <ol id="sim-objectives" class="sim-objectives"></ol>
-            <button id="sim-launch" class="primary big">Launch mission</button>
-          </div>
+          <p id="sim-badge" class="sim-badge"></p>
+          <ul id="sim-review" class="detail-facts"></ul>
+          <h4 class="sim-sub">Mission objectives</h4>
+          <ol id="sim-objectives" class="sim-objectives"></ol>
+          <button id="sim-launch" class="primary big">Launch mission</button>
         </div>
-        <div class="station-pane hidden" data-bay-pane="story" id="sim-step-story">
-          <div class="story-viewer">
-            <div class="story-header">
-              <h2 class="story-title"></h2>
-              <div class="story-phase"></div>
+        <div class="station-pane hidden" data-bay-pane="workshop" id="sim-step-workshop">
+          <div class="lab-pickers">
+            <select id="lab-compare" aria-label="Compare with"></select>
+          </div>
+          <h4 class="sim-sub">Components: stages, engines and boosters</h4>
+          <ul id="lab-parts" class="part-cards"></ul>
+          <h4 class="sim-sub">Compare</h4>
+          <table id="lab-table" class="lab-table"></table>
+          <p id="lab-lock" class="lab-lock"></p>
+          <div class="garage-shop">
+            <div>
+              <h4 class="sim-sub">Paint shop (sandbox, fictional)</h4>
+              <div id="lab-custom"></div>
             </div>
-            <div class="story-body">
-              <div class="story-dialogue"></div>
-              <div class="story-action"></div>
-            </div>
-            <div class="story-pov">
-              <canvas id="story-canvas"></canvas>
-            </div>
-            <div class="story-controls">
-              <button class="story-prev" aria-label="Previous beat">← Prev</button>
-              <button class="story-next" aria-label="Next beat">Next →</button>
-            </div>
-            <div class="story-takeaway" hidden>
-              <h3></h3>
-              <p></p>
+            <div>
+              <h4 class="sim-sub">Upgrades (fictional game mode)</h4>
+              <p id="lab-points" class="explorer-count"></p>
+              <div id="lab-upgrades"></div>
             </div>
           </div>
         </div>
-        <div class="bay-next-row"><button id="bay-next" class="primary bay-next hidden"></button></div>
+        <button id="bay-next" class="primary bay-next hidden"></button>
         <div id="sim-coach" class="sim-coach hidden" role="dialog" aria-labelledby="sim-coach-title">
           <p class="eyebrow">Start here</p>
-          <h3 id="sim-coach-title">Build a mission step by step</h3>
+          <h3 id="sim-coach-title">Build a mission in five steps</h3>
           <ol class="coach-steps">
             <li><b>Rocket</b> Click a bay to roll a rocket onto the pad.</li>
-            <li><b>Spacecraft</b> Fit what rides on top (and a rover, if you land).</li>
-            <li><b>Suit</b> For crews only: choose what they wear.</li>
-            <li><b>Destination</b> Choose a world, then a landing site.</li>
-            <li><b>Workshop &amp; Launch</b> Paint and name it, then press Launch mission.</li>
+            <li><b>Spacecraft</b> Fit what rides on top (and the rover, if you land).</li>
+            <li><b>Suit</b> Choose what the crew wears.</li>
+            <li><b>Destination</b> Choose where it goes.</li>
+            <li><b>Launch</b> Check the plan and press Launch mission.</li>
           </ol>
           <p class="coach-tip"><b>Real Missions</b> only allows what really flew. <b>Free Build</b> lets you mix anything (labelled fictional). Switch in the left panel.</p>
-          <p class="coach-tip">During the flight, the bar at the bottom has <b>0.5&times; 1&times; 2&times;</b> to slow down or speed up the launch, journey and landing, and <b>Skip</b>.</p>
+          <p class="coach-tip">During the flight, the bar at the bottom has <b>1&times; 2&times; 4&times;</b> and <b>Skip</b> to speed up the launch, journey and landing.</p>
           <button id="sim-coach-ok" class="primary">Got it, let&rsquo;s build</button>
         </div>
       </section>
@@ -825,8 +703,8 @@
       <span class="tb-divider" aria-hidden="true"></span>
       <nav class="nav-tabs" aria-label="Sections">
         <span class="nav-group" data-group="Explore">
-        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.4"/><ellipse cx="12" cy="12" rx="10.4" ry="3.4" transform="rotate(-18 12 12)"/></svg><span>Solar System</span></button>
-        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5Q16 6 16 13l-1.5 3h-5L8 13q0-7 4-10.5z"/><circle cx="12" cy="9.5" r="1.6"/><path d="M8.5 13.5L6 17l3-.5M15.5 13.5L18 17l-3-.5"/></svg><span>Missions</span></button>
+        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(-24 12 12)"/></svg><span>Solar System</span></button>
+        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2.6 2.2 3.8 5.4 3.8 9.2L12 16l-3.8-3.8C8.2 8.4 9.4 5.2 12 3z"/><path d="M8.4 13.6 6 16.8l2.6.4M15.6 13.6l2.4 3.2-2.6.4M12 16v4"/><circle cx="12" cy="9" r="1.4"/></svg><span>Missions</span></button>
         </span>
         <span class="nav-group" data-group="Experience">
         <button class="nav-tab" data-nav="simulator" data-silent title="Build and fly your own mission"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5v7l5.6-3.5z"/></svg><span>Simulator</span></button>
@@ -834,7 +712,6 @@
         </span>
         <span class="nav-group nav-group-end" data-group="About">
         <button class="nav-tab" data-nav="credits" data-silent title="Sources, licenses and fonts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6z"/><path d="M9 10h6M9 13.5h6M9 17h4"/></svg><span>Credits</span></button>
-        <button class="nav-tab" data-nav="about" data-silent title="The Kampu Space team"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="3.2"/><circle cx="18" cy="9.5" r="2.5"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M14.6 14.6c2.6-.6 5.2.8 5.9 4.4"/></svg><span>About us</span></button>
         </span>
       </nav>
       <span class="breadcrumb" id="explore-breadcrumb"></span>
@@ -856,7 +733,6 @@
       <!-- The camera follows you automatically (C still changes the view); site switching was removed -->
       <div class="explore-head-buttons">
         <button id="explore-end" class="small-button accent">End mission</button>
-        <button id="guide-toggle" class="small-button hidden" type="button" aria-pressed="true" title="Show or hide your astronaut guide">Hide guide</button>
         <button class="small-button explore-help" data-open-help title="How to play (?)"><span aria-hidden="true">?</span> How to play</button>
       </div>
     </div>
@@ -889,17 +765,9 @@
         <button class="auto-btn" data-auto="cruise" data-icon="drive" data-silent title="Cruise control (T)"><span class="auto-icon"></span>Cruise</button>
         <button class="auto-btn" data-auto="goto" data-icon="target" data-silent title="Go to the nearest unrecorded object (G)"><span class="auto-icon"></span>Go to nearest</button>
         <button class="auto-btn" data-auto="stop" data-silent title="Stop (W or S)"><span class="auto-icon"></span>Stop</button>
-        <button id="explore-charge" class="auto-btn charge-btn hidden" data-silent title="Charge the battery (B)" aria-label="Charge the battery (B)"><span class="charge-bolt" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></span><span class="charge-label">Charge</span></button>
       </div>
     </div>
     <div id="explore-prompt" class="explore-prompt hidden"><b id="explore-prompt-name"></b><span id="explore-prompt-keys"></span></div>
-    <!-- Master Doc 17: the Free Build astronaut guide -->
-    <button id="guide-ask" class="guide-ask hidden" type="button">Ask your guide <kbd>Y</kbd></button>
-    <div id="guide-panel" class="guide-panel hidden" role="status" aria-live="polite">
-      <span class="guide-avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="6.5"/><path d="M8.2 9.2c0-1.6 1.7-2.7 3.8-2.7s3.8 1.1 3.8 2.7v1.2c0 1-1 1.7-2.1 1.7H10.3c-1.1 0-2.1-.7-2.1-1.7z"/><path d="M5 21c.8-3 3.6-4.8 7-4.8s6.2 1.8 7 4.8"/></svg></span>
-      <div class="guide-body"><b id="guide-title">Your guide</b><p id="guide-text"></p></div>
-      <button id="guide-close" class="guide-close" type="button" aria-label="Stop the guide talking" title="Stop talking">&#x2715;</button>
-    </div>
     <p id="explore-toast" class="explore-message hidden" aria-live="polite"></p>
     <div id="explore-flash" class="explore-flash hidden"></div>
     <div id="cockpit-panel" class="cockpit-panel hidden" aria-label="Spacecraft controls">
@@ -923,7 +791,7 @@
         <button id="explore-sites-close" class="panel-close" aria-label="Close">&times;</button>
         <p class="eyebrow">Astronaut Exploration</p>
         <h2>Choose a site</h2>
-        <p class="sim-mode-note">Free exploration, without a mission. To fly there first, replay a real mission (Missions) or build your own (Simulator).</p>
+        <p class="sim-mode-note">Free exploration, without a mission. To fly there first, build a mission in the Simulator.</p>
         <div id="explore-site-list" class="sim-grid"></div>
       </div>
     </div>
@@ -934,15 +802,9 @@
         <ul id="results-body" class="detail-facts"></ul>
         <div class="detail-actions">
           <button id="results-return" class="primary hidden">Return to Earth &darr;</button>
-          <button id="results-collection" class="small-button" aria-expanded="false" aria-controls="results-found">My Collection</button>
+          <button id="results-collection" class="small-button">My Collection</button>
+          <button id="results-simulator" class="small-button">New mission</button>
           <button id="results-continue" class="small-button">Keep exploring</button>
-        </div>
-        <!-- What you collected at this site, as pictures (instead of leaving for the Collection page) -->
-        <div id="results-found" class="results-found hidden">
-          <p class="eyebrow">Collected here</p>
-          <div id="results-found-grid" class="related-chips results-grid"></div>
-          <p id="results-found-note" class="results-found-note"></p>
-          <button id="results-full-collection" class="link-button">See the full collection &rarr;</button>
         </div>
       </div>
     </div>
@@ -958,8 +820,8 @@
       <span class="tb-divider" aria-hidden="true"></span>
       <nav class="nav-tabs" aria-label="Sections">
         <span class="nav-group" data-group="Explore">
-        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.4"/><ellipse cx="12" cy="12" rx="10.4" ry="3.4" transform="rotate(-18 12 12)"/></svg><span>Solar System</span></button>
-        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5Q16 6 16 13l-1.5 3h-5L8 13q0-7 4-10.5z"/><circle cx="12" cy="9.5" r="1.6"/><path d="M8.5 13.5L6 17l3-.5M15.5 13.5L18 17l-3-.5"/></svg><span>Missions</span></button>
+        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(-24 12 12)"/></svg><span>Solar System</span></button>
+        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2.6 2.2 3.8 5.4 3.8 9.2L12 16l-3.8-3.8C8.2 8.4 9.4 5.2 12 3z"/><path d="M8.4 13.6 6 16.8l2.6.4M15.6 13.6l2.4 3.2-2.6.4M12 16v4"/><circle cx="12" cy="9" r="1.4"/></svg><span>Missions</span></button>
         </span>
         <span class="nav-group" data-group="Experience">
         <button class="nav-tab" data-nav="simulator" data-silent title="Build and fly your own mission"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5v7l5.6-3.5z"/></svg><span>Simulator</span></button>
@@ -967,7 +829,6 @@
         </span>
         <span class="nav-group nav-group-end" data-group="About">
         <button class="nav-tab" data-nav="credits" data-silent title="Sources, licenses and fonts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6z"/><path d="M9 10h6M9 13.5h6M9 17h4"/></svg><span>Credits</span></button>
-        <button class="nav-tab" data-nav="about" data-silent title="The Kampu Space team"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="3.2"/><circle cx="18" cy="9.5" r="2.5"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M14.6 14.6c2.6-.6 5.2.8 5.9 4.4"/></svg><span>About us</span></button>
         </span>
       </nav>
       <span class="breadcrumb" id="credits-breadcrumb"></span>
@@ -1000,9 +861,8 @@
             <table class="credit-table">
               <thead><tr><th scope="col">Source</th><th scope="col">Used for</th><th scope="col">License / attribution</th></tr></thead>
               <tbody>
-              <tr><th scope="row"><a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener">Solar System Scope — planet maps</a></th><td>Surface maps of Mercury, Venus, Mars, Jupiter, Saturn (and rings), Uranus, Neptune, the Sun and the Moon in the Solar System view, home tour and mission film (Mars, Jupiter and Saturn also in 4096 px). Files go in <code>assets/textures/</code>.</td><td>CC BY 4.0 — attribution: “Solar System Scope”</td></tr>
-              <tr><th scope="row"><a href="https://images.nasa.gov/details/PIA22770" target="_blank" rel="noopener">Titan map: NASA/JPL-Caltech/Space Science Institute (PIA22770)</a></th><td>Cassini's global near-infrared mosaic of Titan's surface, tinted orange for display, on Titan in the Solar System, its globe and the mission films.</td><td>Public domain (NASA)</td></tr>
-              <tr><th scope="row"><a href="https://github.com/mrdoob/three.js/tree/r160/examples/textures/planets" target="_blank" rel="noopener">three.js example textures (Earth and Moon)</a></th><td>Earth day map, normal map, ocean-shine (specular) map and clouds; the Moon map. Copies saved in this project (assets/textures).</td><td>MIT License (three.js authors); Earth imagery based on NASA Blue Marble (public domain)</td></tr>
+              <tr><th scope="row"><a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener">Solar System Scope — planet maps</a></th><td>Surface maps of Mercury, Venus, Mars, Jupiter, Saturn (and rings), Uranus, Neptune, the Sun and the Moon in the Solar System view, home tour and mission film. Files go in <code>assets/textures/</code>.</td><td>CC BY 4.0 — attribution: “Solar System Scope”</td></tr>
+              <tr><th scope="row"><a href="https://github.com/mrdoob/three.js/tree/r160/examples/textures/planets" target="_blank" rel="noopener">three.js example textures (Earth and Moon)</a></th><td>Earth day map, normal map, ocean-shine (specular) map and clouds; the Moon map. Loaded from the jsDelivr CDN.</td><td>MIT License (three.js authors); Earth imagery based on NASA Blue Marble (public domain)</td></tr>
               <tr><th scope="row">Painted stand-ins</th><td>Seamless noise-painted planet maps shown while textures load or if a file is missing.</td><td>Made for this project</td></tr>
               </tbody>
             </table>
@@ -1018,19 +878,6 @@
               <tr><th scope="row"><a href="https://nssdc.gsfc.nasa.gov/" target="_blank" rel="noopener">NASA Space Science Data Coordinated Archive (NSSDCA)</a></th><td>Spacecraft masses, launch records and planetary fact sheets.</td><td>Public domain</td></tr>
               <tr><th scope="row"><a href="https://www.jpl.nasa.gov/" target="_blank" rel="noopener">NASA / JPL</a></th><td>Rover, lander and deep-space mission details; landing-site coordinates.</td><td>Public domain</td></tr>
               <tr><th scope="row"><a href="https://www.esa.int/" target="_blank" rel="noopener">ESA, Smithsonian National Air and Space Museum, mission teams</a></th><td>Cross-checking facts for joint missions and museum artefacts.</td><td>Cited per profile; facts only</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-        <section class="credit-group" id="credits-nasa-data">
-          <h3>NASA Data & Resources</h3>
-          <div class="credit-table-wrap">
-            <table class="credit-table">
-              <thead><tr><th scope="col">Dataset</th><th scope="col">Description</th><th scope="col">License / attribution</th></tr></thead>
-              <tbody>
-              <tr><th scope="row">NSSDCA</a></th><td>NASA's definitive, publicly available catalog. Participants can use it to search for any spacecraft or instrument sent into space, retrieve its mission parameters, and learn exactly what its final resting place and operational status is.</td><td>Public domain</td></tr>
-              <tr><th scope="row">The Moon</th><td>Apollo Lunar Modules: The descent stages of the Lunar Modules (like Apollo 11's Eagle) were left behind as launch pads. Lunar Roving Vehicles (LRVs): Three electric "moon buggies" driven by astronauts. Parked permanently on the Moon. ALSEP Scientific Packages: Apollo Lunar Surface Experiments Packages (seismometers, retroreflectors, etc.) left to do science after astronauts departed. Surveyor Landers: Robotic probes sent in the 1960s to prove soft landings were possible.</td><td>Public domain</td></tr>
-              <tr><th scope="row">Mars</th><td>Sojourner Rover: The first rover on Mars (1997), delivered by the Pathfinder lander. Now permanently parked. Spirit & Opportunity: Twin rovers that operated for years. Both are now inactive monuments to Mars exploration. Viking 1 & 2 Landers: The first U.S. landers to successfully operate on Mars (1976), remaining exactly where they touched down. Phoenix & InSight Landers: Phoenix dug for water ice; InSight listened for marsquakes. Both eventually lost power. Dawn Spacecraft: Mapped Vesta and Ceres. Ran out of fuel and remains in a perpetual, unpowered orbit around Ceres. NEAR Shoemaker: First spacecraft to orbit and land on an asteroid. Left resting on the surface of 433 Eros. Pioneer 10 & 11: Early deep-space probes that explored the outer planets. Now drifting silently out of the solar system. Ingenuity Helicopter: The first aircraft on another planet. Sustained rotor damage and became a stationary artifact. Kepler Space Telescope: Revolutionary exoplanet-hunting telescope that ran out of fuel and is drifting in an Earth-trailing orbit.</td><td>Public domain</td></tr>
               </tbody>
             </table>
           </div>
@@ -1054,10 +901,8 @@
             <table class="credit-table">
               <thead><tr><th scope="col">Source</th><th scope="col">Used for</th><th scope="col">License / attribution</th></tr></thead>
               <tbody>
-              <tr><th scope="row"><a href="https://science.nasa.gov/3d-resources/" target="_blank" rel="noopener">NASA 3D Resources</a></th><td>Official 3D models (Saturn V, Apollo Lunar Module, Gemini, Galileo, Parker Solar Probe, Pioneer 10, Viking Lander, Perseverance, Agena Target Vehicle, Hubble, James Webb, Voyager, Cassini-Huygens, Lunar Reconnaissance Orbiter, MESSENGER, OSIRIS-REx, Stardust), loaded from NASA when online and labelled "NASA" where shown: the Missions page, the builder (cards and the assembly hall, including the Agena exhibit) and the mission scenes. Rockets, rovers, the Lunar Module and anything that unfolds keep the project's own models in the scenes, so stages can separate and parts can move.</td><td>NASA Images and Media Usage Guidelines (free to use; no endorsement implied)</td></tr>
-              <tr><th scope="row"><a href="https://images.nasa.gov" target="_blank" rel="noopener">NASA Image and Video Library</a></th><td>One real photo per mission on the "Replay finished" card (links and captions in data/mission-photos.js), loaded from NASA when online.</td><td>NASA Images and Media Usage Guidelines (generally not copyrighted; no endorsement implied)</td></tr>
               <tr><th scope="row"><a href="https://threejs.org" target="_blank" rel="noopener">three.js r160</a></th><td>3D rendering, cameras, controls and the RoomEnvironment lighting in the Engineering Bay.</td><td>MIT License</td></tr>
-              <tr><th scope="row"><a href="https://www.jsdelivr.com/" target="_blank" rel="noopener">jsDelivr CDN</a></th><td>Delivers the three.js library.</td><td>Free public CDN</td></tr>
+              <tr><th scope="row"><a href="https://www.jsdelivr.com/" target="_blank" rel="noopener">jsDelivr CDN</a></th><td>Delivers three.js and the Earth/Moon textures.</td><td>Free public CDN</td></tr>
               <tr><th scope="row"><a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API" target="_blank" rel="noopener">Web Audio API and Web Speech API</a></th><td>All sounds are generated live in the browser; narration uses your browser’s own voices.</td><td>Built into the browser</td></tr>
               </tbody>
             </table>
@@ -1081,48 +926,6 @@
     </main>
   </section>
 
-  <!-- SCREEN: About us (the team; cards built by js/about.js from data/team.js) -->
-  <section id="about-screen" class="screen hidden credits-screen about-screen" aria-label="About us">
-    <header class="top-bar">
-      <a class="brand" href="#" data-home aria-label="Space Legacy home">
-        <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-24 12 12)"/></svg>
-        <span>Space Legacy</span>
-      </a>
-      <span class="tb-divider" aria-hidden="true"></span>
-      <nav class="nav-tabs" aria-label="Sections">
-        <span class="nav-group" data-group="Explore">
-        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.4"/><ellipse cx="12" cy="12" rx="10.4" ry="3.4" transform="rotate(-18 12 12)"/></svg><span>Solar System</span></button>
-        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5Q16 6 16 13l-1.5 3h-5L8 13q0-7 4-10.5z"/><circle cx="12" cy="9.5" r="1.6"/><path d="M8.5 13.5L6 17l3-.5M15.5 13.5L18 17l-3-.5"/></svg><span>Missions</span></button>
-        </span>
-        <span class="nav-group" data-group="Experience">
-        <button class="nav-tab" data-nav="simulator" data-silent title="Build and fly your own mission"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5v7l5.6-3.5z"/></svg><span>Simulator</span></button>
-        <button class="nav-tab" data-nav="collection" data-silent title="Badges and samples you have earned"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg><span>Collection</span></button>
-        </span>
-        <span class="nav-group nav-group-end" data-group="About">
-        <button class="nav-tab" data-nav="credits" data-silent title="Sources, licenses and fonts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6z"/><path d="M9 10h6M9 13.5h6M9 17h4"/></svg><span>Credits</span></button>
-        <button class="nav-tab" data-nav="about" data-silent title="The Kampu Space team"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="3.2"/><circle cx="18" cy="9.5" r="2.5"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M14.6 14.6c2.6-.6 5.2.8 5.9 4.4"/></svg><span>About us</span></button>
-        </span>
-      </nav>
-      <span class="breadcrumb" id="about-breadcrumb"></span>
-      <div class="top-bar-right">
-        <span class="mission-clock" data-clock></span>
-        <button class="sound-toggle small-button icon-btn" data-sound-toggle aria-pressed="true" aria-label="Sound on" title="Sound on or off (M)"></button>
-        <button class="small-button" data-home-button title="Home (H)">Home</button>
-        <button class="small-button icon-btn settings-btn" data-open-settings aria-label="Settings" title="Settings ( , )">&#9881;</button>
-        <button class="small-button icon-btn" data-open-help aria-label="Help and shortcuts" title="Help (?)">?</button>
-      </div>
-    </header>
-
-    <main class="explorer-main credits-main about-main">
-      <div class="explorer-hero">
-        <p class="eyebrow">NASA Space Apps Challenge 2026</p>
-        <h2>About us</h2>
-        <p class="sim-mode-note">We are Kampu Space, a team of students from Cambodia. Space Legacy is our answer to the challenge of telling the stories of the equipment NASA has left behind in space and on other worlds.</p>
-      </div>
-      <div id="team-grid" class="team-grid" aria-label="Team members"></div>
-    </main>
-  </section>
-
   <!-- SCREEN: My Collection (js/collection.js) -->
   <section id="collection-screen" class="screen hidden collection-screen" aria-label="My Collection">
     <header class="top-bar">
@@ -1133,8 +936,8 @@
       <span class="tb-divider" aria-hidden="true"></span>
       <nav class="nav-tabs" aria-label="Sections">
         <span class="nav-group" data-group="Explore">
-        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.4"/><ellipse cx="12" cy="12" rx="10.4" ry="3.4" transform="rotate(-18 12 12)"/></svg><span>Solar System</span></button>
-        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5Q16 6 16 13l-1.5 3h-5L8 13q0-7 4-10.5z"/><circle cx="12" cy="9.5" r="1.6"/><path d="M8.5 13.5L6 17l3-.5M15.5 13.5L18 17l-3-.5"/></svg><span>Missions</span></button>
+        <button class="nav-tab" data-nav="solar" data-silent title="Explore the planets, moons and spacecraft in 3D"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="9.5" ry="4" transform="rotate(-24 12 12)"/></svg><span>Solar System</span></button>
+        <button class="nav-tab" data-nav="explorer" data-silent title="Every mission and the hardware it used"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2.6 2.2 3.8 5.4 3.8 9.2L12 16l-3.8-3.8C8.2 8.4 9.4 5.2 12 3z"/><path d="M8.4 13.6 6 16.8l2.6.4M15.6 13.6l2.4 3.2-2.6.4M12 16v4"/><circle cx="12" cy="9" r="1.4"/></svg><span>Missions</span></button>
         </span>
         <span class="nav-group" data-group="Experience">
         <button class="nav-tab" data-nav="simulator" data-silent title="Build and fly your own mission"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5v7l5.6-3.5z"/></svg><span>Simulator</span></button>
@@ -1142,7 +945,6 @@
         </span>
         <span class="nav-group nav-group-end" data-group="About">
         <button class="nav-tab" data-nav="credits" data-silent title="Sources, licenses and fonts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h9l3 3v13H6z"/><path d="M9 10h6M9 13.5h6M9 17h4"/></svg><span>Credits</span></button>
-        <button class="nav-tab" data-nav="about" data-silent title="The Kampu Space team"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="3.2"/><circle cx="18" cy="9.5" r="2.5"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5M14.6 14.6c2.6-.6 5.2.8 5.9 4.4"/></svg><span>About us</span></button>
         </span>
       </nav>
       <span class="breadcrumb" id="collection-breadcrumb"></span>
@@ -1167,9 +969,7 @@
       <div id="collection-photos" class="collection-photos"></div>
       <h3 class="collection-site">Virtual samples</h3>
       <ul id="collection-samples" class="detail-facts"></ul>
-      <div class="collection-reset-row">
-        <button id="collection-reset" class="small-button">Reset my collection</button>
-      </div>
+      <button id="collection-reset" class="small-button">Reset my collection</button>
     </main>
   </section>
 
@@ -1187,36 +987,8 @@
         <p id="mp-date" class="mp-date"></p>
       </div>
       <div id="mp-map" class="mp-map hidden" aria-hidden="true"></div>
-      <a id="mp-nasa" class="mp-nasa hidden" target="_blank" rel="noopener" title="Official model from NASA 3D Resources"></a>
       <button id="mp-exit" class="small-button mp-exit" data-silent title="Exit the replay (Esc)">Exit replay &times;</button>
     </div>
-    <!-- Mission briefing (js/briefing.js): a glass card on the left, from -> to, journey time and whether the
-         mission is possible. The tab slides it away and back; it stays until the landing begins. -->
-    <aside id="mp-brief" class="mp-brief hidden" aria-label="Mission briefing">
-      <button id="mp-brief-tab" class="mb-tab" data-silent aria-expanded="true" aria-controls="mp-brief-body" title="Hide the briefing">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>Briefing</span>
-      </button>
-      <div id="mp-brief-body" class="mb-body">
-        <p class="mb-kicker">Mission briefing</p>
-        <h4 id="mp-brief-title"></h4>
-        <dl class="mb-rows">
-          <dt><i class="mb-dot from" aria-hidden="true"></i>From</dt>
-          <dd><b id="mp-brief-from"></b><span id="mp-brief-from-coords"></span></dd>
-          <dt><i class="mb-dot to" aria-hidden="true"></i>To</dt>
-          <dd><b id="mp-brief-to"></b><span id="mp-brief-to-coords"></span></dd>
-          <dt><i class="mb-dot time" aria-hidden="true"></i>Journey</dt>
-          <dd><b id="mp-brief-time"></b></dd>
-        </dl>
-        <p id="mp-brief-verdict" class="mb-verdict"><i aria-hidden="true"></i><b></b><span></span></p>
-        <div id="mp-brief-meter" class="mb-meter" aria-hidden="true">
-          <div class="mb-track"><span class="mb-reach"></span><span class="mb-gap"></span><span class="mb-flag"></span></div>
-          <div class="mb-steps"><span>Earth orbit</span><span>Moon</span><span>Planets</span><span>Far out</span></div>
-          <p class="mb-legend"><span><i class="lg-reach"></i>How far this rocket really went</span><span><i class="lg-flag"></i>Where this trip goes</span></p>
-        </div>
-        <button id="mp-brief-more" class="mb-more" data-silent aria-expanded="false" aria-controls="mp-brief-reasons">Show more</button>
-        <ul id="mp-brief-reasons" class="mb-reasons hidden"></ul>
-      </div>
-    </aside>
     <div class="mp-bottom">
       <p id="mp-caption" class="mp-caption" aria-live="polite"></p>
       <p id="mp-voice-note" class="mp-voice-note hidden"></p>
@@ -1228,9 +1000,9 @@
         </div>
         <div class="mp-group mp-speed" role="group" aria-label="Playback speed">
           <span class="mp-group-label">Speed</span>
-          <button class="mp-speed-btn" data-speed="0.5" aria-pressed="false" data-silent title="Half speed, slow motion (0)">0.5&times;</button>
           <button class="mp-speed-btn active" data-speed="1" aria-pressed="true" data-silent title="Normal speed (1)">1&times;</button>
           <button class="mp-speed-btn" data-speed="2" aria-pressed="false" data-silent title="Twice as fast (2)">2&times;</button>
+          <button class="mp-speed-btn" data-speed="4" aria-pressed="false" data-silent title="Four times as fast (4)">4&times;</button>
           <button id="mp-next" class="mp-speed-btn mp-skip" data-silent title="Skip to the next scene (Right arrow)">Skip &#9197;</button>
         </div>
         <span id="mp-time" class="mp-time"></span>
@@ -1245,11 +1017,6 @@
       </div>
     </div>
     <div id="mp-card" class="mp-card hidden" role="dialog" aria-label="Mission complete">
-      <!-- A real photo of the mission (data/mission-photos.js: NASA images, loaded from NASA) -->
-      <figure id="mp-card-photo" class="mp-card-photo hidden">
-        <img alt="" decoding="async">
-        <figcaption><span class="mcp-caption"></span> <a class="mcp-credit" target="_blank" rel="noopener"></a></figcaption>
-      </figure>
       <p id="mp-card-kind" class="eyebrow mp-card-kind">Replay finished</p>
       <h2 id="mp-card-title"></h2>
       <p id="mp-card-outcome" class="mp-card-outcome"></p>
@@ -1271,24 +1038,19 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span>Mission</span>
     </button>
     <div id="hud-body" class="hud-body">
-      <div class="hud-top">
-        <div class="hud-ring" aria-hidden="true">
-          <svg viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="18"/><circle id="hud-ring-fill" class="ring-fill" cx="22" cy="22" r="18"/></svg>
-          <span id="hud-ring-text">0/0</span>
-        </div>
-        <div class="hud-id">
-          <p id="hud-mode" class="hud-mode"></p>
-          <h4 id="hud-title"></h4>
-        </div>
-      </div>
+      <p id="hud-mode" class="hud-mode"></p>
+      <h4 id="hud-title"></h4>
+      <p class="hud-line"><b id="hud-stage"></b><span aria-hidden="true"> · </span><span id="hud-status"></span></p>
       <div class="hud-now">
         <em>Now</em>
         <b id="hud-current"></b>
       </div>
-      <ol id="hud-steps" class="hud-steps"></ol>
-      <p id="hud-next-label" class="hud-next"><span>Next</span> <b id="hud-next"></b></p>
-      <p class="hud-chips"><span id="hud-stage" class="hud-chip"></span><span id="hud-status" class="hud-chip"></span><span id="hud-distance" class="hud-chip hidden"></span><span id="hud-discoveries" class="hud-chip found hidden"></span></p>
-      <p id="hud-progress-text" class="sr-only" aria-live="polite"></p>
+      <p id="hud-distance" class="hud-distance hidden"></p>
+      <p class="hud-next-label" id="hud-next-label">Up next</p>
+      <ol id="hud-objectives" class="hud-objectives"></ol>
+      <div class="hud-progress" aria-hidden="true"><span id="hud-progress-bar"></span></div>
+      <p id="hud-progress-text" class="hud-progress-text"></p>
+      <p id="hud-discoveries" class="hud-discoveries"></p>
     </div>
   </aside>
   <p id="hud-flash" class="hud-flash hidden" aria-live="polite"></p>
@@ -1331,26 +1093,14 @@
       <p id="landing-caption" class="landing-caption" aria-live="polite"></p>
       <div class="landing-progress" aria-hidden="true"><span></span></div>
       <div class="landing-buttons">
-        <button id="landing-goback" class="small-button" title="Back to the globe (Esc)">&larr; Go back</button>
         <button data-silent id="landing-pause" class="small-button">Pause</button>
-        <button id="landing-again" class="small-button primary icon-btn landing-replay" aria-label="Replay" title="Replay"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg></button>
+        <button id="landing-again" class="small-button primary">Watch again</button>
         <button data-silent id="landing-camera" class="small-button hidden">Auto camera</button>
         <button id="landing-continue" class="small-button primary hidden">Continue &rarr;</button>
       </div>
-      <div id="landing-after" class="landing-after hidden" aria-live="polite"></div>
       <p id="landing-hint" class="landing-hint"></p>
 
     </div>
-    <!-- The real landing site (js/landing-scene.js): a map with a dot at the mission's coordinates -->
-    <aside id="landing-site" class="landing-site hidden" aria-label="Real landing site">
-      <div class="ls-map"><img alt="" decoding="async"><span class="ls-dot" aria-hidden="true"></span></div>
-      <div class="ls-text">
-        <em>Real landing site</em>
-        <b class="ls-place"></b>
-        <span class="ls-coords"></span>
-        <span class="ls-mission"></span>
-      </div>
-    </aside>
   </section>
 
   <!-- Settings (opened with the gear button on every screen, or the , key) -->
@@ -1455,9 +1205,8 @@
 
       <ol class="help-steps">
         <li><b>Explore the Solar System</b><span>Drag to turn, scroll to zoom. Click a planet, or pick it from the list, to learn about it.</span></li>
-        <li><b>Watch a real mission</b><span>Open <strong>Missions</strong> and press <strong>Replay</strong>. Slow it down or speed it up with 0.5&times; 1&times; 2&times;.</span></li>
-        <li><b>Real Missions</b><span>In <strong>Missions</strong>: every real mission and its hardware, each with <strong>Replay mission</strong>.</span></li>
-        <li><b>Free Build</b><span>In <strong>Simulator</strong>, mix any rocket, spacecraft, suit and destination, then <strong>Launch</strong>. Mixes that never flew are marked fictional.</span></li>
+        <li><b>Watch a real mission</b><span>Open <strong>Missions</strong> and press <strong>Replay</strong>. Speed it up with 1&times; 2&times; 4&times;.</span></li>
+        <li><b>Build your own</b><span>In <strong>Simulator</strong>, pick a rocket, spacecraft, suit and destination, then <strong>Launch</strong>.</span></li>
         <li><b>Explore the surface</b><span>Walk, drive and record what you find. It is saved in your <strong>Collection</strong>.</span></li>
       </ol>
 
@@ -1468,7 +1217,6 @@
         <dt><kbd>Space</kbd></dt><dd>Jump, or brake while driving</dd>
         <dt><kbd>E</kbd></dt><dd>Look at something, get in or out</dd>
         <dt><kbd>F</kbd></dt><dd>Record an object</dd>
-        <dt><kbd>Y</kbd></dt><dd>Ask your guide about an object (Free Build)</dd>
         <dt><kbd>Q</kbd></dt><dd>Use your item (<kbd>1</kbd>&ndash;<kbd>4</kbd> to choose)</dd>
         <dt><kbd>P</kbd></dt><dd>Take a photo</dd>
         <dt><kbd>Esc</kbd></dt><dd>Close or go back</dd>

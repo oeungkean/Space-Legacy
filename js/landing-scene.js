@@ -14,12 +14,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createModel, createParachute, createBackshell, createAstronaut } from "./models.js";
-import { nasaUsableInScene, upgradeToNasaModel, announceNasaModel } from "./nasa-models.js";
 import { createParticleSystem } from "./particles.js";
-import { buildTerrainShape, buildGround as buildRealGround, heightAt as realHeight, stepGround } from "./terrain.js";
+import { buildTerrainShape, buildGround as buildRealGround, heightAt as realHeight } from "./terrain.js";
 import { getPlaybackSpeed } from "./playback.js";
-import { planetMaterial as lookMaterial, cloudMaterial } from "./planet-look.js";
-import { createGlow } from "./glow.js";
 
 // The real exploration terrain is used for these landings (same craters, rilles and dunes as when you explore)
 const LANDING_SITE = { apollo11: "tranquility", apollo15: "hadley", apollo17: "taurus-littrow", curiosity: "gale", perseverance: "jezero" };
@@ -208,10 +205,6 @@ let lastTime = 0;
 let autoCamera = true;
 let dustCarry = 0;
 let fireCarry = 0;
-let flameCarry = 0;
-let frameDt = 1 / 60;
-let engineLight = null;
-let coreFlameMaterial = null;
 
 const cameraGoal = V(0, 10, 30);
 const lookGoal = V(0, 0, 0);
@@ -328,9 +321,6 @@ function init() {
 
   flashLight = new THREE.PointLight(0xfff2dd, 0, 600, 1.4);
   scene.add(flashLight);
-  engineLight = new THREE.PointLight(0xffd8a8, 0, 60, 1.6);
-  scene.add(engineLight);
-  coreFlameMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending });
 
   flameMaterial = new THREE.MeshBasicMaterial({
     color: 0xffd59a, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending
@@ -421,22 +411,16 @@ function buildTerrain(worldName) {
   geometry.rotateX(-Math.PI / 2);
   const position = geometry.attributes.position;
   for (let i = 0; i < position.count; i++) {
-    const x = position.getX(i), z = position.getZ(i);
-    // near its edges the detailed ground slopes gently down into the wide, curved ground around it,
-    // so no edge can be seen (it used to end in a square edge floating in space)
-    const edge = smoothstep(320, 440, Math.max(Math.abs(x), Math.abs(z)));
-    position.setY(i, heightAt(x, z) * (1 - edge) + HORIZON_TOP * edge - 2.5 * edge);
+    position.setY(i, heightAt(position.getX(i), position.getZ(i)));
   }
   geometry.computeVertexNormals();
 
-  const groundTexture = makeGroundTexture(world);
   const ground = new THREE.Mesh(
     geometry,
-    new THREE.MeshStandardMaterial({ map: groundTexture, roughness: 1, metalness: 0 })
+    new THREE.MeshStandardMaterial({ map: makeGroundTexture(world), roughness: 1, metalness: 0 })
   );
   ground.receiveShadow = true;
   group.add(ground);
-  group.add(buildHorizonGround(groundTexture));
 
   // Rocks: many small ones, a few big ones
   const rockGeometry = world.rockRound ? new THREE.SphereGeometry(1, 10, 8) : new THREE.DodecahedronGeometry(1, 1);
@@ -465,37 +449,13 @@ function buildTerrain(worldName) {
   return { group: group, heightAt: heightAt };
 }
 
-// The wide ground around the landing area, out to the horizon: it curves down like the surface of a
-// real planet (radius 40 km here, so the horizon is a few kilometres away, as seen from the descent),
-// with the same ground texture, so the world no longer looks like a flat square in space
-const HORIZON_TOP = -12;
-function buildHorizonGround(groundTexture) {
-  const R = 40000;
-  const outer = 26000;
-  const geometry = new THREE.RingGeometry(400, outer, 160, 72);
-  geometry.rotateX(-Math.PI / 2);
-  const position = geometry.attributes.position;
-  for (let i = 0; i < position.count; i++) {
-    const d = Math.hypot(position.getX(i), position.getZ(i));
-    position.setY(i, HORIZON_TOP - (d * d) / (2 * R));
-  }
-  geometry.computeVertexNormals();
-  const texture = groundTexture.clone();
-  texture.needsUpdate = true;
-  texture.repeat.set((outer * 2) / 12.9, (outer * 2) / 12.9); // the same scale as the detailed ground
-  const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ map: texture, roughness: 1, metalness: 0 }));
-  mesh.receiveShadow = true;
-  return mesh;
-}
-
 // ----- Moon and Mars: the realistic exploration terrain (js/terrain.js) -----
 function buildRealTerrain(worldName) {
   const world = worldName.toLowerCase();
   const site = item ? LANDING_SITE[item.id] || "" : "";
   buildTerrainShape(world, site, (site || worldName).length * 97 + 13);
   const group = new THREE.Group();
-  // the landing is seen from high above: a big detailed area (2.6 km) and a wide, curved far ground
-  buildRealGround(group, world, [{ x: 0, z: 0 }], { reach: 6, wide: true });
+  buildRealGround(group, world, [{ x: 0, z: 0 }]);
   group.traverse(function (o) { if (o.isMesh) o.receiveShadow = true; });
   return { group: group, heightAt: realHeight };
 }
@@ -532,128 +492,6 @@ function buildDesert() {
   return { group: group, heightAt: function () { return 0; } };
 }
 
-// A ship's outline seen from above: a pointed bow at +x, a square stern at -x
-function hullShape(length, beam) {
-  const shape = new THREE.Shape();
-  shape.moveTo(-length / 2, -beam / 2);
-  shape.lineTo(length * 0.22, -beam / 2);
-  shape.quadraticCurveTo(length * 0.45, -beam * 0.35, length / 2, 0);
-  shape.quadraticCurveTo(length * 0.45, beam * 0.35, length * 0.22, beam / 2);
-  shape.lineTo(-length / 2, beam / 2);
-  shape.lineTo(-length / 2, -beam / 2);
-  return shape;
-}
-function shipSlab(length, beam, height, material, y) {
-  const geometry = new THREE.ExtrudeGeometry(hullShape(length, beam), { depth: height, bevelEnabled: false });
-  geometry.rotateX(-Math.PI / 2);
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.y = y || 0;
-  return mesh;
-}
-function buildShip(kind) {
-  const ship = new THREE.Group();
-  const haze = new THREE.MeshStandardMaterial({ color: 0x737b85, roughness: 0.75, metalness: 0.25 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x3a3f46, roughness: 0.8, metalness: 0.2 });
-  const deckMat = new THREE.MeshStandardMaterial({ color: 0x4c5158, roughness: 0.9 });
-  const white = new THREE.MeshStandardMaterial({ color: 0xe8ebee, roughness: 0.6 });
-  const red = new THREE.MeshStandardMaterial({ color: 0x7a2a22, roughness: 0.8 });
-  if (kind === "carrier") {
-    // waterline stripe, hull, a wide flight deck that overhangs, and the island on the starboard side
-    ship.add(shipSlab(250, 30, 3, red, -1));
-    ship.add(shipSlab(250, 30, 16, haze, 2));
-    const flightDeck = shipSlab(262, 40, 1.2, deckMat, 18);
-    ship.add(flightDeck);
-    const island = new THREE.Mesh(new THREE.BoxGeometry(32, 14, 7), haze);
-    island.position.set(10, 25, -17);
-    ship.add(island);
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 7.5), haze);
-    bridge.position.set(12, 35, -17);
-    ship.add(bridge);
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 18, 8), dark);
-    mast.position.set(12, 47, -17);
-    ship.add(mast);
-    const radar = new THREE.Mesh(new THREE.BoxGeometry(6, 2, 0.6), dark);
-    radar.position.set(12, 52, -17);
-    ship.add(radar);
-    // deck markings and helicopters on deck
-    const line = new THREE.Mesh(new THREE.PlaneGeometry(220, 0.8), new THREE.MeshBasicMaterial({ color: 0xd8d8d0 }));
-    line.rotation.x = -Math.PI / 2;
-    line.position.set(0, 19.3, 4);
-    ship.add(line);
-    [-60, -20, 40].forEach(function (x) {
-      const heli = new THREE.Group();
-      const body = new THREE.Mesh(new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(1.6, 7, 4, 8) : new THREE.BoxGeometry(3, 3, 10), dark);
-      body.rotation.z = Math.PI / 2;
-      heli.add(body);
-      const rotor = new THREE.Mesh(new THREE.BoxGeometry(16, 0.2, 0.6), dark);
-      rotor.position.y = 2.2;
-      heli.add(rotor);
-      heli.position.set(x, 21, 8);
-      ship.add(heli);
-    });
-  } else if (kind === "dock") {
-    // an amphibious transport dock: a long grey hull, a big block superstructure forward, a flight deck aft
-    ship.add(shipSlab(200, 32, 3, red, -1));
-    ship.add(shipSlab(200, 32, 14, haze, 2));
-    const block = new THREE.Mesh(new THREE.BoxGeometry(70, 16, 26), haze);
-    block.position.set(30, 24, 0);
-    ship.add(block);
-    const mastA = new THREE.Mesh(new THREE.CylinderGeometry(3, 4, 22, 8), haze);
-    mastA.position.set(40, 43, 0);
-    ship.add(mastA);
-    const pad = new THREE.Mesh(new THREE.PlaneGeometry(80, 26), deckMat);
-    pad.rotation.x = -Math.PI / 2;
-    pad.position.set(-50, 16.2, 0);
-    ship.add(pad);
-  } else {
-    // a recovery vessel: dark hull, white superstructure forward, a helipad and a crane over the stern
-    ship.add(shipSlab(90, 18, 2, red, -1));
-    ship.add(shipSlab(90, 18, 8, dark, 1));
-    const house = new THREE.Mesh(new THREE.BoxGeometry(26, 10, 15), white);
-    house.position.set(18, 14, 0);
-    ship.add(house);
-    const wheelhouse = new THREE.Mesh(new THREE.BoxGeometry(12, 5, 15.5), white);
-    wheelhouse.position.set(22, 21.5, 0);
-    ship.add(wheelhouse);
-    const pad = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 0.6, 24), deckMat);
-    pad.position.set(18, 19.4, 0);
-    ship.add(pad);
-    const crane = new THREE.Mesh(new THREE.BoxGeometry(1.2, 18, 1.2), new THREE.MeshStandardMaterial({ color: 0xe6a21c, roughness: 0.6 }));
-    crane.position.set(-34, 16, 0);
-    crane.rotation.z = 0.5;
-    ship.add(crane);
-    // bridge windows, a mast with radar, a funnel and two orange lifeboats
-    const glass = new THREE.MeshStandardMaterial({ color: 0x16202c, roughness: 0.2, metalness: 0.5 });
-    const windows = new THREE.Mesh(new THREE.BoxGeometry(12.2, 1.6, 15.8), glass);
-    windows.position.set(22, 22.4, 0);
-    ship.add(windows);
-    const front = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.6, 13), glass);
-    front.position.set(28.1, 22.4, 0);
-    ship.add(front);
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 10, 8), white);
-    mast.position.set(20, 29, 0);
-    ship.add(mast);
-    const radar = new THREE.Mesh(new THREE.BoxGeometry(5, 0.6, 0.8), dark);
-    radar.position.set(20, 32, 0);
-    ship.add(radar);
-    const funnel = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.2, 6, 12), dark);
-    funnel.position.set(8, 21, 0);
-    ship.add(funnel);
-    const lifeboatMat = new THREE.MeshStandardMaterial({ color: 0xf06a1c, roughness: 0.5 });
-    [-1, 1].forEach(function (side) {
-      const boat = new THREE.Mesh(new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(1.1, 4, 4, 8) : new THREE.BoxGeometry(6, 2, 2), lifeboatMat);
-      boat.rotation.z = Math.PI / 2;
-      boat.position.set(14, 15, side * 8.4);
-      ship.add(boat);
-    });
-    // a white band along the hull and a row of portholes
-    const band = shipSlab(90.4, 18.4, 0.8, white, 7);
-    ship.add(band);
-  }
-  ship.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  return ship;
-}
-
 // ----- Earth: an ocean with moving waves and a recovery ship -----
 function buildOcean() {
   const group = new THREE.Group();
@@ -666,13 +504,20 @@ function buildOcean() {
   far.rotation.x = -Math.PI / 2;
   far.position.y = -0.4;
   group.add(far);
-  // The recovery ship waiting nearby, shaped like a ship (a pointed bow, a deck, a superstructure):
-  // an aircraft carrier for Apollo and Gemini (USS Hornet, USS Intrepid), a grey dock ship for Orion,
-  // a recovery vessel with a helipad for Dragon. Simplified shapes, not detailed models.
-  const capsuleKey = item && item.landing ? item.landing.capsule : "apollo-cm";
-  const ship = buildShip(capsuleKey === "dragon" ? "recovery" : capsuleKey === "orion-cm" ? "dock" : "carrier");
-  ship.position.set(150, 0, -280);
-  ship.rotation.y = -0.6; // side-on to the camera, so its shape reads as a ship
+  // A recovery ship (simple shape) waiting nearby
+  const ship = new THREE.Group();
+  const gray = new THREE.MeshStandardMaterial({ color: 0x7c848e, roughness: 0.7, metalness: 0.3 });
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(70, 9, 14), gray);
+  hull.position.y = 3;
+  ship.add(hull);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(20, 10, 10), gray);
+  deck.position.set(-12, 12, 0);
+  ship.add(deck);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 14, 6), gray);
+  mast.position.set(-12, 24, 0);
+  ship.add(mast);
+  ship.position.set(140, 0, -260);
+  ship.rotation.y = 0.5;
   group.add(ship);
   const position = geometry.attributes.position;
   function wave(x, z, t) {
@@ -705,7 +550,7 @@ function applyEnvironment(worldName) {
   terrainGroup = terrain.group;
   scene.add(terrainGroup);
   controls.maxPolarAngle = env.gas ? Math.PI : Math.PI * 0.49; // no ground to hit in a gas giant
-  camera.far = env.gas || env.ocean ? 20000 : 30000; // far enough to see the curved horizon
+  camera.far = env.gas || env.ocean ? 20000 : 9000;
   camera.updateProjectionMatrix();
   sunLight.castShadow = !env.gas;
 
@@ -724,7 +569,7 @@ function applyEnvironment(worldName) {
   sunSprite.visible = !env.fog || env.fog.far > 500; // the Sun is hidden in Venus's thick clouds
 
   flameMaterial.color.set(env.flameColor);
-  flameMaterial.opacity = Math.min(0.75, env.flameOpacity * 2.4); // visible on purpose (see addFlames)
+  flameMaterial.opacity = env.flameOpacity;
 }
 
 // ----- Giant planets: layers of cloud instead of ground -----
@@ -755,64 +600,26 @@ function makeCloudTexture(colors, seed) {
 
   const texture = new THREE.CanvasTexture(drawing);
   texture.colorSpace = THREE.SRGBColorSpace;
-  // mirrored tiling, so the tiles meet without seams (the plain repeat showed square joins)
-  texture.wrapS = THREE.MirroredRepeatWrapping;
-  texture.wrapT = THREE.MirroredRepeatWrapping;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(6, 6);
   return texture;
 }
 
-// The real cloud bands of the giant planets (the same Solar System Scope maps as the globes), used as
-// the deepest, solid cloud deck under the moving cloud layers
-const CLOUD_MAPS = { Jupiter: "assets/textures/jupiter_4k.jpg", Saturn: "assets/textures/saturn_4k.jpg" };
 function buildCloudWorld(world) {
   const group = new THREE.Group();
-  const worldName = Object.keys(ENVIRONMENTS).find(function (k) { return ENVIRONMENTS[k] === world; });
-  if (CLOUD_MAPS[worldName]) {
-    const geometry = new THREE.PlaneGeometry(40000, 40000, 96, 96);
-    geometry.rotateX(-Math.PI / 2);
-    const position = geometry.attributes.position;
-    for (let i = 0; i < position.count; i++) {
-      const d = Math.hypot(position.getX(i), position.getZ(i));
-      position.setY(i, -(d * d) / (2 * 60000));
-    }
-    const deck = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }));
-    new THREE.TextureLoader().load(CLOUD_MAPS[worldName], function (texture) {
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.wrapS = texture.wrapT = THREE.MirroredRepeatWrapping;
-      texture.repeat.set(1.5, 1.5);
-      texture.anisotropy = 8;
-      deck.material.map = texture;
-      deck.material.needsUpdate = true;
-    });
-    const lowest = world.layers[world.layers.length - 1].y;
-    deck.position.y = lowest - 40;
-    group.add(deck);
-  }
 
   world.layers.forEach(function (layer, index) {
     // Two sheets close together give each cloud layer some thickness
     [0, 14].forEach(function (offset, k) {
-      // a cloud sheet that curves down with distance (like the top of a planet-sized cloud deck) and
-      // fades out toward its edge, so no square edge or end can be seen
-      const geometry = new THREE.PlaneGeometry(16000, 16000, 64, 64);
-      geometry.rotateX(-Math.PI / 2);
-      const position = geometry.attributes.position;
-      for (let i = 0; i < position.count; i++) {
-        const d = Math.hypot(position.getX(i), position.getZ(i));
-        position.setY(i, -(d * d) / (2 * 60000));
-      }
-      const material = new THREE.MeshStandardMaterial({
-        map: makeCloudTexture(layer.colors, index * 7.3 + k * 3.1),
-        transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 1
-      });
-      material.onBeforeCompile = function (shader) {
-        shader.fragmentShader = shader.fragmentShader.replace(
-          "#include <opaque_fragment>",
-          "diffuseColor.a *= 1.0 - smoothstep(0.3, 0.5, length(vMapUv / 6.0 - 0.5));\n#include <opaque_fragment>"
-        );
-      };
-      const sheet = new THREE.Mesh(geometry, material);
+      const sheet = new THREE.Mesh(
+        new THREE.PlaneGeometry(16000, 16000),
+        new THREE.MeshStandardMaterial({
+          map: makeCloudTexture(layer.colors, index * 7.3 + k * 3.1),
+          transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 1
+        })
+      );
+      sheet.rotation.x = -Math.PI / 2;
       sheet.position.y = layer.y - offset;
       sheet.renderOrder = 1;
       group.add(sheet);
@@ -843,10 +650,8 @@ function buildCloudWorld(world) {
       map: new THREE.CanvasTexture(ringTexture), transparent: true, side: THREE.DoubleSide,
       depthWrite: false, fog: false
     }));
-    // far away and above the cloud tops, arching across the sky (it used to cut through the clouds)
-    ring.rotation.x = 0.22;
-    ring.scale.setScalar(2.2);
-    ring.position.set(0, -900, -11000);
+    ring.rotation.x = 0.35;
+    ring.position.set(0, -1800, -3000);
     ring.renderOrder = -1;
     group.add(ring);
   }
@@ -890,182 +695,35 @@ function addActor(object) {
   return object;
 }
 
-// Hardware that was already on the ground nearby (landing.neighbors in data/hardware.js), such as
-// Surveyor 3 next to Apollo 12. The distance is the real one; the direction is chosen so the neighbor
-// stands behind the lander in the view after touchdown (the scene is not laid out by compass direction).
-function neighborView() { return Boolean(item && item.landing && item.landing.neighbors && item.landing.neighbors.length); }
-
-function addNeighbors() {
-  (item.landing.neighbors || []).forEach(function (n) {
-    const model = createModel(n.model);
-    model.scale.setScalar(n.scale || 1);
-    // radians from +z: beyond the lander and a little to its left in the view after touchdown (the camera
-    // there swings from about 0.71 pi to pi, so straight behind the lander is avoided); among a few nearby
-    // directions, the one where the generated ground is highest, so a rise in the terrain does not hide it
-    // (data/hardware.js can give a tested direction instead: landing.neighbors[].angle)
-    let angle = n.angle;
-    if (angle === undefined) {
-      // prefer a direction with a clear line of sight from where the camera ends up (0, 4 m up, 18 m out)
-      const eye = V(0, 7.5, 18); // where the camera ends up after touchdown (see surfacePhase)
-      const clear = function (a) {
-        const tx = Math.sin(a) * n.distance;
-        const tz = Math.cos(a) * n.distance;
-        const top = groundY(tx, tz) + 2.5;
-        for (let s = 1; s < 40; s++) {
-          const f = s / 40;
-          const x = eye.x + (tx - eye.x) * f;
-          const z = eye.z + (tz - eye.z) * f;
-          if (groundY(x, z) > eye.y + (top - eye.y) * f) return false;
-        }
-        return true;
-      };
-      // 10 to 35 degrees to either side of straight behind the lander (never right behind it, where the
-      // lander itself would hide it), nearest first
-      const candidates = [1.1, 0.9, 1.07, 0.93, 1.13, 0.87, 1.16, 0.84, 1.19, 0.81];
-      const open = candidates.find(function (k) { return clear(Math.PI * k); });
-      if (open !== undefined) angle = Math.PI * open;
-      else {
-        let best = -Infinity;
-        candidates.forEach(function (k) {
-          const a = Math.PI * k;
-          const h = groundY(Math.sin(a) * n.distance, Math.cos(a) * n.distance);
-          if (h > best) { best = h; angle = a; }
-        });
-      }
-    }
-    const x = Math.sin(angle) * n.distance;
-    const z = Math.cos(angle) * n.distance;
-    model.position.set(x, groundY(x, z), z);
-    model.rotation.y = 0.6;
-    if (model.userData.setArrays) model.userData.setArrays(1);
-    if (model.userData.retro) model.userData.retro.visible = false; // dropped during its own landing long ago
-    addActor(model);
-    if (n.label) {
-      const label = neighborLabel(n.label);
-      const box = new THREE.Box3().setFromObject(model);
-      label.position.set(x, box.max.y + 3, z);
-      actorRoot.add(label);
-    }
-  });
-}
-
-// A small text tag that stays the same size on screen, so a far-away neighbor can be found
-function neighborLabel(text) {
-  const canvas = document.createElement("canvas");
-  const font = "26px IBM Plex Sans, Arial, sans-serif";
-  let ctx = canvas.getContext && canvas.getContext("2d");
-  let width = 512;
-  if (ctx) {
-    ctx.font = font;
-    width = Math.ceil(ctx.measureText(text).width) + 40; // the canvas fits the whole sentence
-  }
-  canvas.width = width;
-  canvas.height = 64;
-  ctx = canvas.getContext && canvas.getContext("2d");
-  if (ctx) {
-    ctx.fillStyle = "rgba(6, 10, 18, 0.72)";
-    ctx.fillRect(0, 8, width, 48);
-    ctx.fillStyle = "#e8eef8";
-    ctx.font = font;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, width / 2, 33);
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  // drawn over the terrain, so it always marks where the neighbor is
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false, sizeAttenuation: false }));
-  sprite.scale.set(0.04 * width / 64, 0.04, 1); // keeps the text's proportions
-  sprite.center.set(0.5, 0);
-  sprite.renderOrder = 5;
-  return sprite;
-}
-
 function makeModel(name, scale) {
   const model = createModel(name);
   model.scale.setScalar(scale || 1);
   addFlames(model);
-  // NASA's official model where NASA has one and none of its parts move here (Master Doc 14); landers
-  // that unfold, rovers with turning wheels and the Lunar Module keep the project's model
-  if (nasaUsableInScene(model, name)) {
-    upgradeToNasaModel(model, name).then(function (shown) { if (shown) announceNasaModel(name); });
-  }
   return addActor(model);
 }
 
 // Faint engine plumes. Rocket exhaust is almost invisible in a vacuum, so on the Moon and Mercury it is very faint.
-// The burn is drawn brighter than a real vacuum plume would look (the Apollo descent engine's exhaust
-// was nearly invisible on camera), so you can see when and how hard the engine fires: a hot glow at the
-// nozzle, a translucent cone, a stream of exhaust and a warm light on the ground.
-let nozzleGlowMap = null;
-function nozzleGlow() {
-  if (nozzleGlowMap) return nozzleGlowMap;
-  const c = document.createElement("canvas");
-  c.width = c.height = 64;
-  const ctx = c.getContext && c.getContext("2d");
-  if (ctx && ctx.createRadialGradient) {
-    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-    g.addColorStop(0, "rgba(255,255,255,1)");
-    g.addColorStop(0.3, "rgba(255,220,170,0.7)");
-    g.addColorStop(1, "rgba(255,160,80,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 64, 64);
-  }
-  nozzleGlowMap = new THREE.CanvasTexture(c);
-  return nozzleGlowMap;
-}
-
 function addFlames(model) {
   const engines = model.userData.engines || [];
   model.userData.flames = engines.map(function (point) {
     const holder = new THREE.Group();
-    holder.userData.keepWithNasa = true; // the flames stay when the official NASA model is shown
     holder.position.copy(point);
     const cone = new THREE.Mesh(new THREE.ConeGeometry(0.14, 1.1, 14, 1, true), flameMaterial);
     cone.rotation.x = Math.PI;
     cone.position.y = -0.55;
     holder.add(cone);
-    const core = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.5, 12, 1, true), coreFlameMaterial);
-    core.rotation.x = Math.PI;
-    core.position.y = -0.25;
-    holder.add(core);
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: nozzleGlow(), color: 0xffe2b8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-    glow.scale.set(0.7, 0.7, 1);
-    glow.position.y = -0.05;
-    holder.add(glow);
     holder.visible = false;
     model.add(holder);
     return holder;
   });
 }
 
-const flameDown = V(0, -1, 0);
-const flameWorld = V(0, 0, 0);
 function setFlames(model, strength) {
   if (model.visible !== false) engineLevel = Math.max(engineLevel, strength);
-  const on = strength > 0.02 && model.visible !== false;
-  const flames = model.userData.flames || [];
-  flames.forEach(function (holder) {
-    holder.visible = on;
-    const flicker = 0.85 + Math.random() * 0.3;
-    holder.scale.set(1 + strength * 0.25, 0.5 + strength * 1.6 * flicker, 1 + strength * 0.25);
+  (model.userData.flames || []).forEach(function (holder) {
+    holder.visible = strength > 0.02;
+    holder.scale.set(1, 0.4 + strength * 1.3 * (0.85 + Math.random() * 0.3), 1);
   });
-  if (!on || !flames.length || paused) return;
-  // exhaust stream and the light it throws on the ground
-  model.updateMatrixWorld(true);
-  const scale = model.getWorldScale ? model.getWorldScale(V(1, 1, 1)).x : 1;
-  const down = flameDown.set(0, -1, 0).applyQuaternion(model.getWorldQuaternion ? model.getWorldQuaternion(new THREE.Quaternion()) : model.quaternion);
-  flameCarry += 90 * strength * frameDt;
-  while (flameCarry >= 1) {
-    flameCarry -= 1;
-    const holder = flames[Math.floor(Math.random() * flames.length)];
-    holder.getWorldPosition(flameWorld);
-    const velocity = down.clone().multiplyScalar(random(9, 16) * scale).add(V(random(-1, 1), random(-1, 1), random(-1, 1)).multiplyScalar(scale * 0.8));
-    particles.emit(true, flameWorld.clone().addScaledVector(down, 0.1 * scale), velocity, 0.35 * scale, 1.4 * scale, random(0.18, 0.32), 0.75, env.air ? 0xffc890 : 0xd8e6ff, 0);
-  }
-  flames[0].getWorldPosition(flameWorld);
-  engineLight.position.copy(flameWorld).addScaledVector(down, 1.5 * scale);
-  engineLight.intensity = Math.max(engineLight.intensity, 60 * strength * (0.85 + Math.random() * 0.3));
 }
 
 // Points the model's "up" (+Y) in a direction (used to tilt landers during the braking burn)
@@ -1390,9 +1048,7 @@ function surfacePhase(lander) {
         astronaut.userData.walk(u * 30 + i);
       });
       const angle = -0.9 + u * 0.9;
-      // a little higher where older hardware stands nearby (Apollo 12 and Surveyor 3), so it shows over the ground
-      if (neighborView()) follow(V(0, 3, 0), V(Math.sin(angle) * 18, 4.5, Math.cos(angle) * 18)); // eye 7.5 m up, horizon in view
-      else follow(V(0, 1.5, 0), V(Math.sin(angle) * 18, 4, Math.cos(angle) * 18));
+      follow(V(0, 1.5, 0), V(Math.sin(angle) * 18, 4, Math.cos(angle) * 18));
     }
   };
 }
@@ -2003,20 +1659,11 @@ function fitSize(model, meters) {
 function earthFromAbove() {
   const g = new THREE.Group();
   const radius = 6000;
-  // the real Earth (same maps as the Solar System), real clouds and the soft glow of the air
-  const surface = lookMaterial("Earth", null, { hd: true });
-  surface.fog = false;
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(radius, 128, 96), surface);
-  ball.rotation.y = 1.4; // the Pacific below (splashdowns were in the Pacific or Atlantic)
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(radius, 96, 64), new THREE.MeshStandardMaterial({ color: 0x2a5f9a, roughness: 0.8, fog: false }));
   g.add(ball);
-  const cloudLayer = cloudMaterial();
-  cloudLayer.fog = false;
-  cloudLayer.opacity = 0.6;
-  const clouds = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.003, 128, 96), cloudLayer);
-  clouds.rotation.y = 1.4;
+  const clouds = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.003, 96, 64), new THREE.MeshStandardMaterial({ map: makeCloudTexture(["#ffffff", "#e6eef7"], 7), transparent: true, opacity: 0.55, depthWrite: false, fog: false }));
   g.add(clouds);
-  const air = createGlow(radius, { color: 0x6aa8ff, strength: 0.9, size: 1.02 });
-  air.traverse(function (o) { if (o.material) o.material.fog = false; });
+  const air = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.02, 96, 64), new THREE.MeshBasicMaterial({ color: 0x7fb6ff, transparent: true, opacity: 0.22, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   g.add(air);
   g.position.set(0, -radius - 2200, 0);
   actorRoot.add(g);
@@ -2027,8 +1674,7 @@ function splashdownPhases() {
   const landing = item.landing;
   const key = CAPSULE_FACTS[landing.capsule] ? landing.capsule : "apollo-cm";
   const facts = CAPSULE_FACTS[key];
-  // Crew Dragon's flying model points nose-forward; for the splashdown the upright capsule (no trunk) is used
-  const capsule = makeModel(landing.capsule === "dragon" ? "dragon-cm" : (landing.capsule || "apollo-cm"), 1);
+  const capsule = makeModel(landing.capsule || "apollo-cm", 1);
   fitSize(capsule, landing.size || 4);
   const R = landing.size || 4;
   let mains = capsule.userData.chutes;
@@ -2062,7 +1708,6 @@ function splashdownPhases() {
   const mainAt = V(-30, 75, -16);
   const sea = V(0, R * 0.25, 0);
   let splashed = false;
-  let released = []; // the main parachutes after release: each one settles flat on the water
 
   function placeLoose() {
     if (mains.userData.loose) {
@@ -2156,31 +1801,16 @@ function splashdownPhases() {
             const speed = random(3, 12);
             particles.emit(false, V(Math.cos(angle) * R * 0.5, 0.3, Math.sin(angle) * R * 0.5), V(Math.cos(angle) * speed, random(3, 11), Math.sin(angle) * speed), random(0.4, 1.1), random(2, 4), random(1.2, 2.4), 0.8, 0xffffff, 0.5);
           }
-          // The crew releases the main parachutes: each one is taken off the capsule (keeping where it
-          // is) so it can fall and lie flat on the water
-          released = mains.children.slice().map(function (chute, i) {
-            actorRoot.attach(chute);
-            return { chute: chute, i: i, pos: chute.position.clone(), quat: chute.quaternion.clone(), scale: chute.scale.clone() };
-          });
         }
         // Bobbing on the waves; the parachutes are released and fall onto the water
         capsule.position.set(0, R * 0.15 + Math.sin(u * 9) * 0.25, 0);
         pointUp(capsule, V(Math.sin(u * 6) * 0.08, 1, Math.cos(u * 5) * 0.06));
-        // The released parachutes fall over and settle flat on the water behind the capsule (away from
-        // the camera), going limp: lines toward the capsule, the canopy spread out like a wet sheet
-        const fall = easeOut(Math.min(1, u * 1.3));
-        const away = Math.atan2(1, 1.4);                       // direction away from the camera, on the water
-        const lieQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, away, -Math.PI / 2, "YXZ"));
-        released.forEach(function (r) {
-          const k = r.i - (released.length - 1) / 2;
-          const along = R * 0.9 + Math.abs(k) * R * 0.5;
-          const side = k * R * 2.6;
-          const lie = V(Math.cos(away) * along + Math.sin(away) * side, 0.35, -Math.sin(away) * along + Math.cos(away) * side);
-          r.chute.position.lerpVectors(r.pos, lie, fall);
-          r.chute.quaternion.slerpQuaternions(r.quat, lieQuat, fall);
-          r.chute.scale.set(r.scale.x * (1 - 0.94 * fall), r.scale.y * (1 - 0.25 * fall), r.scale.z);
-        });
-        if (drogues.visible && u > 0.2) drogues.visible = false;
+        const fall = Math.min(1, u * 1.6);
+        if (mains.userData.loose) {
+          mains.position.copy(capsule.position).add(V(R * 3 * fall, -R * 4 * fall, R * 2 * fall));
+        } else {
+          mains.scale.set(1, Math.max(0.05, 1 - fall), 1);
+        }
         if (u < 0.5 && Math.random() < 0.5) {
           particles.emit(false, V(random(-R, R), 0.2, random(-R, R)), V(random(-1, 1), random(0.5, 2), random(-1, 1)), random(0.6, 1.4), random(2, 5), random(1.5, 3), 0.5, 0xffffff, 0.8);
         }
@@ -2214,7 +1844,6 @@ function enterPhase(index) {
 
 function restart() {
   touchdownPlayed = false;
-  hideAfterLanding();
   if (terrainGroup) terrainGroup.visible = true;
   clearActors();
   dustCarry = 0;
@@ -2225,7 +1854,6 @@ function restart() {
   pauseButton.textContent = "Pause";
 
   phases = buildPhases();
-  addNeighbors();
   totalTime = phases.reduce(function (sum, phase) { return sum + phase.duration; }, 0);
   elapsed = 0;
   enterPhase(0);
@@ -2243,15 +1871,11 @@ function setAutoCamera() {
   hintBox.textContent = AUTO_HINT;
 }
 
-const UP_AXIS = new THREE.Vector3(0, 1, 0);
 function frame(now) {
   if (!running) return;
-  stepGround(3); // the rest of the detailed Moon or Mars ground, a few tiles per frame
   rafId = requestAnimationFrame(frame);
-  const dt = Math.min((now - lastTime) / 1000, 0.05) * getPlaybackSpeed(); // 0.5x / 2x playback
+  const dt = Math.min((now - lastTime) / 1000, 0.05) * getPlaybackSpeed(); // 2x / 4x playback
   lastTime = now;
-  frameDt = dt;
-  if (engineLight) engineLight.intensity *= 0.5; // fades unless an engine keeps it lit this frame
 
   if (!paused && !finished) {
     phaseTime += dt;
@@ -2266,12 +1890,10 @@ function frame(now) {
       } else {
         finished = true;
         phaseBox.textContent = "Complete · " + phase.title;
-        showAfterLanding();
         document.dispatchEvent(new CustomEvent("landing-finished", { detail: { id: item ? item.id : null } }));
       }
     }
     progressBar.style.setProperty("--fill", String(Math.min(1, elapsed / totalTime)));
-    updateSiteCard();
   }
 
   if (!paused) particles.update(dt);
@@ -2286,12 +1908,8 @@ function frame(now) {
   // Auto camera: glide toward the planned camera position.
   // User camera: keep the angle and distance the user chose, but move along with the spacecraft.
   if (autoCamera) {
-    if (finished && !paused) cameraGoal.sub(lookGoal).applyAxisAngle(UP_AXIS, dt * 0.06).add(lookGoal);
-    // the farther behind the camera is, the faster it catches up, so the spacecraft stays in the picture
-    const behind = camera.position.distanceTo(cameraGoal);
-    const lookBehind = lookNow.distanceTo(lookGoal);
-    camera.position.lerp(cameraGoal, 1 - Math.exp(-(2.2 + Math.min(8, behind * 0.03)) * dt));
-    lookNow.lerp(lookGoal, 1 - Math.exp(-(3.5 + Math.min(10, lookBehind * 0.05)) * dt)); // steady, no jitter
+    camera.position.lerp(cameraGoal, 1 - Math.exp(-2.2 * dt));
+    lookNow.lerp(lookGoal, 1 - Math.exp(-3.5 * dt)); // a steady camera: no jitter from small movements
     controls.target.copy(lookNow);
   } else {
     const moved = lookGoal.clone().sub(lastLookGoal);
@@ -2311,38 +1929,6 @@ function frame(now) {
 
   renderer.render(scene, camera);
 }
-
-// After the landing: what happened next (the site's real status and its main findings), so the scene
-// doesn't just stop. The pause button is not needed any more; "Go back" and the replay button stay.
-const afterBox = document.getElementById("landing-after");
-function showAfterLanding() {
-  pauseButton.classList.add("hidden");
-  if (!afterBox || !item) return;
-  const lines = [item.status && item.status.text].concat((item.contributions || []).slice(0, 2)).filter(Boolean);
-  afterBox.innerHTML = "";
-  if (!lines.length) return;
-  const title = document.createElement("p");
-  title.className = "la-title";
-  title.textContent = "What happened next";
-  afterBox.appendChild(title);
-  const list = document.createElement("ul");
-  lines.forEach(function (text) {
-    const li = document.createElement("li");
-    li.textContent = text;
-    list.appendChild(li);
-  });
-  afterBox.appendChild(list);
-  afterBox.classList.remove("hidden");
-}
-function hideAfterLanding() {
-  pauseButton.classList.remove("hidden");
-  if (afterBox) afterBox.classList.add("hidden");
-}
-const goBackButton = document.getElementById("landing-goback");
-if (goBackButton) goBackButton.addEventListener("click", function () {
-  const back = document.getElementById("landing-back");
-  if (back) back.click();
-});
 
 pauseButton.addEventListener("click", function () {
   if (finished) return;
@@ -2367,95 +1953,12 @@ export function hasLanding(hardware) {
   return Boolean(hardware && hardware.landing && ENVIRONMENTS[hardware.destination]);
 }
 
-// ----- The real landing site: a card with a map of the world, a dot at the real coordinates, the
-// place name, the coordinates and the date. It appears as the spacecraft reaches the ground, so you can
-// see at once that this is where the real mission landed. -----
-const SITE_MAPS = {
-  Moon: "assets/textures/moon.jpg", Mars: "assets/textures/mars.jpg", Mercury: "assets/textures/mercury.jpg",
-  Venus: "assets/textures/venus_surface.jpg", Jupiter: "assets/textures/jupiter.jpg", Saturn: "assets/textures/saturn.jpg",
-  Earth: "assets/textures/earth_atmos_2048.jpg"
-};
-const siteCard = document.getElementById("landing-site");
-function formatCoordinate(value, positive, negative) {
-  return Math.abs(value).toFixed(2) + "° " + (value >= 0 ? positive : negative);
-}
-function fillSiteCard(hardware) {
-  if (!siteCard) return false;
-  siteCard.classList.add("hidden");
-  siteCard.classList.remove("on");
-  if (!hardware || typeof hardware.lat !== "number" || typeof hardware.lon !== "number") return false;
-  const mapBox = siteCard.querySelector(".ls-map");
-  const img = siteCard.querySelector(".ls-map img");
-  const dot = siteCard.querySelector(".ls-dot");
-  const url = SITE_MAPS[hardware.destination];
-  mapBox.classList.toggle("hidden", !url);
-  if (url) {
-    img.src = url;
-    img.alt = "Map of " + hardware.destination + " with the landing site marked";
-    // the maps are equirectangular: longitude -180 to 180 left to right, latitude 90 to -90 top to bottom
-    const lon = ((hardware.lon + 540) % 360) - 180;
-    dot.style.left = ((lon + 180) / 360 * 100).toFixed(2) + "%";
-    dot.style.top = ((90 - hardware.lat) / 180 * 100).toFixed(2) + "%";
-  }
-  siteCard.querySelector(".ls-place").textContent = hardware.location || hardware.destination;
-  siteCard.querySelector(".ls-coords").textContent = formatCoordinate(hardware.lat, "N", "S") + ", " + formatCoordinate(hardware.lon, "E", "W");
-  siteCard.querySelector(".ls-mission").textContent = [hardware.mission, hardware.landingDate].filter(Boolean).join(" · ");
-  siteCard.title = hardware.coordinateNote || "";
-  return true;
-}
-let siteCardReady = false;
-function updateSiteCard() {
-  if (!siteCard || !siteCardReady) return;
-  const show = totalTime > 0 && elapsed / totalTime > 0.62;
-  if (show && siteCard.classList.contains("hidden")) {
-    // in the mission player, just above its scene bar (it used to sit behind the controls)
-    const bar = document.getElementById("mp-timeline");
-    if (document.body.classList.contains("player-on") && bar && bar.getBoundingClientRect && bar.getBoundingClientRect().top > 0) {
-      // above the subtitle too (Master Doc 13), with room for a two-line subtitle
-      const cap = document.getElementById("mp-caption");
-      let top = bar.getBoundingClientRect().top;
-      if (cap && cap.getBoundingClientRect && window.innerWidth > 760) top = Math.min(top, cap.getBoundingClientRect().bottom - 84);
-      siteCard.style.bottom = Math.round(window.innerHeight - top + 12) + "px";
-    } else {
-      siteCard.style.bottom = "";
-    }
-    siteCard.classList.remove("hidden");
-    requestAnimationFrame(function () { siteCard.classList.add("on"); });
-  } else if (!show && !siteCard.classList.contains("hidden")) {
-    siteCard.classList.add("hidden");
-    siteCard.classList.remove("on");
-  }
-}
-
-// Jump to a point in the landing (0 to 1), for the mission player's progress bar: the scene is
-// replayed quickly from the start without drawing, so every part is where it should be
-export function seekLanding(fraction) {
-  if (!item || !phases.length) return;
-  restart();
-  const goal = Math.max(0, Math.min(0.995, fraction)) * totalTime;
-  const step = 1 / 30;
-  frameDt = step;
-  while (elapsed < goal) {
-    phaseTime += step;
-    elapsed += step;
-    const phase = phases[phaseIndex];
-    phase.update(Math.min(phaseTime / phase.duration, 1), step);
-    if (phaseTime >= phase.duration && phaseIndex < phases.length - 1) enterPhase(phaseIndex + 1);
-  }
-  particles.clear();
-  camera.position.copy(cameraGoal);
-  lookNow.copy(lookGoal);
-  controls.target.copy(lookNow);
-  updateSiteCard();
-}
-
 export function startLanding(hardware) {
   init();
   resize();
   item = hardware;
   titleBox.textContent = hardware.name;
   applyEnvironment(hardware.destination);
-  siteCardReady = fillSiteCard(hardware);
   restart();
 
   running = true;
@@ -2476,7 +1979,6 @@ export function landingProgress() {
 
 export function stopLanding() {
   running = false;
-  if (siteCard) { siteCard.classList.add("hidden"); siteCard.classList.remove("on"); }
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;
