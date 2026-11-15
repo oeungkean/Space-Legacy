@@ -772,6 +772,29 @@
             <button id="sim-launch" class="primary big">Launch mission</button>
           </div>
         </div>
+        <div class="station-pane hidden" data-bay-pane="story" id="sim-step-story">
+          <div class="story-viewer">
+            <div class="story-header">
+              <h2 class="story-title"></h2>
+              <div class="story-phase"></div>
+            </div>
+            <div class="story-body">
+              <div class="story-dialogue"></div>
+              <div class="story-action"></div>
+            </div>
+            <div class="story-pov">
+              <canvas id="story-canvas"></canvas>
+            </div>
+            <div class="story-controls">
+              <button class="story-prev" aria-label="Previous beat">← Prev</button>
+              <button class="story-next" aria-label="Next beat">Next →</button>
+            </div>
+            <div class="story-takeaway" hidden>
+              <h3></h3>
+              <p></p>
+            </div>
+          </div>
+        </div>
         <div class="bay-next-row"><button id="bay-next" class="primary bay-next hidden"></button></div>
         <div id="sim-coach" class="sim-coach hidden" role="dialog" aria-labelledby="sim-coach-title">
           <p class="eyebrow">Start here</p>
