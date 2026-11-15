@@ -100,7 +100,7 @@ export function openResults(summary, opts) {
   if (opts.fromCollection) document.getElementById("results-return").classList.add("hidden");
   solarNote.textContent = summary.body ? "See " + (WITH_THE[summary.body] || summary.body) + " in the Solar System" : "Explore the whole Solar System";
   box.classList.remove("hidden");
-  const first = document.getElementById("results-simulator");
+  const first = document.getElementById("results-collection"); // ("New mission" was removed)
   if (first && first.focus) first.focus();
 }
 

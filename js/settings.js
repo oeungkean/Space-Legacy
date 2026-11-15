@@ -20,7 +20,8 @@ export const DEFAULTS = {
   skipIntro: false,     // go straight to the solar system after "Begin Exploration"
   skipLiftoff: false,   // start mission replays without the launch scene
   narratorVoice: "",    // the narrator's voice name ("" = the most natural voice available)
-  narratorRate: 1       // the narrator's speaking speed (0.8 to 1.2)
+  narratorRate: 1,      // the narrator's speaking speed (0.8 to 1.2)
+  guideHidden: false    // Free Build exploration: the astronaut guide is sent away (Master Doc 17)
 };
 
 let values = Object.assign({}, DEFAULTS);

@@ -9,6 +9,7 @@ import { hardwareReplays, replayVisuals } from "../data/hardware-replays.js";
 import { missions, STAGE_TAGS, EVENT_ACTIONS } from "../data/missions.js";
 import { spacecraftInfo } from "../data/spacecraft.js";
 import { hardwareList } from "../data/hardware.js";
+import { MOONWALKS } from "../data/moonwalks.js";
 
 const WORLD = { Earth: "earth", Moon: "moon", Mars: "mars", Venus: "venus", Mercury: "mercury", Jupiter: "jupiter", Saturn: "saturn", Uranus: "uranus", Neptune: "neptune", Titan: "titan" };
 const CREWED = { "apollo-stack": true, orion: true, gemini: true, dragon: true, "apollo-csm": true };
@@ -19,13 +20,21 @@ const LANDING_SITE = { apollo11: "tranquility", apollo15: "hadley", apollo17: "t
 function join() {
   return Array.from(arguments).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
 }
+// Master Doc 17: the general explanations ("a rocket this heavy rises slowly...") are only added when the
+// mission's own narration is short; a mission with a full, sourced story tells its own story
+function own(e) {
+  return e ? e.narration || e.caption || "" : "";
+}
+function extra(e, text) {
+  return own(e).length >= 300 ? "" : text;
+}
 
 const SAY = {
   launch: function (e, crewed) {
-    return join(e.narration || e.caption,
+    return join(e.narration || e.caption, extra(e, join(
       "Watch the first few seconds. A rocket this heavy rises slowly at first, because it is still carrying nearly all of its fuel.",
       "About a minute in, it passes Max Q, the moment of greatest stress from the air rushing past.",
-      "Then the first stage burns out and falls away, the upper stage takes over, and a few minutes later " + (crewed ? "the crew is" : "we are") + " in orbit.");
+      "Then the first stage burns out and falls away, the upper stage takes over, and a few minutes later " + (crewed ? "the crew is" : "we are") + " in orbit.")));
   },
   orbit: function (crewed, leaving) {
     return crewed
@@ -33,14 +42,14 @@ const SAY = {
       : join("We're in orbit now, circling Earth at about twenty-eight thousand kilometers per hour.", leaving ? "The upper stage fires again. This burn is the one that really counts, because it gives the spacecraft enough speed to escape Earth's gravity." : "");
   },
   cruise: function (e) {
-    return join(e.narration || e.caption, "Most of a mission actually looks like this: long, quiet coasting.",
-      "Every so often we fire small thrusters for a course correction, because even a tiny error early on grows into thousands of kilometers by the time we arrive.");
+    return join(e.narration || e.caption, extra(e, join("Most of a mission actually looks like this: long, quiet coasting.",
+      "Every so often we fire small thrusters for a course correction, because even a tiny error early on grows into thousands of kilometers by the time we arrive.")));
   },
   flyby: function (e) {
-    return join(e.narration || e.caption, "This is a gravity assist. We borrow a tiny bit of the planet's orbital energy. It bends our path and changes our speed, without burning any fuel.");
+    return join(e.narration || e.caption, extra(e, "This is a gravity assist. We borrow a tiny bit of the planet's orbital energy. It bends our path and changes our speed, without burning any fuel."));
   },
   arrive: function (e) {
-    return join(e.narration || e.caption, "To stay here, the spacecraft has to slow down. It turns around and fires its engine against its direction of travel. If this burn fails, it simply flies past.");
+    return join(e.narration || e.caption, extra(e, "To stay here, the spacecraft has to slow down. It turns around and fires its engine against its direction of travel. If this burn fails, it simply flies past."));
   },
   descend: function (style, world) {
     if (style === "lm") return "The Lunar Module separates from the Command Module. One astronaut stays in orbit while two head down. There's no air on the Moon, so there are no parachutes. It's rocket engine all the way down.";
@@ -54,13 +63,13 @@ const SAY = {
     return join(e.narration || e.caption);
   },
   deploy: function (e) {
-    return join(e.narration || e.caption, "Everything has to unfold exactly right, in the right order, because there's no one up here to fix it.");
+    return join(e.narration || e.caption, extra(e, "Everything has to unfold exactly right, in the right order, because there's no one up here to fix it."));
   },
   sample: function (e) {
-    return join(e.narration || e.caption, "The touch lasts only a few seconds. A puff of gas stirs up the surface, and the sampler catches what flies up.");
+    return join(e.narration || e.caption, extra(e, "The touch lasts only a few seconds. A puff of gas stirs up the surface, and the sampler catches what flies up."));
   },
   sun: function (e) {
-    return join(e.narration || e.caption, "The heat shield always faces the Sun. Behind it, the instruments stay close to room temperature.");
+    return join(e.narration || e.caption, extra(e, "The heat shield always faces the Sun. Behind it, the instruments stay close to room temperature."));
   },
   ret: function (e, fromMoon) {
     return join(e ? e.narration || e.caption : "", fromMoon
@@ -68,7 +77,16 @@ const SAY = {
       : "The engine fires against the direction of travel, just enough to lower the orbit into the atmosphere. Then the service module separates, and the capsule turns its heat shield forward.");
   },
   splashdown: function (e) {
-    return join(e ? e.narration || e.caption : "", "Parachutes open in stages: small drogues first to steady the capsule, then the big mains to slow it right down.");
+    // In the order it happens: the parachutes open before the capsule splashes down and is recovered
+    // (the general parachute line used to come after "...recovers the crew")
+    const text = e ? e.narration || e.caption || "" : "";
+    const chutes = "Parachutes open in stages: small drogues first to steady the capsule, then the big mains to slow it right down.";
+    if (/parachute/i.test(text)) return join(text); // the mission's own line already tells it in order
+    const sentences = text.match(/[^.!?]+[.!?]+["']?/g) || (text ? [text] : []);
+    const at = sentences.findIndex(function (s) { return /splash|recover/i.test(s); });
+    if (at === -1) return join(text, chutes);
+    sentences.splice(at, 0, chutes);
+    return join.apply(null, sentences);
   },
   finale: function (outcome) {
     return join(outcome && outcome.text, "And that's the mission.");
@@ -78,11 +96,24 @@ const SAY = {
 // ----- Helpers -----
 function worldOf(target, event) {
   if (WORLD[target]) return WORLD[target];
-  if (target === "deep") return /wild|comet/i.test(event.body || event.title) ? "comet" : "bennu";
+  if (target === "deep") {
+    // a named asteroid or dwarf planet is drawn and labelled as itself (it used to become Bennu)
+    const name = event.body || event.title || "";
+    if (/wild|comet/i.test(name)) return "comet";
+    const known = name.match(/\b(vesta|ceres|eros|mathilde|bennu)\b/i);
+    return known ? known[1].toLowerCase() : "bennu";
+  }
   if (target === "oval") return "sun";
   if (/pluto/i.test(event.title)) return "pluto";
   if (/arrokoth/i.test(event.title)) return "arrokoth";
   return null;
+}
+
+// asteroids, dwarf planets and comets: a spacecraft flies alongside them instead of orbiting a planet
+const SMALL_BODY = { comet: true, bennu: true, vesta: true, ceres: true, eros: true, mathilde: true };
+
+function spokenSeconds(text) {
+  return Math.round(String(text || "").split(/\s+/).filter(Boolean).length / 2.45 + 1);
 }
 
 function chapter(engine, label, e, extra) {
@@ -96,6 +127,7 @@ function fromEvents(events, meta) {
   const modelAt = function (i) { return (meta.models && meta.models[i]) || events[i].model || meta.defaultModel || "voyager"; };
   const stageAt = function (i) { return (meta.stages && meta.stages[i]) || events[i].stage || "B"; };
   const first = events[0];
+  const story = (hardwareReplays[meta.hardwareId] && hardwareReplays[meta.hardwareId].story) || {};
   const craft0 = modelAt(Math.min(1, events.length - 1));
   const crewed = Boolean(meta.crewed || CREWED[craft0] || CREWED[modelAt(0)]);
   const landingItem = meta.landingHardware ? hardwareList.find(function (h) { return h.id === meta.landingHardware; }) : null;
@@ -116,11 +148,12 @@ function fromEvents(events, meta) {
     chapters.push(chapter("film", "Departure", { title: "Straight out toward L2", date: first.date, caption: "The upper stage sends Webb directly toward L2, about 1.5 million kilometers from Earth." }, { shot: { kind: "depart", craft: craft0 }, narration: "Webb doesn't stay in Earth orbit at all. The rocket sends it straight out, on a month-long trip to a point about one and a half million kilometers away.", part: "out" }));
   } else if (!staysInOrbit) {
     chapters.push(chapter("film", leaves && !staysInOrbit ? "Leaving Earth" : "Earth orbit", { title: leaves && !staysInOrbit ? "Parking orbit and departure burn" : "In Earth orbit", date: first.date, caption: leaves && !staysInOrbit ? "In orbit for a short time, then the engine fires again to leave Earth." : "Circling Earth." },
-      { shot: { kind: "orbit", craft: craft0, burn: leaves && !staysInOrbit, roll: crewed }, narration: SAY.orbit(crewed, leaves && !staysInOrbit), part: "out" }));
-    if (leaves && !staysInOrbit) chapters.push(chapter("film", "Departure", { title: "Earth falls behind", date: first.date, caption: "The spacecraft speeds away from Earth." }, { shot: { kind: "depart", craft: craft0 }, narration: "", part: "out", short: true }));
+      { shot: { kind: "orbit", craft: craft0, burn: leaves && !staysInOrbit, roll: crewed }, narration: (leaves && !staysInOrbit && story.orbit) || SAY.orbit(crewed, leaves && !staysInOrbit), part: "out" }));
+    if (leaves && !staysInOrbit) chapters.push(chapter("film", "Departure", { title: "Earth falls behind", date: first.date, caption: "The spacecraft speeds away from Earth." }, { shot: { kind: "depart", craft: craft0 }, narration: story.depart || (crewed ? "" : "The upper stage has done its job. The spacecraft separates, and from here on it flies by itself."), part: "out", short: !story.depart }));
   }
 
   let returning = false;
+  let moonwalkAdded = false;
   for (let i = 1; i < events.length; i++) {
     const e = events[i];
     const action = (meta.actions && meta.actions[i]) || e.action;
@@ -140,7 +173,7 @@ function fromEvents(events, meta) {
           title: lm ? "Undocking and descent" : "Approach and entry",
           caption: lm ? "The Lunar Module undocks and starts its powered descent." : "The cruise stage separates; the capsule turns its heat shield forward.",
           shot: { kind: "descend", world: world || "mars", style: lm ? "lm" : style, craft: lm ? "lunar-module" : (style === "skycrane" || style === "airbag" || /viking|phoenix|insight/.test(landingItem.landing.lander || "")) ? "capsule" : craft, cruiseStage: world === "mars" },
-          narration: SAY.descend(lm ? "lm" : style, world)
+          narration: story.descend || SAY.descend(lm ? "lm" : style, world)
         }
       }));
       continue;
@@ -175,9 +208,9 @@ function fromEvents(events, meta) {
     }
     if (action === "deploy" || e.deploy && e.deploy[0] !== e.deploy[1]) {
       const place = meta.jwst ? "deep" : e.target === "Earth" ? "earth" : "deep";
-      if (world && world !== "earth" && world !== "comet" && world !== "bennu") {
+      if (world && world !== "earth" && !SMALL_BODY[world]) {
         chapters.push(chapter("film", "In orbit", e, { shot: { kind: "orbitAt", world: world, craft: craft }, narration: SAY.deploy(e), part: part }));
-      } else if (world === "comet" || world === "bennu") {
+      } else if (SMALL_BODY[world]) {
         chapters.push(chapter("film", "Flyby", e, { shot: { kind: "flyby", world: world, craft: craft }, narration: SAY.flyby(e), part: part }));
       } else {
         chapters.push(chapter("film", "Deployment", e, { shot: { kind: "deploy", craft: craft, place: place, from: e.deploy ? e.deploy[0] : 0, to: e.deploy ? e.deploy[1] : 1 }, narration: SAY.deploy(e), part: part }));
@@ -195,6 +228,25 @@ function fromEvents(events, meta) {
     }
     if (world === "sun") {
       chapters.push(chapter("film", "Near the Sun", e, { shot: { kind: "sun", craft: craft }, narration: SAY.sun(e), part: part }));
+      continue;
+    }
+    if (landingIndex > -1 && i > landingIndex && !returning && stage === "C" && MOONWALKS[meta.hardwareId]) {
+      // Master Doc 17: a crewed landing with a first-person moonwalk (data/moonwalks.js): its beats replace
+      // the general "On the surface" scene. Each beat is a scene, so pause, skip and the progress bar work.
+      if (!moonwalkAdded) {
+        moonwalkAdded = true;
+        const walk = MOONWALKS[meta.hardwareId];
+        walk.beats.forEach(function (b, k) {
+          chapters.push(chapter("film", b.label, null, {
+            title: b.title, date: b.time, caption: (b.narration.match(/^[^.!?]*[.!?]/) || [b.narration])[0],
+            narration: b.narration, quote: b.quote || null, seamless: k > 0, moonwalk: true, note: walk.note,
+            // the picture lasts as long as the words (about 2.45 spoken words a second), so the step, the
+            // scoop or the flag happens while the narrator is talking about it
+            shot: { kind: "moonwalk", mission: meta.hardwareId, beat: b.id, duration: Math.max(b.duration, spokenSeconds(b.narration) + (b.quote ? spokenSeconds(b.quote.text) + 1.5 : 0)) },
+            part: "out"
+          }));
+        });
+      }
       continue;
     }
     if (landingIndex > -1 && i > landingIndex && !returning && stage === "C") {
@@ -236,6 +288,11 @@ function fromEvents(events, meta) {
     }
     if (e.target === "Earth" && /L2/.test(e.title)) {
       chapters.push(chapter("film", "At L2", e, { shot: { kind: "deploy", craft: craft, place: "deep", from: 1, to: 1 }, narration: join(e.narration || e.caption), part: part }));
+      continue;
+    }
+    // a swingby past Earth (a gravity assist) is a fly-past, not an orbit
+    if (e.target === "Earth" && /swing|flyby|fly-by|gravity assist/i.test(e.title) && action !== "orbit") {
+      chapters.push(chapter("film", "Flyby", e, { shot: { kind: "flyby", world: "earth", craft: craft }, narration: SAY.flyby(e), part: part }));
       continue;
     }
     if (e.target === "Earth" && (action === "orbit" || stage === "B")) {

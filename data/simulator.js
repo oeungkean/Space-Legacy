@@ -77,6 +77,11 @@ export const SPACECRAFT = {
   zarya: { name: "Zarya (ISS module)", model: "zarya-unity", catalogId: "zarya", type: "station", crew: 0 },
   curiosity: { name: "Curiosity rover", model: "curiosity", catalogId: "curiosity", type: "rover", crew: 0 },
   perseverance: { name: "Perseverance rover", model: "perseverance", catalogId: "perseverance", type: "rover", crew: 0 },
+  // Master Doc 14: in Free Build the rovers are surface vehicles, so they need a ride. Curiosity (MSL,
+  // 2011) and Perseverance (Mars 2020, 2020) both flew to Mars inside an aeroshell on a cruise stage and
+  // were lowered by a rocket-powered descent stage, the "sky crane", after launching on an Atlas V 541.
+  // Sources: https://science.nasa.gov/mission/msl-curiosity/ and https://science.nasa.gov/mission/mars-2020-perseverance/
+  skycrane: { name: "Cruise stage, aeroshell and sky crane (rover delivery)", model: "capsule", catalogId: null, type: "lander", crew: 0 },
   viking: { name: "Viking 1 lander", model: "viking-lander", catalogId: "viking1", type: "lander", crew: 0 },
   "blue-ghost": { name: "Blue Ghost lander", model: "blue-ghost", catalogId: "blueghost1", type: "lander", crew: 0 },
   lro: { name: "Lunar Reconnaissance Orbiter", model: "lro", catalogId: "lro", type: "probe", crew: 0 },

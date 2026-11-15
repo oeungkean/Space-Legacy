@@ -20,7 +20,10 @@ import { missions } from "../data/missions.js";
 import { catalog } from "../data/catalog.js";
 import { openExplorer, startExplorer, stopExplorer, backInExplorer } from "./explorer.js";
 import { startSimulator, stopSimulator, showResults, setMode as setSimMode, showSimStep } from "./simulator.js";
-import { startExploration, stopExploration, loadSite } from "./exploration.js";
+import { startExploration, stopExploration, loadSite, getExplorationState } from "./exploration.js";
+import { collectiblesForSite } from "../data/collectibles.js";
+import { isRecorded, getPhotos, getSamples } from "./progress.js";
+import { modelIcon } from "./explorer.js";
 import { startCollection, stopCollection } from "./collection.js";
 import {
   startMission, getMission, completeObjective, setMissionState, setHudVisible, closeInfoCard, isInfoCardOpen, endMission
@@ -41,6 +44,9 @@ import {
 import { startCinematic, stopCinematic, skipCinematic, isCinematicRunning } from "./launch-cinematic.js";
 import { startLanding, stopLanding, hasLanding } from "./landing-scene.js";
 import { hardwareList } from "../data/hardware.js";
+import { missionBriefing } from "./briefing.js";
+import { createRocket } from "./rockets.js";
+import { buildAboutScreen } from "./about.js";
 
 // Find the elements on the page
 const welcomeScreen = document.getElementById("welcome-screen");
@@ -53,6 +59,7 @@ const simulatorScreen = document.getElementById("simulator-screen");
 const explorationScreen = document.getElementById("exploration-screen");
 const collectionScreen = document.getElementById("collection-screen");
 const creditsScreen = document.getElementById("credits-screen");
+const aboutScreen = document.getElementById("about-screen");
 const filmScreen = document.getElementById("film-screen");
 const landingBackButton = document.getElementById("landing-back");
 
@@ -124,6 +131,7 @@ function showScreen(screenToShow) {
   explorationScreen.classList.add("hidden");
   collectionScreen.classList.add("hidden");
   creditsScreen.classList.add("hidden");
+  aboutScreen.classList.add("hidden");
   filmScreen.classList.add("hidden");
 
   launchScreen.classList.remove("fade-out");
@@ -174,7 +182,7 @@ function showScreen(screenToShow) {
   const calm = screenToShow === welcomeScreen || screenToShow === solarSystemScreen ||
     screenToShow === destinationScreen || screenToShow === explorerScreen ||
     screenToShow === simulatorScreen || screenToShow === collectionScreen || screenToShow === explorationScreen ||
-    screenToShow === creditsScreen;
+    screenToShow === creditsScreen || screenToShow === aboutScreen;
   setLoop("ambient", calm ? 1 : 0);
   setLoop("music", calm ? 1 : 0);
   if (screenToShow !== destinationScreen) setAmbientMood(getHomePlanet()); // the globe sets its own world's mood
@@ -281,6 +289,34 @@ document.addEventListener("watch-landing", function (event) {
   startLanding(item);
 });
 
+// "Replay Mission" for a site without a full journey replay: the arrival, the landing, and what happened
+// after it (the site's real status and findings), in the mission player
+document.addEventListener("replay-landing", function (event) {
+  const item = hardwareList.find(function (entry) { return entry.id === event.detail.hardwareId; });
+  if (!hasLanding(item)) return;
+  playReplay(landingPlan(item));
+});
+const WORLD_KEY = { Moon: "moon", Mars: "mars", Venus: "venus", Mercury: "mercury", Jupiter: "jupiter", Saturn: "saturn", Titan: "titan" };
+function landingPlan(item) {
+  const world = WORLD_KEY[item.destination] || "mars";
+  const craft = item.landing.lander || item.landing.capsule || "capsule";
+  const verb = item.kind === "impact" ? "impact" : item.kind === "probe" ? "descent" : item.kind === "plunge" ? "final plunge" : "landing";
+  const after = [item.status && item.status.text].concat((item.contributions || []).slice(0, 2)).filter(Boolean);
+  return {
+    title: item.breadcrumbName || item.name,
+    source: { type: "landing", id: item.id },
+    chapters: [
+      { engine: "film", label: "Arrival", title: "Arriving at " + item.destination, date: item.landingDate, caption: item.summary,
+        narration: item.summary, part: "out", shot: { kind: "arrive", world: world, craft: craft } },
+      { engine: "landing", label: verb.charAt(0).toUpperCase() + verb.slice(1), title: item.name, date: item.landingDate,
+        caption: item.location, narration: (item.history || []).slice(1).map(function (h) { return h.text; }).join(" "),
+        part: "out", landing: true, item: item },
+      { engine: "film", label: "What happened next", title: "After the " + verb, date: "", caption: after.join(" "),
+        narration: "What happened next? " + after.join(" "), part: "end", finale: true, shot: { kind: "finale", world: world, craft: null } }
+    ]
+  };
+}
+
 // Back from the landing scene: return to the globe with the same marker selected
 function backFromLanding() {
   if (!landingItem) return;
@@ -310,8 +346,23 @@ function showExplorer(options) {
   options = options || {};
   if (options.replayOnly !== undefined) explorerMissions = options.replayOnly;
   openExplorer(options);
+  // Master Doc 17: from the top bar, Missions first asks which mode you want; links to a mission go straight in
+  explorerScreen.classList.toggle("choosing", Boolean(options.chooser));
   showScreen(explorerScreen);
+  if (options.chooser) {
+    const first = document.getElementById("chooser-real");
+    if (first && first.focus) setTimeout(function () { first.focus({ preventScroll: true }); }, 50);
+  }
 }
+document.getElementById("chooser-real").addEventListener("click", function () {
+  play("click");
+  explorerScreen.classList.remove("choosing");
+});
+document.getElementById("chooser-free").addEventListener("click", function () {
+  play("click");
+  explorerScreen.classList.remove("choosing");
+  openBuilder();
+});
 
 // Any page can ask for the Explorer: { itemId } opens one item, { region }, { body } or { category } filter it
 document.addEventListener("open-explorer", function (event) {
@@ -336,14 +387,36 @@ document.addEventListener("show-in-solar", function (event) {
 
 const navTabs = document.querySelectorAll ? document.querySelectorAll("[data-nav]") : [];
 
+// ----- Two modes (Master Doc 12) -----
+// Real Missions = the Missions page (every real mission and its hardware, each with a replay).
+// Free Build = the builder (the Simulator tab). Each has a button to switch to the other.
+function openBuilder() {
+  simulatorScreen.dataset.section = "simulator";
+  setSimMode("sandbox");
+  showScreen(simulatorScreen);
+}
+setSimMode("sandbox"); // the builder is Free Build
+document.getElementById("sim-switch").addEventListener("click", function () {
+  play("click");
+  showExplorer({ body: "", replayOnly: false });
+});
+document.getElementById("explorer-to-free").addEventListener("click", function () {
+  play("click");
+  openBuilder();
+});
+document.addEventListener("open-real-builder", function () { showExplorer({ body: "", replayOnly: false }); });
+
 function updateNavTabs() {
   const tabs = document.querySelectorAll ? document.querySelectorAll("[data-nav]") : [];
   let active = null;
   if (currentScreen === solarSystemScreen || currentScreen === destinationScreen) active = "solar";
   else if (currentScreen === explorerScreen) active = "explorer";
-  else if (currentScreen === simulatorScreen || currentScreen === explorationScreen) active = "simulator";
+  else if (currentScreen === simulatorScreen || currentScreen === explorationScreen) {
+    active = "simulator";
+  }
   else if (currentScreen === collectionScreen) active = "collection";
   else if (currentScreen === creditsScreen) active = "credits";
+  else if (currentScreen === aboutScreen) active = "about";
   tabs.forEach(function (tab) {
     const on = tab.dataset.nav === active;
     tab.classList.toggle("active", on);
@@ -362,13 +435,16 @@ function goSection(where) {
     const world = getCurrentWorldName() || "Mars";
     document.dispatchEvent(new CustomEvent("explore-destination", { detail: { destination: world } }));
   } else if (where === "simulator") {
-    showScreen(simulatorScreen);
+    openBuilder();
   } else if (where === "collection") {
     showScreen(collectionScreen);
   } else if (where === "credits") {
     showScreen(creditsScreen);
+  } else if (where === "about") {
+    buildAboutScreen();
+    showScreen(aboutScreen);
   } else {
-    showExplorer({ body: "", replayOnly: false }); // Missions always opens the full list (no leftover filter)
+    showExplorer({ body: "", replayOnly: false, chooser: true }); // Missions opens the mode choice, then the full list
   }
 }
 navTabs.forEach(function (tab) {
@@ -380,6 +456,7 @@ document.getElementById("explorer-home").addEventListener("click", goHome);
 (document.querySelectorAll ? document.querySelectorAll("[data-home-button]") : []).forEach(function (b) { b.addEventListener("click", goHome); });
 (document.querySelectorAll ? document.querySelectorAll("[data-open-help]") : []).forEach(function (b) { b.addEventListener("click", function () { openHelp(); }); });
 document.getElementById("welcome-credits").addEventListener("click", function () { play("click"); showScreen(creditsScreen); });
+document.getElementById("welcome-about").addEventListener("click", function () { play("click"); buildAboutScreen(); showScreen(aboutScreen); });
 // Credits: the category links scroll to their table (without changing the address)
 (document.querySelectorAll ? document.querySelectorAll(".credits-index a") : []).forEach(function (link) {
   link.addEventListener("click", function (event) {
@@ -396,6 +473,8 @@ document.getElementById("welcome-credits").addEventListener("click", function ()
   hints.forEach(function (hint) {
     const screen = hint.closest ? hint.closest(".screen") : null;
     if (!screen) return;
+    // The main board (Solar System) has no Controls button (Master Doc 15); its controls are in Help (?)
+    if (screen.id === "solar-system-screen") { hint.classList.add("hidden"); hint.setAttribute("aria-hidden", "true"); return; }
     if (hint.parentElement !== screen) screen.appendChild(hint);
     hint.classList.add("hint-pop");
     const button = document.createElement("button");
@@ -453,8 +532,8 @@ function buildJourney(config) {
     const arrive = Object.assign({ gap: destination.gap }, destination.target === "deep" ? { radius: destination.radius, angle: destination.angle, body: destination.body } : {},
       destination.target === "outbound" ? { far: destination.far } : {}, destination.around ? { around: destination.around } : {});
     events = [
-      eventFromTuple(["A", "Launch", "Free Build", "Liftoff on the " + (findItem(config.rocket) ? findItem(config.rocket).name : config.rocket) + ". " + (config.fictional ? "This combination never flew: it is a fictional Free Build mission." : "This combination really flew."), "Earth", { isLaunch: true }], config),
-      eventFromTuple(["C", "Arrival: " + destination.name, "Free Build", "The spacecraft reaches " + destination.name + ". Real missions took: " + destination.travel + ".", destination.target, Object.assign({ action: "orbit" }, arrive)], config)
+      eventFromTuple(["A", "Launch", "Free Build", "Liftoff on the " + rocketTitle(config.rocket) + ". " + (config.fictional ? "This combination never flew: it is a fictional Free Build mission." : "This combination really flew."), "Earth", { isLaunch: true }], config),
+      eventFromTuple(["C", "Arrival: " + destination.name, "Free Build", "The spacecraft reaches " + destination.name.replace(/^The /, "the ") + ". Real missions took: " + destination.travel + ".", destination.target, Object.assign({ action: "orbit" }, arrive)], config)
     ];
     if (craft.type === "crewed" && destination.target !== "outbound") {
       events.push(eventFromTuple(["D", "Return to Earth", "Free Build", "The crew comes home under parachutes.", "Earth", { gap: 0.02, model: RETURN_MODEL[config.spacecraft] || craft.model, action: "splashdown" }], config));
@@ -499,8 +578,75 @@ function planForSim(config) {
 
 let missionReturn = null; // the trip home, played after exploring
 
+// The landing for a Free Build site (fictional): the descent from orbit (a space shot) and then the
+// touchdown scene, with a lander that fits the spacecraft
+function freeDescentChapter(config, site) {
+  if (!site || (site.world !== "moon" && site.world !== "mars")) return null;
+  const craft = SPACECRAFT[config.spacecraft];
+  const moon = site.world === "moon";
+  const world = moon ? "Moon" : "Mars";
+  const toWorld = moon ? "the Moon" : "Mars"; // for sentences
+  let landing;
+  if (craft && craft.type === "rover" && !moon) {
+    landing = { style: "skycrane", rover: config.spacecraft === "curiosity" ? "curiosity" : "perseverance", roverScale: 1, shellRadius: 2.25, chuteRadius: 10.5 };
+  } else if (config.spacecraft === "viking") {
+    landing = { style: "retro", lander: "viking-lander", scale: 1.2, parachute: !moon, shellRadius: 1.75, chuteRadius: 8 };
+  } else if (config.spacecraft === "blue-ghost") {
+    landing = { style: "retro", lander: "blue-ghost", scale: 1, parachute: !moon, shellRadius: 1.9, chuteRadius: 9 };
+  } else {
+    // crewed spacecraft (and anything else) land in a lunar-module style lander
+    landing = { style: "retro", lander: "lunar-module", scale: 2.6, crew: craft && craft.type === "crewed", parachute: !moon, shellRadius: 3, chuteRadius: 12 };
+  }
+  landing.captions = {
+    braking: moon ? "There is no air on the Moon, so the lander slows down with its engine alone, firing against its direction of travel. (A fictional Free Build landing.)" : undefined,
+    approach: "The lander turns upright and slows down, looking for a safe, flat spot.",
+    touchdown: "Engines stir up the dust as the lander settles onto its footpads at " + site.name + "."
+  };
+  // the descent shows the same lander that touches down (on Mars, inside its entry capsule, as in the
+  // real missions' scenes), and the spacecraft it undocks from is the one that was built, not Apollo's
+  const lmStyle = landing.lander === "lunar-module";
+  const preShot = { kind: "descend", world: site.world, craft: lmStyle ? "lunar-module" : !moon ? "capsule" : (landing.lander || (craft ? craft.model : "capsule")), mother: lmStyle && craft ? (craft.model === "apollo-stack" ? "apollo-csm" : craft.model) : undefined, style: lmStyle ? "lm" : undefined, cruiseStage: !moon };
+  return {
+    engine: "landing",
+    label: "Descent & Landing",
+    title: "Landing at " + site.name,
+    date: "",
+    caption: "The craft comes down from orbit step by step, engines burning, to " + site.name + ". (Fictional Free Build landing.)",
+    narration: "Now the descent. From orbit, the craft slows down and drops toward " + toWorld + (moon ? ", with nothing but its engine to brake it, because the Moon has no air." : ", first through the thin air, then on its engines.") + " Bit by bit it comes down, until it settles gently on the surface.",
+    part: "out",
+    landing: true,
+    lm: landing.lander === "lunar-module" && moon,
+    item: { id: "free-landing-" + site.world, name: site.name, destination: world, mission: "Free Build (fictional)", location: site.name, landing: landing },
+    pre: {
+      shot: preShot,
+      title: "Descent from orbit",
+      caption: "Leaving orbit: the engine fires to slow down, and the long fall toward " + toWorld + " begins.",
+      narration: "The engine fires against the direction of travel, and the craft starts its long fall toward the surface."
+    }
+  };
+}
+
+// A rocket's name for captions (rockets missing from the catalog, like the shuttle flights, are named by their model)
+function rocketTitle(key) {
+  const item = findItem(key);
+  if (item) return item.name;
+  const model = createRocket(key);
+  return model && model.userData.name ? model.userData.name : key;
+}
+
+// The mission briefing (where from, where to, how long, possible or not) for a Mission Builder mission
+function briefOf(config) {
+  try {
+    return missionBriefing({ rocket: config.rocket, spacecraft: config.spacecraft, destination: config.destination, siteId: config.siteId, title: config.title });
+  } catch (error) {
+    return null; // the mission still plays without its briefing
+  }
+}
+
+let missionSuit = null; // the suit chosen in the builder (Master Doc 14), worn at the landing site
 document.addEventListener("sim-launch", function (event) {
   const config = event.detail;
+  missionSuit = config.suit || null;
   startMission(config);
   showResults(null);
   completeObjective("launch");
@@ -510,17 +656,23 @@ document.addEventListener("sim-launch", function (event) {
   if (site) {
     // Fly there and land; the mission continues at the exploration site
     const parts = splitForSite(plan, site);
+    // No landing in the journey (Free Build sites): add one, so the craft comes down step by step from
+    // orbit with its engine burning, instead of appearing on the ground
+    const descent = freeDescentChapter(config, site);
+    if (descent && !parts.outbound.some(function (c) { return c.engine === "landing"; })) parts.outbound.push(descent);
     const craft = SPACECRAFT[config.spacecraft] ? SPACECRAFT[config.spacecraft].model : null;
     const capsule = RETURN_MODEL[config.spacecraft] || null;
     missionReturn = parts.ret.some(function (c) { return c.engine === "landing"; }) ? { title: plan.title, chapters: parts.ret }
       : capsule ? { title: plan.title, chapters: genericReturn(plan.title, craft, capsule, site.world === "orbit" ? "earth" : site.world) } : null;
     playReplay({ title: plan.title, chapters: parts.outbound }, {
+      brief: briefOf(config),
       stopAfter: parts.outbound.length - 1,
       onFinish: function () { goToMissionSite(getMission()); }
     });
   } else {
     missionReturn = null;
     playReplay(plan, {
+      brief: briefOf(config),
       endTitle: "Mission complete",
       onFinish: function () {
         completeObjective("reach");
@@ -611,7 +763,7 @@ function goToMissionSite(mission) {
   completeObjective("reach");
   completeObjective("deploy");
   setMissionState({ stage: "C \u00B7 Landing", status: "On site" });
-  openSite(mission.siteId);
+  openSite(mission.siteId, missionSuit);
 }
 
 // After exploring: crews fly home (the trip home and the splashdown), then the mission is complete
@@ -694,33 +846,63 @@ function endMissionQuietly() {
   endMission();
 }
 document.getElementById("explore-sites-close").addEventListener("click", function () { sitesDialog.classList.add("hidden"); });
+// "My Collection" in the results: what you collected at this site, as small pictures (like a planet's
+// missions in the Solar System). The full Collection page is one link away.
 document.getElementById("results-collection").addEventListener("click", function () {
+  const panel = document.getElementById("results-found");
+  const open = panel.classList.toggle("hidden") === false;
+  this.setAttribute("aria-expanded", String(open));
+  if (open) fillResultsCollection();
+});
+document.getElementById("results-full-collection").addEventListener("click", function () {
   document.getElementById("explore-results").classList.add("hidden");
   showScreen(collectionScreen);
 });
-document.getElementById("results-simulator").addEventListener("click", function () {
-  document.getElementById("explore-results").classList.add("hidden");
-  showResults(getMission());
-  showScreen(simulatorScreen);
-});
+function fillResultsCollection() {
+  const grid = document.getElementById("results-found-grid");
+  const note = document.getElementById("results-found-note");
+  grid.innerHTML = "";
+  const state = getExplorationState();
+  const siteId = state && state.siteId;
+  const site = siteId ? SITES[siteId] : null;
+  const found = siteId ? collectiblesForSite(siteId).filter(function (c) { return isRecorded(c.id); }) : [];
+  found.forEach(function (c) {
+    const tile = document.createElement("div");
+    tile.className = "related-tile";
+    tile.innerHTML = '<span class="rt-pic"><img alt="" decoding="async"></span><b class="rt-name"></b><span class="rt-year"></span>';
+    tile.querySelector(".rt-name").textContent = c.card ? c.card.name : c.id;
+    tile.querySelector(".rt-year").textContent = c.kind === "target" ? "Science target" : c.kind === "observe" ? "Observed" : "Hardware";
+    if (c.model) modelIcon({ type: "model", key: c.model }, tile.querySelector("img"));
+    grid.appendChild(tile);
+  });
+  // photos you took here (their own small pictures)
+  const photos = site ? getPhotos().filter(function (p) { return p.site === site.name && p.image; }) : [];
+  photos.slice(0, 6).forEach(function (p) {
+    const tile = document.createElement("div");
+    tile.className = "related-tile";
+    tile.innerHTML = '<span class="rt-pic"><img alt=""></span><b class="rt-name"></b><span class="rt-year">Photo</span>';
+    tile.querySelector("img").src = p.image;
+    tile.querySelector(".rt-name").textContent = p.name;
+    grid.appendChild(tile);
+  });
+  const samples = site ? getSamples().filter(function (s) { return s.site === site.name; }).length : 0;
+  note.textContent = found.length || photos.length
+    ? found.length + " recorded · " + photos.length + " photo" + (photos.length === 1 ? "" : "s") + " · " + samples + " sample" + (samples === 1 ? "" : "s")
+    : "Nothing recorded here yet. Walk up to an object and press F to record it.";
+}
 document.getElementById("results-continue").addEventListener("click", function () {
   document.getElementById("explore-results").classList.add("hidden");
 });
 void setSimMode;
 document.getElementById("explorer-help").addEventListener("click", function () { openHelp(); });
 
-// From a hardware profile on a globe: open the same item in the Explorer
-document.getElementById("hw-explorer").addEventListener("click", function () {
-  const id = getSelectedHardwareId();
-  const item = catalog.find(function (entry) { return entry.hardware === id && entry.landing === id; }) ||
-    catalog.find(function (entry) { return entry.hardware === id; });
-  showExplorer(item ? { itemId: item.id } : { body: getCurrentWorldName() || "" });
+// "Go back" on a globe (the site panel, the flyby panel and the site list): back to the Solar System
+// (Master Doc 10: these were "Open in Missions" and "All hardware from this world")
+["hw-explorer", "dest-explorer-link", "visit-back"].forEach(function (id) {
+  const button = document.getElementById(id);
+  if (button) button.addEventListener("click", function () { showScreen(solarSystemScreen); });
 });
-
-// From a globe's site list: every catalog item linked to this world
-document.getElementById("dest-explorer-link").addEventListener("click", function () {
-  showExplorer({ body: getCurrentWorldName() || "" });
-});
+void getSelectedHardwareId;
 
 // ----- Help dialog -----
 function openHelp() {
@@ -1083,4 +1265,3 @@ setInterval(updateClocks, 1000);
   });
 });
 
-console.log("Space Legacy main.js loaded.");

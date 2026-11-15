@@ -165,7 +165,7 @@ export const missions = {
       },
       {
         stage: "B", title: "Pluto flyby", date: "July 14, 2015",
-        caption: "The first close-up look at Pluto, from about 7,800 km. (Pluto is not drawn in this view.)",
+        caption: "The first close-up look at Pluto, from about 7,800 km. (The Solar System view does not draw Pluto; the close-up uses an illustrative Pluto with its bright \"heart\".)",
         narration: "July 14th, 2015. After nine years in space, New Horizons flies past Pluto at about seven thousand eight hundred kilometers, and sends home the first close-up pictures.",
         target: "outbound", far: 0.82, body: "Pluto", model: "new-horizons", size: 0.25, zoom: 6
       },
