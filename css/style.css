@@ -5460,8 +5460,8 @@ button.primary:hover:not(:disabled) {
   position: relative;
 }
 .nav-tab svg {
-  width: 17px;
-  height: 17px;
+  width: 15px;
+  height: 15px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
