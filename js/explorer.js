@@ -381,20 +381,7 @@ function makeCard(item) {
     requestThumbnail(item, img, true);
   }
 
-  card.addEventListener("click", function () { 
-  openDetail(item.id);
-  // Set current mission for storytelling
-  state.currentMission = item.mission || group.id;
-  // Show the first story beat in the story viewer
-  if (state.currentMission) {
-    // Find and show the story - use the showMissionStory function from simulator
-    if (window.simulator && window.simulator.showMissionStory) {
-      window.simulator.showMissionStory(state.currentMission);
-    } else if (typeof showMissionStory === 'function') {
-      showMissionStory(state.currentMission);
-    }
-  }
-});
+  card.addEventListener("click", function () { openDetail(item.id); });
   card.addEventListener("pointerenter", function () { play("hover"); });
   return card;
 }
