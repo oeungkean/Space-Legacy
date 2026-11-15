@@ -826,18 +826,27 @@ export const ROCKET_KEYS = [
 // Only used in Sandbox Mode. It recolors this one rocket's white parts (paint) and dark bands (accent).
 // Historical Mode never calls it, so real rockets keep their real colors.
 export function paintRocket(rocket, look) {
-  if (!rocket || !look || (look.paint === null && look.accent === null) || (look.paint === undefined && look.accent === undefined)) return rocket;
+  if (!rocket || !look) return rocket;
   const m = materials();
-  const paint = look.paint !== null && look.paint !== undefined ? m.white.clone() : null;
-  if (paint) paint.color.set(look.paint);
-  const accent = look.accent !== null && look.accent !== undefined ? m.black.clone() : null;
-  if (accent) accent.color.set(look.accent);
+  const wantsPaint = look.paint !== null && look.paint !== undefined;
+  const wantsAccent = look.accent !== null && look.accent !== undefined;
+  // Both clones are made (and swapped in) even when nothing is painted yet, so the Rocket Lab can
+  // recolour the rocket live while a colour picker is open. Unpainted parts keep their own colour.
+  const paint = m.white.clone();
+  const accent = m.black.clone();
+  paint.color.copy(m.white.color);
+  accent.color.copy(m.black.color);
+  if (wantsPaint) paint.color.set(look.paint);
+  if (wantsAccent) accent.color.set(look.accent);
+  // kept on the rocket so the Rocket Lab can recolour it without rebuilding the model
+  rocket.userData.paintMaterial = paint;
+  rocket.userData.accentMaterial = accent;
   rocket.traverse(function (o) {
     if (!o.isMesh) return;
-    if (paint && o.material === m.white) o.material = paint;
-    else if (accent && o.material === m.black) o.material = accent;
+    if (o.material === m.white) o.material = paint;
+    else if (o.material === m.black) o.material = accent;
   });
-  rocket.userData.custom = true;
+  rocket.userData.custom = wantsPaint || wantsAccent;
   return rocket;
 }
 
@@ -874,6 +883,7 @@ export function addAccessories(rocket, look) {
   group.name = "free-build-accessories";
   const finMat = new THREE.MeshStandardMaterial({ color: look.finColor !== undefined && look.finColor !== null ? look.finColor : 0xb8412c, roughness: 0.5, metalness: 0.2 });
   if (acc.fins) {
+    rocket.userData.finMaterial = finMat; // for live recolouring in the Rocket Lab
     const r = coreRadiusAt(rocket, h * 0.06);
     const shape = new THREE.Shape();
     shape.moveTo(0, 0); shape.lineTo(r * 1.1, -h * 0.02); shape.lineTo(r * 1.1, h * 0.03); shape.lineTo(0, h * 0.11); shape.lineTo(0, 0);
@@ -893,6 +903,7 @@ export function addAccessories(rocket, look) {
     const band = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.015, r * 1.015, h * 0.025, 48, 1, true),
       new THREE.MeshStandardMaterial({ color: look.stripeColor !== undefined && look.stripeColor !== null ? look.stripeColor : 0x2f6fd8, roughness: 0.45, side: THREE.DoubleSide }));
     band.position.y = y;
+    rocket.userData.stripeMaterial = band.material; // for live recolouring in the Rocket Lab
     group.add(band);
   }
   if (acc.camera) {

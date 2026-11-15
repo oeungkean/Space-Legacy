@@ -373,15 +373,15 @@ export const hardwareList = [
     purpose:
       "Surveyor 3 was sent to practise soft landings for Apollo, take pictures, and test the lunar soil: how strong it is, how it reflects radar, and how it holds heat.",
     history: [
-      { date: "April 17, 1967", text: "Launches at 07:05 UTC on an Atlas-Centaur from Launch Complex 36B, first parking in Earth orbit before heading for the Moon." },
+      { date: "April 17, 1967", text: "Launches at 07:05 UTC on an Atlas-Centaur (AC-12) from Launch Complex 36B, first parking in Earth orbit before heading for the Moon. It weighs 997.9 kg at launch." },
       { date: "April 20, 1967", text: "Bright rocks confuse its radar, so the engines do not shut off: Surveyor 3 touches down three times (bouncing about 10 m, then 3 m high) before a command from Earth stops the engines. It comes to rest on a 14-degree slope inside a crater." },
       { date: "April 1967", text: "Two days after landing, its scoop starts digging trenches, up to 18 cm deep." },
       { date: "May 4, 1967", text: "The last data arrive, the day after local sunset. Surveyor 3 does not wake up after the two-week lunar night." },
-      { date: "November 20, 1969", text: "Apollo 12 astronauts Pete Conrad and Alan Bean walk over and take about 10 kg of parts, including the TV camera and the scoop, back to Earth to study what 2.5 years on the Moon did to them." }
+      { date: "November 20, 1969 (UTC; November 19 in the U.S.)", text: "On their second moonwalk, Apollo 12 astronauts Pete Conrad and Alan Bean walk over and take about 10 kg of parts, including the TV camera and the scoop, back to Earth to study what 2.5 years on the Moon did to them." }
     ],
     contributions: [
-      "Sent 6,326 TV pictures of its surroundings.",
-      "Its scoop dug trenches and made bearing and impact tests for 18 hours 22 minutes. The soil behaved like wet sand, strong enough (about 0.7 kg per square centimetre) to hold up an Apollo lunar module.",
+      "Sent 6,326 TV pictures of its surroundings, starting less than an hour after landing.",
+      "Its scoop dug trenches and made bearing and impact tests for 18 hours 22 minutes. Its scoop reached up to 1.5 m from the lander; it dug four trenches and made four bearing tests and thirteen impact tests. The soil behaved like wet sand, strong enough (about 0.7 kg per square centimetre) to hold up an Apollo lunar module.",
       "Photographed an eclipse of the Sun by the Earth, seen from the Moon.",
       "Its camera, brought back by Apollo 12, is now on display at the Smithsonian National Air and Space Museum."
     ],
@@ -428,7 +428,7 @@ export const hardwareList = [
     history: [
       { date: "November 14, 1969", text: "Apollo 12 launches on a Saturn V from Cape Canaveral." },
       { date: "November 19, 1969", text: "Conrad and Bean land Intrepid at 06:54 UTC in the Ocean of Storms, within about 180 m of Surveyor 3." },
-      { date: "November 19, 1969", text: "First moonwalk: they collect samples and set up the science station. The TV camera is pointed at the Sun by accident and stops working." },
+      { date: "November 19, 1969", text: "First moonwalk: they collect samples and set up the science station, which is switched on at 14:21 UTC. The TV camera is pointed at the Sun by accident and stops working." },
       { date: "November 20, 1969", text: "Second moonwalk: a 1.3 km geology walk that ends at Surveyor 3. They bring back about 10 kg of its parts, including its TV camera." },
       { date: "November 20, 1969", text: "The ascent stage lifts off at 14:25 UTC after 31 hours 31 minutes on the Moon." },
       { date: "November 20, 1969", text: "After the crew moves back into the command module, the empty ascent stage is cast off at 20:21 UTC and crashed on purpose about 60 km from the seismometer: the first recorded artificial moonquake." },
@@ -592,8 +592,8 @@ export const hardwareList = [
     destination: "Mars",
     mission: "Viking 1",
     location: "Western slopes of Chryse Planitia (Golden Plain)",
-    lat: 22.27,
-    lon: -47.95,
+    lat: 22.483,
+    lon: -47.94,
     landingDate: "July 20, 1976 (11:53 UTC)",
     image: null,
     summary:
@@ -601,7 +601,7 @@ export const hardwareList = [
     purpose:
       "Viking 1 studied Mars from the surface: taking pictures, measuring the weather, and running biology experiments on soil samples to look for life.",
     history: [
-      { date: "August 20, 1975", text: "Launches on a Titan IIIE-Centaur from Launch Complex 41, Cape Canaveral." },
+      { date: "August 20, 1975", text: "Launches at 21:22 UTC on a Titan IIIE-Centaur from Launch Complex 41, Cape Canaveral. The whole spacecraft weighs 3,527 kg: a 2,339 kg orbiter and a 978 kg lander." },
       { date: "June 19, 1976", text: "Enters orbit around Mars." },
       { date: "July 20, 1976", text: "The lander touches down at 11:53 UTC in Chryse Planitia, about 28 km from its planned target, and takes the first photo from the surface of Mars." },
       { date: "July 28, 1976", text: "The robot arm collects the first soil samples for the biology experiments." },
@@ -622,7 +622,7 @@ export const hardwareList = [
       sourceUrl: "https://science.nasa.gov/mission/viking-1/"
     },
     markerNote: "The marker shows the landing site.",
-    coordinateNote: "Coordinates from NASA's Mars24 lander list (22.27 N, 312.05 E). NASA's Viking 1 page gives 22.483 N, 47.94 W. The marker position on the globe is approximate.",
+    coordinateNote: "Coordinates from NASA's Viking 1 page (22.483 N, 47.94 W). NASA's Mars24 lander list gives 22.27 N, 312.05 E. The marker position on the globe is approximate.",
     sources: [
       { label: "NASA Science: Viking 1", url: "https://science.nasa.gov/mission/viking-1/" },
       { label: "NASA Science: How We Land on Mars", url: "https://science.nasa.gov/planetary-science/programs/mars-exploration/mission-timeline/how-we-land-on-mars/" },
@@ -655,9 +655,9 @@ export const hardwareList = [
     purpose:
       "Mars Pathfinder tested a low-cost way to land on Mars and delivered a small rover to study rocks and soil.",
     history: [
-      { date: "December 4, 1996", text: "Launches on a Delta II rocket from Cape Canaveral." },
+      { date: "December 4, 1996", text: "Launches on a Delta II 7925 rocket from Cape Canaveral Air Force Station, Florida." },
       { date: "July 4, 1997", text: "Lands in Ares Vallis at about 14 m/s inside its airbags, bouncing about 15 times (as high as 15 m) and coming to rest about 1 km from where it first hit." },
-      { date: "July 5, 1997", text: "Sojourner rolls onto the surface (on the mission's second sol)." },
+      { date: "July 5, 1997", text: "Late on the mission's second sol, Sojourner rolls down a rear ramp onto the surface. It is named after the civil-rights campaigner Sojourner Truth. The lander is named the Carl Sagan Memorial Station." },
       { date: "September 27, 1997", text: "Final data transmission from the lander." }
     ],
     contributions: [
@@ -665,6 +665,7 @@ export const hardwareList = [
       "More than 15 chemical analyses of rocks and soil.",
       "Rounded pebbles and the flood channel suggest that Mars was once warmer and wetter, with running water.",
       "2.3 billion bits of information in under three months.",
+      "Found magnetic dust in the air, watched dust devils, and saw early-morning water-ice clouds.",
       "Radio tracking of the lander measured Mars's pole of rotation and suggested a metal core between about 1,300 and 2,000 km in radius."
     ],
     status: {
@@ -685,7 +686,7 @@ export const hardwareList = [
       captions: {
         parachute: "A parachute slows the lander. Then rockets bring it almost to a stop about 20 m above the ground.",
         inflate: "About 100 m above the surface, the airbags inflate: four big bags, each made of six smaller balls.",
-        bounce: "Pathfinder bounces more than 15 times, up to about 15 m high, before rolling to a stop.",
+        bounce: "Pathfinder bounces about 15 times, up to about 15 m high, before rolling to a stop.",
         drive: "On July 5, 1997, Sojourner rolls off the lander: the first robotic rover on Mars."
       }
     }
@@ -701,7 +702,7 @@ export const hardwareList = [
     location: "Gusev crater",
     lat: -14.57,
     lon: 175.48,
-    landingDate: "January 4, 2004 (UTC)",
+    landingDate: "January 4, 2004 (UTC; January 3 in the U.S.)",
     image: null,
     summary:
       "A solar-powered rover planned for 90 Martian days that worked for more than six years and found signs of ancient hot springs.",
@@ -752,7 +753,7 @@ export const hardwareList = [
     location: "Eagle crater, Meridiani Planum",
     lat: -1.95,
     lon: -5.53,
-    landingDate: "January 25, 2004 (04:54 UTC)",
+    landingDate: "January 25, 2004 (04:54 UTC; January 24 in the U.S.)",
     image: null,
     summary:
       "A rover planned for 90 Martian days that worked for almost 15 years and drove 45.16 km, more than a marathon.",
@@ -853,7 +854,7 @@ export const hardwareList = [
     mission: "InSight",
     location: "Elysium Planitia",
     lat: 4.5,
-    lon: 135.62,
+    lon: 135.9,
     landingDate: "November 26, 2018",
     image: null,
     summary:
@@ -861,7 +862,8 @@ export const hardwareList = [
     purpose:
       "InSight studied the deep interior of Mars (its crust, mantle and core) using a seismometer placed on the ground.",
     history: [
-      { date: "November 26, 2018", text: "Lands in Elysium Planitia. Entry began about 128 km above the surface; six minutes later it had landed." },
+      { date: "May 5, 2018", text: "Launches at 4:05 a.m. PT on an Atlas V-401 from Vandenberg Air Force Base, California." },
+      { date: "November 26, 2018", text: "Lands in Elysium Planitia at 11:52:59 a.m. PT, near the equator. Entry began about 128 km above the surface; six minutes later it had landed." },
       { date: "December 2018", text: "Takes its first selfie, not long after landing." },
       { date: "December 15, 2022", text: "Last contact, after dust on its solar panels reduced its power." },
       { date: "December 21, 2022", text: "NASA declares the mission over after two missed contact attempts." }
@@ -879,7 +881,7 @@ export const hardwareList = [
       sourceUrl: "https://www.nasa.gov/missions/insight/nasa-retires-insight-mars-lander-mission-after-years-of-science/"
     },
     markerNote: "The marker shows the landing site.",
-    coordinateNote: "Coordinates from NASA's Mars24 lander list (4.50 N, 135.62 E). NASA's InSight page describes the landing area as centered at about 4.5 N, 135.9 E, about 600 km from Curiosity's landing site. The marker position on the globe is approximate.",
+    coordinateNote: "Coordinates from NASA's InSight page (about 4.5 N, 135.9 E, about 600 km from Curiosity's landing site). NASA's Mars24 lander list gives 4.50 N, 135.62 E. The marker position on the globe is approximate.",
     sources: [
       { label: "NASA: NASA Retires InSight Mars Lander Mission After Years of Science", url: "https://www.nasa.gov/missions/insight/nasa-retires-insight-mars-lander-mission-after-years-of-science/" },
       { label: "NASA Science: InSight Lander", url: "https://science.nasa.gov/mission/insight/" },

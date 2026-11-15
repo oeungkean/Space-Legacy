@@ -1860,6 +1860,78 @@ function createMessenger() {
   return craft;
 }
 
+// ---------- Asteroid and planet-hunting spacecraft (added 2026-11-15; simplified shapes) ----------
+
+// Kepler: a long telescope tube with a slanted sunshade, on a six-sided bus, with a fixed solar array
+// that wraps part-way round one side of the tube. Forward (+Z) = the telescope opening.
+function createKepler() {
+  const m = getMaterials();
+  const inner = new THREE.Group();
+  inner.add(put(cyl(0.75, 0.75, 2.6, m.foilBlack, 32), 0, 0.3, 0));                    // telescope tube
+  const shade = cyl(0.8, 0.8, 0.9, m.panelSilver, 32);                                 // sunshade at the opening
+  shade.position.set(0, 2.0, 0);
+  shade.rotation.z = 0.2;
+  inner.add(shade);
+  inner.add(put(cyl(0.95, 0.95, 0.8, m.foilGold, 6), 0, -1.35, 0));                     // spacecraft bus
+  for (let i = 0; i < 4; i++) {                                                         // solar array, four panels on one side
+    const a = -0.9 + i * 0.6;
+    const panel = box(0.62, 2.4, 0.04, m.solar);
+    panel.position.set(Math.sin(a) * 0.95, 0.2, Math.cos(a) * 0.95);
+    panel.rotation.y = a;
+    inner.add(panel);
+  }
+  const hga = dish(0.3, 0.1, m.dish, 18);                                               // antenna
+  hga.position.set(0, -1.85, -0.6);
+  hga.rotation.x = Math.PI;
+  inner.add(hga);
+  return forward(inner, 4.2);
+}
+
+// Dawn: a gold box with two very long solar wings (almost 20 m tip to tip), a dish antenna,
+// and ion engines underneath. Forward (+Z) = the antenna side.
+function createDawn() {
+  const m = getMaterials();
+  const craft = new THREE.Group();
+  craft.add(put(box(1.3, 1.6, 1.3, m.foilGold), 0, 0, 0));
+  [-1, 1].forEach(function (side) {
+    craft.add(strut(V(side * 0.65, 0, 0), V(side * 1.1, 0, 0), 0.04, m.metal));
+    for (let i = 0; i < 5; i++) {                                                       // five panels per wing
+      craft.add(put(box(1.55, 0.03, 1.5, m.solar), side * (1.95 + i * 1.6), 0, 0));
+    }
+  });
+  const hga = dish(0.75, 0.2, m.dish, 24);
+  hga.position.set(0, 0, 0.75);
+  hga.rotation.x = -Math.PI / 2;
+  craft.add(hga);
+  [-0.35, 0, 0.35].forEach(function (x) {                                               // three ion engines
+    craft.add(put(cyl(0.16, 0.2, 0.18, m.black, 16), x, -0.88, 0));
+  });
+  craft.add(put(cyl(0.12, 0.12, 0.25, m.black, 12), 0.35, 0.3, 0.68));                  // camera
+  craft.userData.size = 17;
+  return craft;
+}
+
+// NEAR Shoemaker: an eight-sided body with four solar panels spread around a fixed dish antenna,
+// and the instruments on the far side. Forward (+Z) = the antenna side.
+function createNear() {
+  const m = getMaterials();
+  const inner = new THREE.Group();
+  inner.add(put(cyl(0.85, 0.85, 1.7, m.foilGold, 8), 0, 0, 0));
+  const hga = dish(0.75, 0.2, m.dish, 24);
+  hga.position.set(0, 0.85, 0);
+  inner.add(hga);
+  for (let i = 0; i < 4; i++) {                                                         // four solar panels
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    const panel = box(1.0, 0.04, 1.6, m.solar);
+    panel.position.set(Math.cos(a) * 1.4, 0.9, Math.sin(a) * 1.4);
+    panel.rotation.y = -a;
+    inner.add(panel);
+  }
+  inner.add(put(cyl(0.2, 0.2, 0.35, m.black, 12), 0.3, -1.0, 0));                      // instruments
+  inner.add(put(box(0.3, 0.3, 0.3, m.panelWhite), -0.3, -1.0, 0.2));
+  return forward(inner, 3.6);
+}
+
 // Pioneer Venus probe: a cone-shaped heat shield with a round pressure vessel inside (nose forward = +Z)
 function createVenusProbe(large) {
   const m = getMaterials();
@@ -2969,6 +3041,9 @@ function buildModel(name) {
     case "centaur": return createCentaurStage();
     case "lcross": return createLcross();
     case "messenger": return createMessenger();
+    case "kepler": return createKepler();
+    case "dawn": return createDawn();
+    case "near": return createNear();
     case "venus-probe-large": return createVenusProbe(true);
     case "venus-probe-small": return createVenusProbe(false);
     case "sky-crane": return createSkyCrane();

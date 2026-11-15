@@ -11,7 +11,8 @@ export const DESTINATIONS = [
   { id: "mars", name: "Mars", hint: "Landers, rovers, a helicopter" },
   { id: "inner", name: "Sun, Mercury & Venus", hint: "Probes into heat and clouds" },
   { id: "outer", name: "Outer planets & beyond", hint: "Jupiter, Saturn, Pluto, interstellar space" },
-  { id: "small", name: "Asteroids & comets", hint: "Sample return" }
+  { id: "sun-orbit", name: "Orbit around the Sun", hint: "Telescopes far from Earth" },
+  { id: "small", name: "Asteroids & comets", hint: "Orbiters, a landing, sample return" }
 ];
 
 export const MISSION_GROUPS = [
@@ -29,6 +30,7 @@ export const MISSION_GROUPS = [
   { id: "pioneer-venus", name: "Pioneer Venus Multiprobe", year: 1978, where: "inner", items: ["pv-large", "pv-day"] },
   { id: "galileo", name: "Galileo", year: 1989, where: "outer", items: ["galileo", "galileo-probe"] },
   { id: "hubble", name: "Hubble Space Telescope", year: 1990, where: "earth", items: ["hubble"] },
+  { id: "near-shoemaker", name: "NEAR Shoemaker", year: 1996, where: "small", items: ["near-shoemaker"] },
   { id: "pathfinder", name: "Mars Pathfinder", year: 1996, where: "mars", items: ["pathfinder"] },
   { id: "cassini", name: "Cassini–Huygens", year: 1997, where: "outer", items: ["cassini", "huygens"] },
   { id: "iss", name: "International Space Station (first modules)", year: 1998, where: "earth", items: ["zarya", "unity"] },
@@ -37,6 +39,8 @@ export const MISSION_GROUPS = [
   { id: "messenger", name: "MESSENGER", year: 2004, where: "inner", items: ["messenger"] },
   { id: "new-horizons", name: "New Horizons", year: 2006, where: "outer", items: ["new-horizons"] },
   { id: "phoenix", name: "Phoenix", year: 2007, where: "mars", items: ["phoenix"] },
+  { id: "dawn", name: "Dawn", year: 2007, where: "small", items: ["dawn"] },
+  { id: "kepler", name: "Kepler", year: 2009, where: "sun-orbit", items: ["kepler"] },
   { id: "lro-lcross", name: "LRO and LCROSS", year: 2009, where: "moon", items: ["lro", "lcross"] },
   { id: "msl", name: "Mars Science Laboratory", year: 2011, where: "mars", items: ["curiosity"] },
   { id: "osiris-rex", name: "OSIRIS-REx", year: 2016, where: "small", items: ["osiris-rex", "osiris-src"] },

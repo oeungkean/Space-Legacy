@@ -2004,10 +2004,249 @@ function loop(time) {
 }
 
 // ----- Rocket Lab -----
-const PAINTS = [
-  { name: "Original", value: null }, { name: "Graphite", value: 0x3b3f46 }, { name: "Mars red", value: 0xb5482a },
-  { name: "Ocean blue", value: 0x2f5fb8 }, { name: "Gold", value: 0xc9a13b }
+// The four parts of the rocket the Lab can repaint, and the colour each one has before you touch it
+// (the same values the models use: white paint, dark bands, red fins, blue stripe).
+const PAINT_SLOTS = [
+  { key: "paint", label: "Body", base: 0xeef0f3 },
+  { key: "accent", label: "Bands", base: 0x18191d },
+  { key: "finColor", label: "Fins", base: 0xb8412c },
+  { key: "stripeColor", label: "Stripe", base: 0x2f6fd8 }
 ];
+
+function hexOf(value) {
+  return "#" + (value & 0xffffff).toString(16).padStart(6, "0");
+}
+
+// ----- The paint picker -----
+// The browser's own colour dialog ignores the site's theme (a light window with RGB boxes), so the
+// Lab uses this small panel instead: a saturation/brightness square, a hue strip, the hex value and
+// a way back to the original colour. Built once and reused by all four rows.
+const paintPop = { el: null, anchor: null, slot: null, sync: null, h: 0, s: 0, v: 1 };
+
+function hsvToRgb(h, s, v) {
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (h < 60) { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  if (d) {
+    if (max === r) h = 60 * (((g - b) / d) % 6);
+    else if (max === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+  }
+  if (h < 0) h += 360;
+  return [h, max ? d / max : 0, max];
+}
+
+function paintParts() {
+  const el = paintPop.el;
+  return {
+    title: el.querySelector(".paint-title"),
+    sv: el.querySelector(".paint-sv"),
+    dot: el.querySelector(".paint-sv-dot"),
+    hue: el.querySelector(".paint-hue"),
+    thumb: el.querySelector(".paint-hue-thumb"),
+    chip: el.querySelector(".paint-chip"),
+    hex: el.querySelector(".paint-hex"),
+    original: el.querySelector(".paint-original")
+  };
+}
+
+// Move the dot, the hue thumb, the chip and the hex text to match paintPop's h/s/v
+function paintDraw() {
+  const p = paintParts();
+  const rgb = hsvToRgb(paintPop.h, paintPop.s, paintPop.v);
+  const text = "#" + rgb.map(function (c) { return c.toString(16).padStart(2, "0"); }).join("");
+  p.sv.style.setProperty("--hue", "hsl(" + paintPop.h.toFixed(1) + " 100% 50%)");
+  p.dot.style.setProperty("--x", (paintPop.s * 100).toFixed(2) + "%");
+  p.dot.style.setProperty("--y", ((1 - paintPop.v) * 100).toFixed(2) + "%");
+  p.thumb.style.left = ((paintPop.h / 360) * 100).toFixed(2) + "%";
+  p.chip.style.setProperty("--swatch", text);
+  if (document.activeElement !== p.hex) p.hex.value = text;
+}
+
+function paintApply() {
+  const rgb = hsvToRgb(paintPop.h, paintPop.s, paintPop.v);
+  if (paintPop.slot) state.look[paintPop.slot.key] = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
+  paintDraw();
+  if (paintPop.sync) paintPop.sync();
+  recolourLabRocket();
+}
+
+function paintDrag(el, onMove) {
+  el.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    el.focus();
+    try { el.setPointerCapture(e.pointerId); } catch (error) { /* synthetic or already gone */ }
+    onMove(e);
+    const move = function (ev) { onMove(ev); };
+    const up = function () {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", up);
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", up);
+  });
+}
+
+function paintPanel() {
+  if (paintPop.el) return paintPop.el;
+  const el = document.createElement("div");
+  el.className = "paint-pop";
+  el.hidden = true;
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-label", "Colour picker");
+  el.innerHTML =
+    '<span class="paint-title"></span>' +
+    '<div class="paint-sv" role="slider" tabindex="0" aria-label="Saturation and brightness"><span class="paint-sv-dot"></span></div>' +
+    '<div class="paint-hue" role="slider" tabindex="0" aria-label="Hue"><span class="paint-hue-thumb"></span></div>' +
+    '<div class="paint-foot">' +
+      '<span class="paint-chip" aria-hidden="true"></span>' +
+      '<input class="paint-hex" type="text" id="paint-hex" name="paint-hex" spellcheck="false" maxlength="7" aria-label="Colour value">' +
+      '<button type="button" class="paint-original">Original</button>' +
+    '</div>';
+  document.body.appendChild(el);
+  paintPop.el = el;
+
+  const p = paintParts();
+
+  function svAt(e) {
+    const box = p.sv.getBoundingClientRect();
+    paintPop.s = Math.min(1, Math.max(0, (e.clientX - box.left) / box.width));
+    paintPop.v = 1 - Math.min(1, Math.max(0, (e.clientY - box.top) / box.height));
+    paintApply();
+  }
+  function hueAt(e) {
+    const box = p.hue.getBoundingClientRect();
+    paintPop.h = Math.min(359.9, Math.max(0, ((e.clientX - box.left) / box.width) * 360));
+    paintApply();
+  }
+  paintDrag(p.sv, svAt);
+  paintDrag(p.hue, hueAt);
+
+  p.sv.addEventListener("keydown", function (e) {
+    const step = e.shiftKey ? 0.1 : 0.02;
+    if (e.key === "ArrowLeft") paintPop.s = Math.max(0, paintPop.s - step);
+    else if (e.key === "ArrowRight") paintPop.s = Math.min(1, paintPop.s + step);
+    else if (e.key === "ArrowUp") paintPop.v = Math.min(1, paintPop.v + step);
+    else if (e.key === "ArrowDown") paintPop.v = Math.max(0, paintPop.v - step);
+    else return;
+    e.preventDefault();
+    paintApply();
+  });
+  p.hue.addEventListener("keydown", function (e) {
+    const step = e.shiftKey ? 10 : 2;
+    if (e.key === "ArrowLeft") paintPop.h = (paintPop.h - step + 360) % 360;
+    else if (e.key === "ArrowRight") paintPop.h = (paintPop.h + step) % 360;
+    else return;
+    e.preventDefault();
+    paintApply();
+  });
+
+  // typed value: #rgb or #rrggbb, with or without the hash
+  p.hex.addEventListener("input", function () {
+    const found = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(p.hex.value.trim());
+    if (!found) return;
+    let text = found[1];
+    if (text.length === 3) text = text[0] + text[0] + text[1] + text[1] + text[2] + text[2];
+    const hsv = rgbToHsv(parseInt(text.slice(0, 2), 16), parseInt(text.slice(2, 4), 16), parseInt(text.slice(4, 6), 16));
+    if (hsv[1] > 0) paintPop.h = hsv[0]; // greys keep the hue you were on
+    paintPop.s = hsv[1];
+    paintPop.v = hsv[2];
+    paintApply();
+  });
+
+  p.original.addEventListener("click", function () {
+    if (paintPop.slot) state.look[paintPop.slot.key] = null;
+    if (paintPop.sync) paintPop.sync();
+    recolourLabRocket();
+    // the picker goes back to the original colour too, so the chip and the hex agree with the row
+    if (paintPop.slot) {
+      const base = paintPop.slot.base;
+      const hsv = rgbToHsv((base >> 16) & 255, (base >> 8) & 255, base & 255);
+      paintPop.h = hsv[0];
+      paintPop.s = hsv[1];
+      paintPop.v = hsv[2];
+      paintDraw();
+    }
+  });
+
+  document.addEventListener("pointerdown", function (e) {
+    if (el.hidden) return;
+    if (el.contains(e.target) || e.target === paintPop.anchor) return;
+    closePaintPop();
+  }, true);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closePaintPop();
+  });
+  window.addEventListener("resize", closePaintPop);
+  document.addEventListener("scroll", closePaintPop, true);
+  return el;
+}
+
+function openPaintPop(slot, anchor, sync) {
+  const el = paintPanel();
+  if (!el.hidden && paintPop.anchor === anchor) { closePaintPop(); return; }
+  if (paintPop.anchor) paintPop.anchor.setAttribute("aria-expanded", "false");
+  paintPop.anchor = anchor;
+  paintPop.slot = slot;
+  paintPop.sync = sync;
+  anchor.setAttribute("aria-expanded", "true");
+
+  const value = state.look[slot.key];
+  const rgb = value === null || value === undefined
+    ? [(slot.base >> 16) & 255, (slot.base >> 8) & 255, slot.base & 255]
+    : [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+  const hsv = rgbToHsv(rgb[0], rgb[1], rgb[2]);
+  paintPop.h = hsv[0];
+  paintPop.s = hsv[1];
+  paintPop.v = hsv[2];
+
+  el.querySelector(".paint-title").textContent = slot.label;
+  el.hidden = false;
+  paintDraw();
+
+  // under the well, flipped up or sideways if that would run off the window
+  const a = anchor.getBoundingClientRect();
+  const width = el.offsetWidth;
+  const height = el.offsetHeight;
+  let left = a.left;
+  let top = a.bottom + 8;
+  if (left + width > window.innerWidth - 10) left = window.innerWidth - width - 10;
+  if (left < 10) left = 10;
+  if (top + height > window.innerHeight - 10) top = a.top - height - 8;
+  if (top < 10) top = 10;
+  el.style.left = Math.round(left) + "px";
+  el.style.top = Math.round(top) + "px";
+}
+
+function closePaintPop() {
+  if (!paintPop.el || paintPop.el.hidden) return;
+  paintPop.el.hidden = true;
+  if (paintPop.anchor) paintPop.anchor.setAttribute("aria-expanded", "false");
+  paintPop.anchor = null;
+  paintPop.slot = null;
+  paintPop.sync = null;
+}
+
 const UPGRADES = [
   { key: "thrust", name: "Engine thrust", effect: "Shorter cruise in the replay" },
   { key: "efficiency", name: "Fuel efficiency", effect: "More fuel for the Lunar Module game" },
@@ -2129,6 +2368,24 @@ function bar(label, value, max, text, fictional) {
     '<span class="lab-stat-bar"><i style="width:' + pct.toFixed(0) + '%"></i></span><b>' + text + "</b></div>";
 }
 
+// Recolour the rocket already standing in the Lab. Used while a colour picker is open: rebuilding
+// the whole model would close the picker and reset the camera, so we only swap the colours.
+function recolourLabRocket() {
+  if (!lab || state.mode !== "sandbox") return;
+  const rocket = lab.holder.children[0];
+  if (!rocket || !rocket.userData) return;
+  const data = rocket.userData;
+  PAINT_SLOTS.forEach(function (slot) {
+    const material = slot.key === "paint" ? data.paintMaterial
+      : slot.key === "accent" ? data.accentMaterial
+      : slot.key === "finColor" ? data.finMaterial
+      : data.stripeMaterial;
+    if (!material) return;
+    const value = state.look[slot.key];
+    material.color.set(value === null || value === undefined ? slot.base : value);
+  });
+}
+
 function renderLab() {
   if (!lab) {
     lab = makeViewer(labCanvas);
@@ -2208,32 +2465,59 @@ function renderLab() {
     : "Real Missions keeps every rocket exactly as it flew.";
   labLock.className = "lab-lock " + (sandbox ? "fictional" : "historical");
 
-  // 1. Paint
+  // 1. Paint: a real colour picker for each part, with its hex value and a way back to the original.
+  // The panel stays open while you drag, so the rocket is recoloured in place (recolourLabRocket).
   labCustom.innerHTML = "";
-  [["paint", "Body"], ["accent", "Bands"], ["finColor", "Fins"], ["stripeColor", "Stripe"]].forEach(function (pair) {
+  PAINT_SLOTS.forEach(function (slot) {
     const row = document.createElement("div");
     row.className = "lab-row";
     const label = document.createElement("span");
-    label.textContent = pair[1];
+    label.textContent = slot.label;
     row.appendChild(label);
-    const swatches = document.createElement("span");
-    swatches.className = "lab-swatches";
-    PAINTS.forEach(function (paint) {
-      const swatch = document.createElement("button");
-      swatch.className = "lab-swatch" + (state.look[pair[0]] === paint.value ? " active" : "");
-      swatch.title = pair[1] + ": " + paint.name;
-      swatch.setAttribute("aria-label", pair[1] + ": " + paint.name);
-      swatch.disabled = !sandbox;
-      swatch.style.setProperty("--swatch", paint.value === null ? "transparent" : "#" + paint.value.toString(16).padStart(6, "0"));
-      swatch.textContent = paint.value === null ? "\u00D7" : "";
-      swatch.addEventListener("click", function () {
-        state.look[pair[0]] = paint.value;
-        play("tick");
-        render();
-      });
-      swatches.appendChild(swatch);
+
+    const field = document.createElement("span");
+    field.className = "lab-color";
+
+    const well = document.createElement("button");
+    well.type = "button";
+    well.className = "lab-color-well";
+    well.disabled = !sandbox;
+    well.title = "Pick any colour for the " + slot.label.toLowerCase();
+    well.setAttribute("aria-label", slot.label + " colour");
+    well.setAttribute("aria-haspopup", "dialog");
+    well.setAttribute("aria-expanded", "false");
+    field.appendChild(well);
+
+    const readout = document.createElement("code");
+    readout.className = "lab-color-hex";
+    field.appendChild(readout);
+
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "lab-color-reset";
+    reset.textContent = "\u00D7";
+    reset.title = "Back to the original " + slot.label.toLowerCase() + " colour";
+    reset.setAttribute("aria-label", "Reset the " + slot.label.toLowerCase() + " colour");
+    field.appendChild(reset);
+
+    // the well, the value and the reset always show what state.look says
+    function syncRow() {
+      const value = state.look[slot.key];
+      const painted = value !== null && value !== undefined;
+      well.style.setProperty("--swatch", hexOf(painted ? value : slot.base));
+      readout.textContent = painted ? hexOf(value) : "original";
+      reset.disabled = !sandbox || !painted;
+    }
+    syncRow();
+
+    well.addEventListener("click", function () { openPaintPop(slot, well, syncRow); });
+    reset.addEventListener("click", function () {
+      state.look[slot.key] = null;
+      play("tick");
+      render();
     });
-    row.appendChild(swatches);
+
+    row.appendChild(field);
     labCustom.appendChild(row);
   });
 

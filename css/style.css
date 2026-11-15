@@ -2797,6 +2797,182 @@ body.ui-hidden .explorer-hero {
   outline-offset: 2px;
 }
 
+/* Paint: one real colour picker per part, its value, and a way back to the original colour */
+.lab-color {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.lab-row > .lab-color { flex: 0 0 auto; }
+
+/* The colour well: a small rounded chip of the current colour that opens the picker */
+.lab-color-well {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: var(--swatch, #000);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.lab-color-well:hover:not(:disabled) { border-color: var(--accent-line); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 0 3px rgba(122, 184, 255, 0.1); }
+.lab-color-well:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lab-color-well:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.lab-color-hex {
+  min-width: 4.7em;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.lab-color-reset {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.lab-color-reset:hover:not(:disabled) { color: var(--text); border-color: var(--accent-line); background: rgba(122, 184, 255, 0.08); }
+.lab-color-reset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lab-color-reset:disabled { opacity: 0.3; cursor: default; }
+
+/* The picker panel: same dark glass, thin lines and mono labels as the rest of the builder */
+.paint-pop {
+  position: fixed;
+  z-index: 90;
+  width: 232px;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: linear-gradient(160deg, rgba(13, 21, 34, 0.98), rgba(5, 9, 16, 0.99));
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  font-family: var(--sans);
+}
+
+.paint-pop[hidden] { display: none; }
+
+.paint-title {
+  display: block;
+  margin: 0 0 9px;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.paint-sv {
+  position: relative;
+  height: 118px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background:
+    linear-gradient(to top, #000, rgba(0, 0, 0, 0)),
+    linear-gradient(to right, #fff, var(--hue, #f00));
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.paint-sv:focus-visible,
+.paint-hue:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.paint-sv-dot {
+  position: absolute;
+  left: clamp(7px, var(--x, 100%), calc(100% - 7px));
+  top: clamp(7px, var(--y, 0%), calc(100% - 7px));
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.paint-hue {
+  position: relative;
+  height: 12px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.paint-hue-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.paint-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.paint-chip {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--swatch, #000);
+}
+
+.paint-hex {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+
+.paint-hex:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.paint-original {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.paint-original:hover { color: var(--text); border-color: var(--accent-line); background: rgba(122, 184, 255, 0.08); }
+.paint-original:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* =========================================================
    Astronaut Exploration
    ========================================================= */
@@ -3339,6 +3515,12 @@ body.ui-hidden .explorer-hero {
 }
 
 #collection-reset {
+  margin-top: 0;
+}
+
+/* the reset button sits inside a row so it lines up with the lists above it
+   (the row gets the same centred 1180px width as the other blocks) */
+.collection-reset-row {
   margin-top: 26px;
 }
 
@@ -8577,6 +8759,7 @@ body:has(.explore-map.big:not(.hidden)) .mission-hud {
   gap: 12px;
   height: 64px;
   padding: 0 14px;
+  overflow: hidden;
   border-bottom: 1px solid var(--line);
 }
 .mode-real .mode-art {
@@ -8588,13 +8771,34 @@ body:has(.explore-map.big:not(.hidden)) .mission-hud {
     radial-gradient(ellipse at 20% 50%, rgba(122, 184, 255, 0.35), transparent 70%),
     linear-gradient(135deg, #0d1a36, #060b18);
 }
+/* Free Build: a calm night panel with a soft cyan glow behind the icon and a dashed
+   flight path climbing across it (the blueprint grid was too busy) */
 .mode-free .mode-art {
   background:
-    repeating-linear-gradient(0deg, rgba(86, 212, 240, 0.16) 0 1px, transparent 1px 12px),
-    repeating-linear-gradient(90deg, rgba(86, 212, 240, 0.16) 0 1px, transparent 1px 12px),
-    radial-gradient(ellipse at 20% 50%, rgba(86, 212, 240, 0.25), transparent 70%),
-    linear-gradient(135deg, #06182a, #040b16);
+    radial-gradient(circle at 95% 20%, rgba(255, 255, 255, 0.7) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 82% 66%, rgba(86, 212, 240, 0.75) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 17% 52%, rgba(86, 212, 240, 0.30), transparent 58%),
+    radial-gradient(circle at 92% 14%, rgba(86, 212, 240, 0.13), transparent 52%),
+    linear-gradient(112deg, #0a2237, #050b16 74%);
 }
+.mode-free .mode-art::after {
+  content: "";
+  position: absolute;
+  left: 30px;
+  right: -170px;
+  top: 12px;
+  height: 72px;
+  border: 1.5px dashed rgba(86, 212, 240, 0.55);
+  border-color: rgba(86, 212, 240, 0.55) transparent transparent transparent;
+  border-radius: 50%;
+  transform: rotate(-4deg);
+  pointer-events: none;
+}
+/* keep the icon and the tag above the flight path */
+.mode-art .mode-icon,
+.mode-art .mode-art-tag { position: relative; z-index: 1; }
+/* the tag sits a little lower than centre, out of the flight path */
+.mode-art .mode-art-tag { top: 5px; }
 .mode-art .mode-icon {
   width: 42px;
   height: 42px;
@@ -8606,9 +8810,9 @@ body:has(.explore-map.big:not(.hidden)) .mission-hud {
 }
 .mode-art-tag {
   margin-left: auto;
-  padding: 3px 9px;
+  padding: 3px 8px;
   font-family: var(--mono);
-  font-size: 0.54rem;
+  font-size: 0.48rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   border-radius: 999px;
@@ -10193,23 +10397,33 @@ body.player-on .cinema-stages li {
   z-index: 3;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+  pointer-events: none; /* only the buttons take clicks, never the strip around them */
 }
 .lab-zoom-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
   border: 1px solid var(--line-strong);
   background: rgba(8, 12, 20, 0.72);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: var(--text);
-  font-size: 1.25rem;
+  font-size: 1.05rem;
   line-height: 1;
   cursor: pointer;
+  pointer-events: auto;
 }
 .lab-zoom-btn:hover { border-color: var(--accent-line); color: var(--accent); }
 .lab-zoom-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Phones put the telemetry card in the bottom-right corner, so the buttons take the bottom-left */
+@media (max-width: 760px) {
+  .lab-zoom {
+    right: auto;
+    left: 10px;
+    bottom: 14px;
+  }
+}
 /* The subtitles stay clear of the stage list on the right (and the same width on the left) */
 @media (min-width: 1000px) {
   .mp-caption {
@@ -10521,27 +10735,10 @@ body.player-on .cinema-stages li { padding: 7px 10px; }
 .explorer-panel .explorer-mode { padding: 0 0 2px; }
 .explorer-panel #explorer-categories {
   position: relative;
-  margin: 0 0 0 8px;
-  padding: 4px 0 0 7px;
-}
-/* the rail from the card down to its lists, with a short branch to each */
-.explorer-panel #explorer-categories::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 26px;
-  border-left: 1px solid var(--accent-line);
+  margin: 0;
+  padding: 4px 0 0;
 }
 .explorer-panel #explorer-categories .dd-group { position: relative; margin-left: 0; margin-right: 0; }
-.explorer-panel #explorer-categories .dd-group::before {
-  content: "";
-  position: absolute;
-  left: -7px;
-  top: 26px;
-  width: 7px;
-  border-top: 1px solid var(--accent-line);
-}
 /* the switch buttons are small and quiet (they are a way out, not a main choice) */
 .mode-switch-btn {
   display: inline-block;
@@ -10564,8 +10761,6 @@ body.player-on .cinema-stages li { padding: 7px 10px; }
   /* slim strip: the card fits its box (icon centred above a short label), the lists hang under it */
   #explorer-screen.sidebar-collapsed .explorer-panel { margin: 0 6px 4px; padding: 6px 4px 8px; border-radius: 14px; }
   #explorer-screen.sidebar-collapsed .explorer-panel #explorer-categories { margin: 0; padding: 4px 0 0; }
-  #explorer-screen.sidebar-collapsed .explorer-panel #explorer-categories::before,
-  #explorer-screen.sidebar-collapsed .explorer-panel #explorer-categories .dd-group::before { display: none; }
   #explorer-screen.sidebar-collapsed .explorer-mode { padding: 0; }
   #explorer-screen.sidebar-collapsed .explorer-mode .mode-card {
     display: flex;
@@ -10609,7 +10804,7 @@ body.player-on .cinema-stages li { padding: 7px 10px; }
 }
 /* Builder zoom: + and - drawn as icons, exactly centred in their squares */
 .lab-zoom-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0; }
-.lab-zoom-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.lab-zoom-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 /* inside the panel the box titles are shown in full ("All hardware", not "All ha...") */
 .explorer-panel .dd-toggle { gap: 6px; }
 .explorer-panel .dd-value,
@@ -10951,8 +11146,8 @@ body.player-on .cinema-stages { width: 230px; box-sizing: border-box; padding: 1
 
 /* ----- The two modes, switched in the middle of the page (Missions and the builder) ----- */
 .mode-segment {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* both halves the same width, whatever the labels say */
   gap: 4px;
   width: max-content;
   margin: 0 auto 22px !important;
@@ -11090,3 +11285,100 @@ html, html * { scrollbar-color: rgba(122, 184, 255, 0.32) rgba(8, 12, 24, 0.55) 
 .fp-note.hidden { display: none; }
 /* an astronaut's own words, with their name */
 #mp-caption.mp-quote { font-style: italic; color: #ffe3a3; border-left: 3px solid #d9a63a; padding-left: 12px; }
+
+/* ---------- About us (team cards; js/about.js) ---------- */
+.welcome-links {
+  position: absolute;
+  bottom: 14px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+}
+.welcome-links .credit-link {
+  position: static;
+}
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)); /* six members: three on top, three below */
+  gap: 18px;
+  padding-bottom: 32px;
+}
+.team-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 26px 22px 24px;
+  background: linear-gradient(180deg, rgba(14, 21, 40, 0.7), rgba(7, 10, 20, 0.7));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.team-card:hover {
+  border-color: var(--accent-line);
+  transform: translateY(-2px);
+}
+.team-photo {
+  position: relative;
+  width: 124px;
+  height: 124px;
+  margin-bottom: 16px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 30% 25%, var(--accent-mid), rgba(10, 15, 28, 0.9) 70%);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 0 0 4px rgba(122, 184, 255, 0.06);
+}
+.team-photo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.team-initials {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--display);
+  font-size: 2.1rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+.team-photo.has-photo .team-initials {
+  visibility: hidden;
+}
+.team-card h3 {
+  margin: 0 0 4px;
+  font-family: var(--display);
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+.team-role {
+  margin: 0 0 6px;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.team-school {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.team-about {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+  opacity: 0.88;
+}
+@media (max-width: 760px) {
+  .team-grid {
+    grid-template-columns: 1fr;
+  }
+}

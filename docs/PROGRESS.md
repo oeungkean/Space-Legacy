@@ -1,5 +1,49 @@
 # Progress
 
+## Completed (2026-11-15): Small layout fixes
+- **My Collection:** "Reset my collection" now lines up with the Photos and Virtual samples lists above it (it used to sit at the page's left edge).
+- **Missions sidebar:** removed the vertical rail and the extra left indent, so the two filter boxes sit evenly inside the panel.
+- **Real Missions / Free Build switch:** both halves are the same width, on the Missions page and in the builder.
+- **Free Build mode card:** the busy blueprint grid is now a calm night panel — a soft cyan glow behind the icon, a dashed flight path climbing across the strip and two faint stars. The gear icon is now a rocket, and the "Engineer" tag is smaller and sits lower.
+- **Workshop → Paint:** the five fixed swatches are now a colour picker for each part (Body, Bands, Fins, Stripe): a chip that opens a small panel in the site's own style — a saturation/brightness square, a hue strip, the hex value and an "Original" button — with the hex shown next to the chip and a "×" that puts the original colour back. Any colour works, the rocket is recoloured live while the panel is open, and the controls stay disabled in Real Missions.
+- **Builder zoom buttons:** the + and − squares are smaller (30px, 15px icons), and on phones they move to the bottom-left corner, because the Telemetry card sits in the bottom-right there and the buttons used to cover its last rows.
+- Files: `index.html`, `css/style.css`, `js/simulator.js`, `js/rockets.js`.
+
+## Completed (2026-11-15): About us screen
+- New **About us** tab (top bar, every screen) and an "About us" link on the welcome screen, next to Credits.
+- One card per team member: photo, name, role, school year and what they do.
+- **Team details and photo links live in `data/team.js`.** Paste a link into `photo: ""` (or use a file such as `assets/team/navit.jpg`). Empty or broken links show the member's initials.
+- Real team photos added: six 512×512 square crops in `assets/team/` (228 KB total), framed on each person's face. No CSS change was needed — `object-fit: cover` shows the square as-is.
+- Files: `data/team.js`, `js/about.js` (new); `index.html`, `js/main.js`, `css/style.css`; `assets/team/` (new).
+- Tested at 1366×768 and 390×844: 6 cards, a working photo link shows the photo, a broken link falls back to initials, no console errors.
+
+## Completed (2026-11-15): Data checked against the challenge resources
+Every fact was checked against the 14 NASA / NSSDCA links supplied for the challenge.
+
+**New missions** (`data/catalog.js`, `data/mission-groups.js`, simple models in `js/models.js`):
+- **Kepler Space Telescope** (2009–2018): new "Orbit around the Sun" region and Missions destination.
+- **Dawn** (Vesta and Ceres, 2007–2018): still orbiting Ceres.
+- **NEAR Shoemaker** (Eros, 1996–2001): the first landing on an asteroid.
+- The models are representative shapes built in code (the "not an official NASA 3D model" note shows).
+- The Delta II, Delta II Heavy and Atlas V 401 entries now list these launches (and InSight's).
+
+**Changed to match the supplied pages:**
+- Viking 1 coordinates: now 22.483 N, 47.94 W (NASA Viking 1 page); the Mars24 value stays in the note.
+- InSight coordinates: now 4.5 N, 135.9 E (NASA InSight page); the Mars24 value stays in the note. Launch added to its history.
+- Pathfinder: "bounces about 15 times" (was "more than 15"); Delta II 7925; lander and rover names; dust and cloud findings.
+- Spirit and Opportunity: U.S. landing dates added next to the UTC dates.
+- Surveyor 3: launch mass, scoop tests, U.S. date of the Apollo 12 visit.
+- Apollo 12: science station switch-on time.
+- Pioneer 10: mass, launch pad, Jupiter speed, heading (Aldebaran) and 2017 distance.
+- Specifications added for Apollo 11 LM, Apollo 15, Apollo 12, Surveyor 3, Viking 1, Pathfinder, Spirit, Opportunity, InSight, Ingenuity.
+
+**Tested** (local server, 1366×768, Three.js 0.160.0 served locally because the CDN was blocked in the test machine):
+- All 69 catalog items belong to one mission; every related item and rocket exists.
+- Kepler, Dawn, NEAR, Viking 1, InSight, Pioneer 10 and Surveyor 3 open in the Explorer with their specs.
+- The new region appears in the filter and the sidebar. No console errors.
+
+**Not verified:** Google Fonts, NASA's official 3D models and remote textures (no internet in the test machine).
+
 ## Completed (2026-11-14): Kampu Space Master Doc (6)
 **Fixes**
 - **"The thing from Earth follows the rocket" (after Replay):** jumping straight to the climb skipped the countdown scene, which was where the crawler and its tower were hidden. Every scene after the rollout now puts the rocket on its pad and hides the crawler first.

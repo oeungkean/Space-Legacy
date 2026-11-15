@@ -46,6 +46,7 @@ import { startLanding, stopLanding, hasLanding } from "./landing-scene.js";
 import { hardwareList } from "../data/hardware.js";
 import { missionBriefing } from "./briefing.js";
 import { createRocket } from "./rockets.js";
+import { buildAboutScreen } from "./about.js";
 
 // Find the elements on the page
 const welcomeScreen = document.getElementById("welcome-screen");
@@ -58,6 +59,7 @@ const simulatorScreen = document.getElementById("simulator-screen");
 const explorationScreen = document.getElementById("exploration-screen");
 const collectionScreen = document.getElementById("collection-screen");
 const creditsScreen = document.getElementById("credits-screen");
+const aboutScreen = document.getElementById("about-screen");
 const filmScreen = document.getElementById("film-screen");
 const landingBackButton = document.getElementById("landing-back");
 
@@ -129,6 +131,7 @@ function showScreen(screenToShow) {
   explorationScreen.classList.add("hidden");
   collectionScreen.classList.add("hidden");
   creditsScreen.classList.add("hidden");
+  aboutScreen.classList.add("hidden");
   filmScreen.classList.add("hidden");
 
   launchScreen.classList.remove("fade-out");
@@ -179,7 +182,7 @@ function showScreen(screenToShow) {
   const calm = screenToShow === welcomeScreen || screenToShow === solarSystemScreen ||
     screenToShow === destinationScreen || screenToShow === explorerScreen ||
     screenToShow === simulatorScreen || screenToShow === collectionScreen || screenToShow === explorationScreen ||
-    screenToShow === creditsScreen;
+    screenToShow === creditsScreen || screenToShow === aboutScreen;
   setLoop("ambient", calm ? 1 : 0);
   setLoop("music", calm ? 1 : 0);
   if (screenToShow !== destinationScreen) setAmbientMood(getHomePlanet()); // the globe sets its own world's mood
@@ -413,6 +416,7 @@ function updateNavTabs() {
   }
   else if (currentScreen === collectionScreen) active = "collection";
   else if (currentScreen === creditsScreen) active = "credits";
+  else if (currentScreen === aboutScreen) active = "about";
   tabs.forEach(function (tab) {
     const on = tab.dataset.nav === active;
     tab.classList.toggle("active", on);
@@ -436,6 +440,9 @@ function goSection(where) {
     showScreen(collectionScreen);
   } else if (where === "credits") {
     showScreen(creditsScreen);
+  } else if (where === "about") {
+    buildAboutScreen();
+    showScreen(aboutScreen);
   } else {
     showExplorer({ body: "", replayOnly: false, chooser: true }); // Missions opens the mode choice, then the full list
   }
@@ -449,6 +456,7 @@ document.getElementById("explorer-home").addEventListener("click", goHome);
 (document.querySelectorAll ? document.querySelectorAll("[data-home-button]") : []).forEach(function (b) { b.addEventListener("click", goHome); });
 (document.querySelectorAll ? document.querySelectorAll("[data-open-help]") : []).forEach(function (b) { b.addEventListener("click", function () { openHelp(); }); });
 document.getElementById("welcome-credits").addEventListener("click", function () { play("click"); showScreen(creditsScreen); });
+document.getElementById("welcome-about").addEventListener("click", function () { play("click"); buildAboutScreen(); showScreen(aboutScreen); });
 // Credits: the category links scroll to their table (without changing the address)
 (document.querySelectorAll ? document.querySelectorAll(".credits-index a") : []).forEach(function (link) {
   link.addEventListener("click", function (event) {

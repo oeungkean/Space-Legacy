@@ -263,7 +263,7 @@ function sidebarHeading(text) {
   filterGroups.push(group);
   currentGroup = group;
 }
-const DEST_DOTS = { earth: "#4c8dff", moon: "#b9b6b0", mars: "#d9692f", inner: "#e8b24a", outer: "#c9a77a", small: "#8f877d" };
+const DEST_DOTS = { earth: "#4c8dff", moon: "#b9b6b0", mars: "#d9692f", inner: "#e8b24a", outer: "#c9a77a", "sun-orbit": "#f2d36b", small: "#8f877d" };
 
 function buildCategories() {
   categoryList.innerHTML = "";
