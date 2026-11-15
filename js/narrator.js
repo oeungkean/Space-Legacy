@@ -23,6 +23,7 @@ function score(voice) {
   if (/premium|enhanced|siri/i.test(name)) s += 80;              // Apple high-quality voices
   if (/google/i.test(name)) s += 50;                             // Chrome's cloud voices
   if (/aria|jenny|guy|davis|andrew|emma|ava|brian|sonia|ryan|libby|natasha|william/i.test(name)) s += 30;
+  if (/multilingual/i.test(name) && /natural|online/i.test(name)) s += 15; // the newest, most expressive Edge voices
   if (/samantha|daniel|karen|moira|serena|allison|tom/i.test(name)) s += 20;
   if (/espeak|robot|novelty|zarvox|trinoids|whisper|bad news|bells|boing|bubbles|cellos|deranged|hysterical|organ|superstar/i.test(name)) s -= 200;
   if (/desktop/i.test(name)) s -= 10;                            // older offline Windows voices sound flatter
@@ -73,7 +74,7 @@ onSettingChange(function (key) {
   if (live && live.token === token && live.index < live.list.length) {
     const resume = live;
     stopSpeaking();
-    speakList(resume.list, resume.index, resume.onDone, resume.onSentence, resume.shown);
+    speakList(resume.list, resume.index, resume.onDone, resume.onSentence, resume.shown, resume.alt ? altVoice() : null);
   }
 });
 let live = null; // what is being spoken now: { list, index, onDone, token }
@@ -117,7 +118,7 @@ function sentences(text) {
 let held = null;
 export function pauseSpeaking() {
   if (!speechSupported || !live || live.token !== token || live.index >= live.list.length) return;
-  held = { list: live.list, index: live.index, onDone: live.onDone, onSentence: live.onSentence, shown: live.shown };
+  held = { list: live.list, index: live.index, onDone: live.onDone, onSentence: live.onSentence, shown: live.shown, alt: live.alt };
   token++; // the cancelled sentence's end and error events are ignored
   window.speechSynthesis.cancel();
 }
@@ -125,7 +126,7 @@ export function resumeSpeaking() {
   if (!held) return false;
   const h = held;
   held = null;
-  speakList(h.list, h.index, h.onDone, h.onSentence, h.shown);
+  speakList(h.list, h.index, h.onDone, h.onSentence, h.shown, h.alt);
   return true;
 }
 export function isSpeechHeld() { return Boolean(held); }
@@ -160,7 +161,8 @@ function writtenSentences(text) {
 }
 
 // onSentence (optional): called with each written sentence just before it is spoken (for subtitles)
-export function speak(text, onDone, onSentence) {
+// options.alt: say it in a second voice, different from the narrator's (for the astronauts' own words)
+export function speak(text, onDone, onSentence, options) {
   stopSpeaking();
   if (!speechSupported) {
     if (onDone) onDone();
@@ -173,54 +175,80 @@ export function speak(text, onDone, onSentence) {
     // long sentences are said in two breaths, but shown whole
     sentences(humanize(w)).forEach(function (spoken) { list.push(spoken); shown.push(w); });
   });
-  speakList(list, 0, onDone, onSentence, shown);
+  speakList(list, 0, onDone, onSentence, shown, options && options.alt ? altVoice() : null);
 }
 
-function speakList(list, start, onDone, onSentence, shown) {
+// A second voice for quotes: the best voice that is not the narrator's (the same voice, a little lower,
+// if the browser has only one)
+function altVoice() {
+  const ranked = voices.slice().sort(function (a, b) { return score(b) - score(a); });
+  const other = ranked.find(function (v) { return !chosen || v.name !== chosen.name; });
+  return { voice: other || chosen, pitch: other ? 1 : 0.85 };
+}
+
+function speakList(list, start, onDone, onSentence, shown, alt) {
   if (!chosen) refreshVoices();
+  const voiceToUse = alt && alt.voice ? alt.voice : chosen;
   const myToken = token;
   const baseRate = Math.max(0.6, Math.min(1.4, getSetting("narratorRate") || 1));
   let index = start || 0;
-  live = { list: list, index: index, onDone: onDone, token: myToken, onSentence: onSentence, shown: shown };
+  live = { list: list, index: index, onDone: onDone, token: myToken, onSentence: onSentence, shown: shown, alt: alt };
 
   function finish() {
     if (myToken === token && onDone) onDone();
   }
 
-  function next() {
-    if (myToken !== token) return;
-    if (index >= list.length) {
-      finish();
-      return;
-    }
-    const sentence = list[index];
-    if (onSentence && shown && shown[index] && (index === (start || 0) || shown[index] !== shown[index - 1])) onSentence(shown[index]);
+  // Neural ("Natural") voices already breathe and vary their tone like a person; changing their pitch or rate
+  // per sentence makes them sound more synthetic, so they are left alone. Older voices get a small variation.
+  const neural = Boolean(voiceToUse && score(voiceToUse) >= 100);
+
+  // Master Doc 17 (smoother flow): each sentence is queued as soon as the one before it starts, so the voice
+  // engine runs them together with its own natural breath (no timer gap, and online voices can fetch the next
+  // sentence while this one plays). Subtitles change as each sentence starts.
+  let queued = start || 0;
+  function utter(i) {
+    const sentence = list[i];
     const utterance = new SpeechSynthesisUtterance(sentence);
-    if (chosen) {
-      utterance.voice = chosen;
-      utterance.lang = chosen.lang;
+    if (voiceToUse) {
+      utterance.voice = voiceToUse;
+      utterance.lang = voiceToUse.lang;
     } else {
       utterance.lang = "en-US";
     }
-    // Small, human variation: questions lift, the opening line is a touch slower, others vary slightly
     const question = /\?$/.test(sentence);
-    const wobble = (Math.sin(index * 2.3) * 0.5 + 0.5);
-    utterance.rate = baseRate * (index === 0 ? 0.93 : 0.95 + wobble * 0.05);
-    utterance.pitch = question ? 1.08 : 0.98 + wobble * 0.05;
+    if (neural) {
+      utterance.rate = baseRate;
+      utterance.pitch = 1;
+    } else {
+      const wobble = (Math.sin(i * 2.3) * 0.5 + 0.5);
+      utterance.rate = baseRate * (i === 0 ? 0.94 : 0.96 + wobble * 0.04);
+      utterance.pitch = question ? 1.06 : 0.99 + wobble * 0.03;
+    }
+    if (alt && alt.pitch !== 1) utterance.pitch = alt.pitch;
     utterance.volume = 1;
-    utterance.onend = function () {
-      index++;
-      if (live && live.token === myToken) live.index = index;
+    utterance.onstart = function () {
       if (myToken !== token) return;
-      // A breath between sentences: longer after a long sentence or a full stop, shorter after a comma-like break
-      const pause = sentence.length > 120 ? 420 : /[.!?]$/.test(sentence) ? 300 : 180;
-      setTimeout(next, pause / baseRate);
+      if (onSentence && shown && shown[i] && (i === (start || 0) || shown[i] !== shown[i - 1])) onSentence(shown[i]);
+      if (i + 1 < list.length && queued < i + 1) {
+        queued = i + 1;
+        utter(i + 1);
+      }
     };
-    utterance.onerror = function () {
+    utterance.onend = function () {
+      if (myToken !== token) return;
+      index = i + 1;
+      if (live && live.token === myToken) live.index = index;
+      if (index >= list.length) finish();
+      else if (queued < index) { queued = index; utter(index); } // in case a voice never fired onstart
+    };
+    utterance.onerror = function (event) {
+      if (myToken !== token) return;
+      if (event && (event.error === "interrupted" || event.error === "canceled")) return;
       index = list.length;
       finish();
     };
     window.speechSynthesis.speak(utterance);
   }
-  next();
+  if (index >= list.length) finish();
+  else utter(index);
 }

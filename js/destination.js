@@ -52,7 +52,7 @@ const SELECTED_COLOR = 0xffffff;
 // Files in assets/textures come from Solar System Scope (https://www.solarsystemscope.com/textures/, CC BY 4.0).
 const TEXTURE_FOLDER = "assets/textures/";
 const MOON_CDN_URL =
-  "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/moon_1024.jpg";
+  "assets/textures/moon_1024.jpg";
 
 const MARKER_COLORS = {
   landing: 0xff8a3d, // landers and rovers (orange)

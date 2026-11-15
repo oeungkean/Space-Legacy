@@ -182,6 +182,7 @@ function setText(c) {
   chapterText.textContent = c.title || c.label;
   dateText.textContent = c.date || "";
   captionText.textContent = c.caption || "";
+  captionText.classList.remove("mp-quote");
   captionText.classList.toggle("hidden", !captionsOn || !c.caption);
   // the new scene's title and caption fade in, rather than snapping to the new text
   [chapterText, captionText, dateText].forEach(function (node) {
@@ -217,10 +218,10 @@ function startChapter(i, natural) {
   // When the story moves on by itself, a short bridge comes first: a card says what happens next and
   // when, while the scene that just ended keeps moving behind it (the rocket, the planet and the stars
   // carry on; nothing freezes). Then the old picture melts into the new scene.
-  const bridgeTime = natural && !firstScene ? 3200 / Math.max(1, getPlaybackSpeed()) : 0; // long enough to read
+  const bridgeTime = natural && !firstScene && !c.seamless ? 2200 / Math.max(1, getPlaybackSpeed()) : 0; // long enough to read (Master Doc 17: was 3.2 s)
   if (bridgeTime > 0) {
     showBridge(c, i, false);
-    sayLine(my, c.pre ? c.pre.narration : c.narration); // the narrator speaks over the title card too
+    sayLine(my, c.pre ? c.pre.narration : c.narration, c.pre ? null : c.quote); // the narrator speaks over the title card too
     spokenFor = my;
   }
   setTimeout(function next() {
@@ -328,7 +329,7 @@ function beginChapter(my, c, held) {
     fade.classList.remove("on");
     if (held) meltHeldFrame();
     if (pendingSeek !== null) applySeek(c, pendingSeek);
-    if (spokenFor !== my) sayLine(my, c.pre ? c.pre.narration : c.narration);
+    if (spokenFor !== my) sayLine(my, c.pre ? c.pre.narration : c.narration, c.pre ? null : c.quote);
   }
 }
 
@@ -438,16 +439,33 @@ if (brief) {
   });
 }
 
-function sayLine(my, text) {
+// quote (optional, Master Doc 17): { speaker, text }, an astronaut's own words, shown with their name and
+// read in a second voice after the narration
+function sayLine(my, text, quote) {
+  captionText.classList.remove("mp-quote");
+  function done() { if (my === token) { voiceDone = true; tryAdvance(my, false); } }
+  function sayQuote() {
+    if (my !== token) return;
+    captionText.classList.add("mp-quote");
+    captionText.textContent = quote.speaker + ": “" + quote.text + "”";
+    if (captionsOn) captionText.classList.remove("hidden");
+    speak(quote.text, done, null, { alt: true });
+  }
   if (voiceOn() && text) { // at every speed: the narrator always tells the story
     voiceDone = false;
     stopSpeaking();
     // the subtitle shows exactly the sentence being spoken
-    speak(text, function () { if (my === token) { voiceDone = true; tryAdvance(my, false); } }, function (sentence) {
+    speak(text, quote ? function () { if (my === token) setTimeout(sayQuote, 250); } : done, function (sentence) {
       if (my !== token || !captionsOn) return;
+      captionText.classList.remove("mp-quote");
       captionText.textContent = sentence;
       captionText.classList.remove("hidden");
     });
+  } else if (quote && captionsOn) {
+    // voice off: the quote is still shown
+    captionText.classList.add("mp-quote");
+    captionText.textContent = quote.speaker + ": “" + quote.text + "”";
+    captionText.classList.remove("hidden");
   }
 }
 
@@ -462,7 +480,7 @@ function tryAdvance(my, force) {
   if (my !== token || !engineDone || paused) return;
   if (voiceDone || force || !voiceOn()) {
     clearTimeout(advanceTimer);
-    advanceTimer = setTimeout(function () { if (my === token && !paused) advance(); }, force ? 0 : 900);
+    advanceTimer = setTimeout(function () { if (my === token && !paused) advance(); }, force ? 0 : 350); // a short beat, not a long silence
     return;
   }
   clearTimeout(waitTimer);
@@ -475,7 +493,7 @@ function tryAdvance(my, force) {
     if (my !== token || voiceDone) { clearInterval(quietTimer); return; }
     if (paused || isSpeechHeld()) { quiet = 0; return; }
     quiet = window.speechSynthesis && window.speechSynthesis.speaking ? 0 : quiet + 1;
-    if (quiet >= 6) { // about 3 seconds of silence (longer than any pause between sentences)
+    if (quiet >= 3) { // about 1.5 seconds of silence (sentences now run together, so this means it has stopped)
       clearInterval(quietTimer);
       voiceDone = true;
       tryAdvance(my, false);

@@ -2373,7 +2373,7 @@ export function hasLanding(hardware) {
 const SITE_MAPS = {
   Moon: "assets/textures/moon.jpg", Mars: "assets/textures/mars.jpg", Mercury: "assets/textures/mercury.jpg",
   Venus: "assets/textures/venus_surface.jpg", Jupiter: "assets/textures/jupiter.jpg", Saturn: "assets/textures/saturn.jpg",
-  Earth: "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg"
+  Earth: "assets/textures/earth_atmos_2048.jpg"
 };
 const siteCard = document.getElementById("landing-site");
 function formatCoordinate(value, positive, negative) {

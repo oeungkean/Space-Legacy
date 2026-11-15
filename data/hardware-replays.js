@@ -18,6 +18,28 @@ export const hardwareReplays = {
   apollo11: {
     label: "Apollo 11 Eagle",
     craftScale: 0.03,
+    // Master Doc 17: the mission's own words for the scenes between the events (instead of general lines).
+    // Sources: NASA Apollo 11 Mission Report and Apollo Flight Journal; NASA Apollo Lunar Surface Journal.
+    story: {
+      orbit:
+        "About twelve minutes after launch, Apollo 11 is in a parking orbit about 185 kilometers above Earth. " +
+        "For one and a half orbits, the crew and Mission Control check every system. " +
+        "Then, over the Pacific Ocean, the third stage fires again for almost six minutes. " +
+        "This is trans-lunar injection, and it raises Apollo 11's speed to about 39,000 kilometers per hour, fast enough to reach the Moon.",
+      depart:
+        "About half an hour later, Michael Collins separates the command module Columbia, turns it around, and docks nose to nose with Eagle, then pulls Eagle free of the third stage. " +
+        "For the next three days, the crew coasts toward the Moon. Only one small course correction is needed on the way out, and the astronauts send live television pictures home.",
+      descend:
+        "On July 20th, Eagle undocks from Columbia, and Collins stays alone in lunar orbit. " +
+        "Eagle's descent engine fires for about twelve and a half minutes. " +
+        "On the way down, the guidance computer flashes 1202 and 1201 alarms, warnings that it is overloaded, and Mission Control decides it is safe to go on. " +
+        "Near the end, Armstrong sees that the computer is steering them toward a crater full of boulders. He takes partial manual control and flies on to a clear, flat spot.",
+      sources: [
+        { label: "NASA: Apollo 11 Mission Report (MSC-00171)", url: "https://www.hq.nasa.gov/alsj/a11/A11_MissionReport.pdf" },
+        { label: "NASA Apollo Flight Journal: Apollo 11", url: "https://history.nasa.gov/afj/ap11fj/index.html" },
+        { label: "NASA Apollo Lunar Surface Journal: Apollo 11", url: "https://www.hq.nasa.gov/alsj/a11/a11.html" }
+      ]
+    },
     events: [
       {
         title: "Launch from Earth",
@@ -52,7 +74,6 @@ export const hardwareReplays = {
         caption:
           "Eagle separates from the command module and descends. It touches down at 20:17 UTC (4:17 p.m. in Florida) at Tranquility Base.",
         narration:
-          "July 20th, 1969. Armstrong and Aldrin undock the Lunar Module Eagle from the command module, and begin their descent. " +
           "At 20:17 Universal Time, which is 4:17 in the afternoon in Florida, Eagle touches down in the Sea of Tranquility. " +
           "Armstrong tells Mission Control: Tranquility Base here. The Eagle has landed.",
         target: "Moon", gap: 0.35, around: 0.5, zoom: 1.4, scale: 0.018

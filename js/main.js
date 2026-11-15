@@ -343,8 +343,23 @@ function showExplorer(options) {
   options = options || {};
   if (options.replayOnly !== undefined) explorerMissions = options.replayOnly;
   openExplorer(options);
+  // Master Doc 17: from the top bar, Missions first asks which mode you want; links to a mission go straight in
+  explorerScreen.classList.toggle("choosing", Boolean(options.chooser));
   showScreen(explorerScreen);
+  if (options.chooser) {
+    const first = document.getElementById("chooser-real");
+    if (first && first.focus) setTimeout(function () { first.focus({ preventScroll: true }); }, 50);
+  }
 }
+document.getElementById("chooser-real").addEventListener("click", function () {
+  play("click");
+  explorerScreen.classList.remove("choosing");
+});
+document.getElementById("chooser-free").addEventListener("click", function () {
+  play("click");
+  explorerScreen.classList.remove("choosing");
+  openBuilder();
+});
 
 // Any page can ask for the Explorer: { itemId } opens one item, { region }, { body } or { category } filter it
 document.addEventListener("open-explorer", function (event) {
@@ -422,7 +437,7 @@ function goSection(where) {
   } else if (where === "credits") {
     showScreen(creditsScreen);
   } else {
-    showExplorer({ body: "", replayOnly: false }); // Missions always opens the full list (no leftover filter)
+    showExplorer({ body: "", replayOnly: false, chooser: true }); // Missions opens the mode choice, then the full list
   }
 }
 navTabs.forEach(function (tab) {

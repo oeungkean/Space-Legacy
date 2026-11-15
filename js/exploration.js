@@ -26,6 +26,8 @@ import { planetMaterial as lookMaterial, cloudMaterial } from "./planet-look.js"
 import { uiIcon } from "./icons.js";
 import { modelIcon } from "./explorer.js";
 import { collectiblesForSite } from "../data/collectibles.js";
+import { createGuide } from "./guide-astronaut.js";
+import { getSetting, setSetting } from "./settings.js";
 import { play, setLoop } from "./sounds.js";
 import {
   recordObject, isRecorded, addPhoto, addSample, completeObjective, failObjective, setMissionState, addDiscovery, getMission,
@@ -34,6 +36,9 @@ import {
 
 // ----- Page elements -----
 const canvas = document.getElementById("explore-canvas");
+const guideAsk = document.getElementById("guide-ask");
+const guideToggle = document.getElementById("guide-toggle");
+let guide = null; // Free Build: the astronaut guide (js/guide-astronaut.js)
 const titleText = document.getElementById("explore-title");
 const modeText = document.getElementById("explore-mode");
 const fictionTag = document.getElementById("explore-fiction");
@@ -265,6 +270,7 @@ function clearWorld() {
   while (worldGroup.children.length) worldGroup.remove(worldGroup.children[0]);
   labelLayer.innerHTML = "";
   objects = [];
+  if (guide) { guide.dispose(); guide = null; }
   lander = vehicle = craft = interior = astronaut = null;
   boulders = [];
   trail.length = 0;
@@ -304,6 +310,13 @@ export function loadSite(id, options) {
     astronaut = castShadows(createSuitedAstronaut(suitOverride || site.suit || "axemu"));
     worldGroup.add(astronaut);
   }
+  // Free Build (Master Doc 17): a second astronaut who can tell you about the objects left here
+  const freeBuild = Boolean(site.fictional || (getMission() && getMission().mode === "sandbox"));
+  if (astronaut && freeBuild && site.world !== "orbit") {
+    guide = createGuide(worldGroup, suitOverride || site.suit || "axemu", heightAt);
+    guide.setHidden(getSetting("guideHidden"));
+  }
+  updateGuideToggle();
 
   // The landed spacecraft (Apollo sites)
   if (site.start === "lm-landing" || (site.fictional && site.world === "moon")) {
@@ -623,6 +636,7 @@ function pressed(k) {
   else if (k === "e") interact();
   else if (k === "f") collectNearest();
   else if (k === "q") useEquipment();
+  else if (k === "y") askGuide();
   else if (k === "p") useEquipment("camera");
   else if (k >= "1" && k <= "9" && Number(k) <= inventory.length) selectSlot(Number(k) - 1);
   else if (k === "r" && mode === "rover") toggleArm();
@@ -761,6 +775,41 @@ function interact() {
     if (near.object.entry.kind === "target") completeObjective("examine");
   }
 }
+
+// Y (or the button): the guide walks to the nearest object and tells its story (Free Build only)
+function askGuide() {
+  if (!guide || mode !== "foot" || action) return;
+  if (guide.isHidden()) {
+    guide.setHidden(false);
+    setSetting("guideHidden", false);
+    updateGuideToggle();
+  }
+  const near = nearest(8);
+  if (!near) {
+    setMessage("Walk up to a labelled object, then ask your guide about it.", 3);
+    play("noResults");
+    return;
+  }
+  play("open");
+  const p = near.object.group.getWorldPosition ? near.object.group.getWorldPosition(new THREE.Vector3()) : near.object.group.position.clone();
+  guide.talkAbout(near.object.entry, p);
+}
+function updateGuideToggle() {
+  if (!guideToggle) return;
+  guideToggle.classList.toggle("hidden", !guide);
+  guideToggle.textContent = guide && guide.isHidden() ? "Show guide" : "Hide guide";
+  guideToggle.setAttribute("aria-pressed", guide && !guide.isHidden() ? "true" : "false");
+}
+if (guideToggle) {
+  guideToggle.addEventListener("click", function () {
+    if (!guide) return;
+    guide.setHidden(!guide.isHidden());
+    setSetting("guideHidden", guide.isHidden());
+    updateGuideToggle();
+    play("click");
+  });
+}
+if (guideAsk) guideAsk.addEventListener("click", function () { askGuide(); });
 
 // F: record the nearest object into My Collection (with a short animation)
 function collectNearest() {
@@ -2203,7 +2252,7 @@ function updateLabels() {
     promptBox.classList.remove("hidden");
     promptName.textContent = near.object.entry.card.name;
     const recorded = isRecorded(near.object.entry.id);
-    promptKeys.textContent = (recorded ? "Recorded ✓ · " : "[F] Record in My Collection · ") + "[E] Examine";
+    promptKeys.textContent = (recorded ? "Recorded ✓ · " : "[F] Record in My Collection · ") + "[E] Examine" + (guide && mode === "foot" ? " · [Y] Ask your guide" : "");
   } else if (mode === "foot" && vehicle && player.pos.distanceTo(vehicle.pos) < (vehicle.kind === "lrv" ? 3.2 : 3.5)) {
     promptBox.classList.remove("hidden");
     promptName.textContent = vehicle.kind === "lrv" ? "Lunar Roving Vehicle" : "Rover (Free Build: fictional)";
@@ -2231,6 +2280,11 @@ function frame(time) {
   const dt = Math.min(0.05, Math.max(0, ((time || 0) - lastTime) / 1000)) || 1 / 60;
   lastTime = time || lastTime + 16;
   if (site && !isInfoCardOpen()) update(dt);
+  if (guide && site && !isInfoCardOpen()) guide.update(dt, mode === "foot" ? player.pos : focusPosition(), player.yaw, mode === "foot", site.world);
+  if (guideAsk) {
+    const askable = Boolean(guide && !guide.isHidden() && mode === "foot" && !action && nearest(5));
+    guideAsk.classList.toggle("hidden", !askable || guide.isTalking());
+  }
   if (site && site.world !== "orbit") {
     const f = focusPosition();
     sun.position.set(f.x + sunDirection.x * 150, f.y + sunDirection.y * 150, f.z + sunDirection.z * 150);
@@ -2272,6 +2326,7 @@ export function startExploration(id, options) {
 
 export function stopExploration() {
   running = false;
+  if (guide) guide.stopTalking();
   Object.keys(keys).forEach(function (k) { keys[k] = false; });
   Object.keys(held).forEach(function (k) { held[k] = false; });
   setLoop("engine", 0);

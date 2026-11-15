@@ -32,7 +32,7 @@ The `_4k` maps replace the 2K ones once loaded (the 2K maps show first and stay 
 
 `titan_4k.jpg`: NASA/JPL-Caltech/Space Science Institute, "Titan Mosaic: The Surface Under the Haze", PIA22770 (https://images.nasa.gov/details/PIA22770, https://photojournal.jpl.nasa.gov/catalog/PIA22770). A Cassini ISS global mosaic at 938 nm (near-infrared) built from 9,873 images; public domain (NASA). Resized from 5760 x 2880 to 4096 x 2048 and tinted warm orange for display (the original is greyscale). Its 0 degrees longitude is at the left edge, so the code turns it half a turn to line up with the other maps. Downloaded 2026-11-14.
 
-Earth's day map, normal map, specular (ocean-shine) map and clouds load from the three.js examples on jsDelivr. You do not need to add them.
+Earth's day map, normal map, specular (ocean-shine) map and clouds, and the second Moon map, are copies of the three.js r160 example textures (https://github.com/mrdoob/three.js/tree/r160/examples/textures/planets, MIT licence, copyright the three.js authors). They are saved in `assets/textures/`: `earth_atmos_2048.jpg`, `earth_atmos_4096.jpg`, `earth_normal_2048.jpg`, `earth_specular_2048.jpg`, `earth_clouds_1024.png`, `moon_1024.jpg` (about 2.3 MB). They used to load from the jsDelivr CDN; serving them from the project stops Microsoft Edge's "Tracking Prevention blocked access to storage" warnings and lets them work offline.
 
 ## Mission photos on the "Replay finished" card (loaded from NASA, not stored here)
 

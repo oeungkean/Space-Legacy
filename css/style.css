@@ -10832,3 +10832,261 @@ body.player-on .cinema-stages { width: 230px; box-sizing: border-box; padding: 1
   .race-row { grid-template-columns: 1fr 64px; }
   .race-label { grid-column: 1 / -1; }
 }
+
+/* =========================================================================================
+   Kampu Space Master Doc (17), 2026-11-15
+   ========================================================================================= */
+/* Builder progress: segments like the mission replay timeline (filled = done, outlined = current) */
+.build-progress { gap: 4px; padding: 8px 10px 10px; }
+.build-progress .station-tab { position: relative; padding-bottom: 16px; background: none !important; box-shadow: none !important; }
+.build-progress .station-tab::after { display: none !important; }
+.build-progress .station-tab::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  height: 7px;
+  border-radius: 4px;
+  --seg-fill: 0%;
+  --seg-color: var(--st-active);
+  background: linear-gradient(var(--seg-color), var(--seg-color)) no-repeat, rgba(58, 67, 86, 0.55);
+  background-size: var(--seg-fill) 100%, 100% 100%;
+  transition: background-size 0.5s ease;
+}
+.build-progress .station-tab.done::before { --seg-fill: 100%; --seg-color: var(--st-done); }
+.build-progress .station-tab.active::before { --seg-fill: 50%; outline: 1px solid var(--st-active); outline-offset: 1px; }
+.build-progress .station-tab.done:not(.active) em::after { content: none; }
+.station-tabs + .station-pane { margin-top: 4px; }
+.bay-progress { display: none; }
+.sim-free .build-progress .station-tab.active::before { --seg-color: #56d4f0; outline-color: #56d4f0; }
+
+/* The "next" button: centred in a bar pinned to the bottom of the screen, so it is always in view */
+.bay-next-row {
+  position: sticky;
+  bottom: -60px; /* cancels .sim-main's bottom padding, so the bar sits on the screen's bottom edge */
+  z-index: 6;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+  margin: 18px -32px -60px;
+  padding: 18px 32px 12px;
+  background: linear-gradient(180deg, rgba(5, 8, 16, 0), rgba(5, 8, 16, 0.94) 45%);
+  pointer-events: none;
+}
+.bay-next-row > * { pointer-events: auto; }
+/* the step bar stays at the top while you scroll down through the choices */
+.build-progress.station-tabs { position: sticky; top: -24px; z-index: 6; } /* -24px cancels the top padding */
+.bay-next-row .bay-back { grid-column: 1; justify-self: start; margin: 0; }
+.bay-next-row .bay-next { grid-column: 2; justify-self: center; margin: 0; padding: 11px 32px; font-size: 1rem; border-radius: 999px; min-width: 260px; box-shadow: 0 6px 24px rgba(122, 184, 255, 0.35); }
+.bay-next-row .bay-count { grid-column: 3; justify-self: end; font-family: var(--mono, monospace); font-size: 0.72rem; letter-spacing: 0.06em; color: var(--muted); }
+.bay-next.pulse { animation: bay-next-pulse 1.6s ease-out 2; }
+@keyframes bay-next-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(122, 184, 255, 0.65); }
+  100% { box-shadow: 0 0 0 18px rgba(122, 184, 255, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .bay-next.pulse { animation: none; } }
+@media (max-width: 700px) {
+  .bay-next-row { bottom: -40px; grid-template-columns: auto 1fr; margin: 18px -12px -40px; padding: 12px 12px 16px; }
+  .bay-next-row .bay-next { grid-column: 2; justify-self: stretch; min-width: 0; }
+  .bay-next-row .bay-count { grid-column: 1 / -1; justify-self: center; grid-row: 2; }
+}
+
+/* ----- Missions page: pick a mode first ----- */
+.explorer-chooser { display: none; }
+#explorer-screen.choosing .explorer-chooser {
+  position: absolute;
+  top: var(--topbar-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center; /* on a short screen the top stays reachable */
+  gap: 10px;
+  padding: 40px 24px 60px;
+  overflow-y: auto;
+  text-align: center;
+}
+#explorer-screen.choosing .sidebar,
+#explorer-screen.choosing .explorer-main,
+#explorer-screen.choosing .explorer-detail { display: none; }
+.explorer-chooser h2 { margin: 0; font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 600; }
+.chooser-sub { margin: 0 0 22px; color: var(--muted); }
+.chooser-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 360px)); gap: 24px; }
+.chooser-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 250px;
+  padding: 28px 26px 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgba(20, 32, 60, 0.85), rgba(7, 10, 20, 0.85));
+  color: var(--text);
+  font-family: var(--sans);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.chooser-card:hover, .chooser-card:focus-visible { transform: translateY(-4px); border-color: var(--accent-line); box-shadow: 0 14px 40px rgba(60, 120, 220, 0.25); outline: none; }
+.chooser-free:hover, .chooser-free:focus-visible { border-color: rgba(86, 212, 240, 0.6); box-shadow: 0 14px 40px rgba(86, 212, 240, 0.2); }
+.chooser-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); }
+.chooser-free .chooser-icon { background: rgba(86, 212, 240, 0.12); color: #56d4f0; }
+.chooser-icon svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.chooser-tag { position: absolute; top: 26px; right: 24px; font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 999px; padding: 4px 10px; }
+.chooser-card b { font-size: 1.45rem; font-weight: 600; margin-top: 6px; }
+.chooser-text { color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+.chooser-go { margin-top: auto; font-weight: 600; color: var(--accent); }
+.chooser-free .chooser-go { color: #56d4f0; }
+@media (max-width: 760px) {
+  .chooser-cards { grid-template-columns: 1fr; width: 100%; max-width: 420px; }
+  .chooser-card { min-height: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .chooser-card { transition: none; } .chooser-card:hover { transform: none; } }
+
+/* ----- The two modes, switched in the middle of the page (Missions and the builder) ----- */
+.mode-segment {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  width: max-content;
+  margin: 0 auto 22px !important;
+  padding: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: rgba(6, 10, 20, 0.8);
+}
+.mode-seg {
+  padding: 9px 22px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mode-seg:hover:not(.active) { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+.mode-seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mode-seg.active { color: #06101f; background: var(--accent); cursor: default; opacity: 1; }
+#simulator-screen .mode-seg.active { background: #56d4f0; }
+
+/* ----- Missions page: more room. A wider sidebar, a centred content column, wider cards ----- */
+#explorer-screen { --sidebar-w: 300px; }
+#explorer-screen .explorer-mode-heading,
+#explorer-screen .explorer-mode { display: none; } /* the mode is now the switch at the top */
+#explorer-screen .explorer-panel { margin: 14px 18px 10px; }
+#explorer-screen .sidebar-head, #explorer-screen .sidebar-foot { padding-left: 22px; padding-right: 22px; }
+#explorer-screen .sidebar-list .sidebar-item { padding-top: 11px; padding-bottom: 11px; }
+.explorer-main { padding: 26px 48px 80px; }
+.explorer-main > * { max-width: 1180px; margin-left: auto; margin-right: auto; }
+.explorer-hero { margin-bottom: 18px; }
+.explorer-tools.mission-search { margin-bottom: 26px; }
+.explorer-grid { gap: 22px; }
+.explorer-grid:not(.grouped):not(.results) { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.mission-block { padding: 22px 24px 22px; }
+.mb-items { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+@media (max-width: 760px) {
+  .explorer-main { padding: 18px 14px 60px; }
+  .mission-block { padding: 16px 14px; }
+}
+
+/* ----- One scrollbar style for the whole site, matching the dark blue theme ----- */
+html, html * { scrollbar-color: rgba(122, 184, 255, 0.32) rgba(8, 12, 24, 0.55) !important; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: rgba(8, 12, 24, 0.55); }
+::-webkit-scrollbar-thumb { background: rgba(122, 184, 255, 0.3); border-radius: 8px; border: 2px solid rgba(8, 12, 24, 0.55); }
+::-webkit-scrollbar-thumb:hover { background: rgba(122, 184, 255, 0.55); }
+::-webkit-scrollbar-corner { background: transparent; }
+.chooser-card, .chooser-card b, .chooser-text, .chooser-go, .mode-seg { text-transform: none; letter-spacing: normal; font-family: var(--sans); }
+.chooser-card .chooser-tag { font-family: var(--mono); letter-spacing: 0.12em; text-transform: uppercase; }
+
+/* ----- Free Build astronaut guide ----- */
+.guide-ask {
+  position: absolute;
+  left: 50%;
+  bottom: 168px;
+  transform: translateX(-50%);
+  z-index: 8;
+  padding: 10px 20px;
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  background: rgba(10, 18, 36, 0.9);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+}
+.guide-ask:hover { background: rgba(30, 52, 92, 0.95); }
+.guide-ask kbd { margin-left: 6px; padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 5px; font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+.guide-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 220px;
+  transform: translateX(-50%);
+  z-index: 9;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 14px;
+  width: min(620px, calc(100% - 32px));
+  padding: 14px 14px 14px 16px;
+  border: 1px solid var(--accent-line);
+  border-radius: 16px;
+  background: rgba(6, 10, 20, 0.9);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+.guide-panel.hidden, .guide-ask.hidden { display: none; }
+.guide-avatar { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.guide-avatar svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.guide-body b { display: block; margin-bottom: 4px; font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+.guide-body p { margin: 0; font-size: 1rem; line-height: 1.5; color: var(--text); }
+.guide-close { width: 34px; height: 34px; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; background: transparent; color: var(--text); font-size: 0.95rem; letter-spacing: 0; cursor: pointer; }
+.guide-close:hover { background: rgba(255, 255, 255, 0.08); }
+@media (max-width: 760px) {
+  .guide-panel { bottom: 200px; }
+  .guide-ask { bottom: 150px; }
+}
+
+/* ----- First-person moonwalk: inside the helmet ----- */
+.fp-visor { display: none; }
+.film-screen.first-person .fp-visor {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  /* the edge of the visor: dark rounded corners and a faint gold tint at the top */
+  background:
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.55) 82%, rgba(0, 0, 0, 0.92) 100%),
+    linear-gradient(180deg, rgba(217, 166, 58, 0.14), rgba(217, 166, 58, 0) 22%);
+}
+.fp-note {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(6, 10, 20, 0.7);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+}
+.fp-note.hidden { display: none; }
+/* an astronaut's own words, with their name */
+#mp-caption.mp-quote { font-style: italic; color: #ffe3a3; border-left: 3px solid #d9a63a; padding-left: 12px; }

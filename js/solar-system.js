@@ -104,9 +104,9 @@ function showToast(message) {
 const TEXTURE_FOLDER = "assets/textures/";
 
 const EARTH_TEXTURE_URL =
-  "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg";
+  "assets/textures/earth_atmos_2048.jpg";
 const MOON_TEXTURE_URL =
-  "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/moon_1024.jpg";
+  "assets/textures/moon_1024.jpg";
 
 const textureLoader = new THREE.TextureLoader();
 

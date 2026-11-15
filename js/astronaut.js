@@ -14,6 +14,7 @@
 //   iva     SpaceX launch-and-entry suit: sleek white and dark grey, one-piece helmet, no backpack (it plugs into the seat)
 
 import * as THREE from "three";
+import { mergeStatic } from "./model-detail.js";
 
 let mats = null;
 
@@ -50,8 +51,20 @@ function materials() {
       ctx.fillRect(0, y - 10, w, 20);
     }
   });
+  // The US flag patch worn on the left shoulder (Apollo and Shuttle/ISS suits)
+  const flag = canvasTexture(76, 40, function (ctx, w, h) {
+    for (let i = 0; i < 13; i++) {
+      ctx.fillStyle = i % 2 ? "#f4f2ec" : "#b8303a";
+      ctx.fillRect(0, (i * h) / 13, w, h / 13 + 1);
+    }
+    ctx.fillStyle = "#2c3a6e";
+    ctx.fillRect(0, 0, w * 0.4, (h * 7) / 13);
+    ctx.fillStyle = "#f4f2ec";
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) ctx.fillRect(2 + c * 5 + (r % 2) * 2, 2 + r * 4, 1.4, 1.4);
+  });
   mats = {
-    cloth: new THREE.MeshStandardMaterial({ map: cloth, roughness: 0.92 }),
+    cloth: new THREE.MeshStandardMaterial({ map: cloth, bumpMap: cloth, bumpScale: 0.8, roughness: 0.92 }),
+    flag: new THREE.MeshStandardMaterial({ map: flag, roughness: 0.85 }),
     hard: new THREE.MeshStandardMaterial({ color: 0xf1f0ec, roughness: 0.45, metalness: 0.05 }),
     rib: new THREE.MeshStandardMaterial({ color: 0xd9d6cf, roughness: 0.8 }),
     darkCloth: new THREE.MeshStandardMaterial({ color: 0x2c2e33, roughness: 0.85 }),
@@ -78,7 +91,7 @@ function mesh(geometry, material, x, y, z) {
 }
 
 function capsule(radius, length, material) {
-  return new THREE.Mesh(new THREE.CapsuleGeometry(radius, length, 6, 16), material);
+  return new THREE.Mesh(new THREE.CapsuleGeometry(radius, length, 8, 24), material);
 }
 
 // A ribbed "convolute" joint: a few rings around a limb (Apollo suits had these at shoulders, elbows and knees)
@@ -132,10 +145,32 @@ export function createSuitedAstronaut(suitId) {
   // Chest controls (Apollo RCU / EMU DCM)
   spine.add(mesh(new THREE.BoxGeometry(0.24, 0.13, 0.08), look.hut ? m.hard : m.grey, 0, 0.42, 0.22));
   spine.add(mesh(new THREE.BoxGeometry(0.18, 0.04, 0.02), m.black, 0, 0.45, 0.265));
+  [-0.08, 0, 0.08].forEach(function (x) {                                   // control knobs on the chest box
+    spine.add(mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.02, 10), m.metal, x, 0.39, 0.265).rotateX(Math.PI / 2));
+  });
+  spine.add(mesh(new THREE.BoxGeometry(0.26, 0.015, 0.09), m.grey, 0, 0.495, 0.22));   // top edge of the box
+  // shoulder-to-waist straps holding the backpack
+  if (look.pack) {
+    [-1, 1].forEach(function (sx) {
+      const strap = mesh(new THREE.BoxGeometry(0.035, 0.4, 0.015), m.darkCloth, sx * 0.17, 0.4, 0.2);
+      strap.rotation.x = -0.12;
+      spine.add(strap);
+    });
+  }
   // Hose connectors on the chest (red and blue on Apollo suits)
   if (look.pack === "plss-apollo") {
     spine.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.04, 12), m.red, -0.12, 0.3, 0.2).rotateX(Math.PI / 2));
     spine.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.04, 12), m.blue, 0.12, 0.3, 0.2).rotateX(Math.PI / 2));
+    // oxygen hoses from the backpack round the waist to the chest connectors
+    [[-1, m.red], [1, m.blue]].forEach(function (h) {
+      const sx = h[0];
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(sx * 0.2, 0.25, -0.18), new THREE.Vector3(sx * 0.28, 0.2, 0.02),
+        new THREE.Vector3(sx * 0.2, 0.24, 0.18), new THREE.Vector3(sx * 0.12, 0.3, 0.22)
+      ]);
+      spine.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.022, 8), h[1]));
+    });
+    spine.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.05, 10), m.red, 0.15, 0.16, 0.18));   // purge valve
   }
   if (look.trim === "orange") {
     spine.add(mesh(new THREE.BoxGeometry(0.5, 0.025, 0.42), m.orange, 0, 0.18, 0));
@@ -150,12 +185,17 @@ export function createSuitedAstronaut(suitId) {
       pack.add(mesh(new THREE.BoxGeometry(0.48, 0.58, 0.24), bodyMat, 0, 0, 0));
       pack.add(mesh(new THREE.BoxGeometry(0.44, 0.2, 0.22), m.cloth, 0, 0.39, 0)); // OPS (oxygen purge system)
       pack.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 6), m.metal, 0.18, 0.62, -0.02)); // antenna
+      pack.add(mesh(new THREE.BoxGeometry(0.5, 0.02, 0.26), m.rib, 0, 0.29, 0));               // seam between PLSS and OPS
+      [-0.1, 0.1].forEach(function (y) { pack.add(mesh(new THREE.BoxGeometry(0.5, 0.02, 0.26), m.rib, 0, y, 0)); });
+      pack.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.1, 10), m.grey, -0.16, 0.5, -0.1).rotateX(Math.PI / 2)); // OPS actuator
     } else if (look.pack === "plss-emu") {
       pack.add(mesh(new THREE.BoxGeometry(0.46, 0.62, 0.2), m.hard, 0, 0, 0));
       pack.add(mesh(new THREE.BoxGeometry(0.5, 0.18, 0.26), m.grey, 0, -0.4, -0.02)); // SAFER jet pack
       [-0.18, 0.18].forEach(function (x) {
         pack.add(mesh(new THREE.BoxGeometry(0.04, 0.4, 0.04), m.black, x, -0.05, -0.11)); // handrails
       });
+      [-0.15, 0, 0.15].forEach(function (y) { pack.add(mesh(new THREE.BoxGeometry(0.47, 0.015, 0.21), m.rib, 0, y, 0)); });
+      pack.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.12, 10), m.metal, -0.24, 0.18, -0.04).rotateZ(Math.PI / 2));
     } else {
       pack.add(mesh(new THREE.BoxGeometry(0.44, 0.56, 0.2), m.hard, 0, 0, 0));
       pack.add(mesh(new THREE.BoxGeometry(0.46, 0.06, 0.22), trimMat, 0, 0.18, 0));
@@ -178,6 +218,7 @@ export function createSuitedAstronaut(suitId) {
     const visor = mesh(new THREE.SphereGeometry(0.192, 24, 18, Math.PI * 0.5 - Math.PI * 0.32, Math.PI * 0.64, Math.PI * 0.28, Math.PI * 0.36), m.darkVisor, 0, 0.01, 0);
     helmetGroup.add(visor);
     helmetGroup.add(mesh(new THREE.BoxGeometry(0.03, 0.1, 0.06), m.darkCloth, 0.19, 0.0, 0));
+    helmetGroup.add(mesh(new THREE.BoxGeometry(0.03, 0.1, 0.06), m.darkCloth, -0.19, 0.0, 0));
   } else {
     helmetGroup.add(mesh(new THREE.SphereGeometry(0.2, 24, 18), m.bubble, 0, 0, 0));  // clear pressure bubble
     // Visor assembly: white shell with the gold sun visor down
@@ -191,8 +232,12 @@ export function createSuitedAstronaut(suitId) {
       });
     }
     if (look.pack === "plss-emu") {
-      helmetGroup.add(mesh(new THREE.BoxGeometry(0.05, 0.05, 0.08), m.black, 0.2, 0.08, 0.02)); // helmet light/camera
+      [-1, 1].forEach(function (sx) {                                          // helmet lights and cameras on both sides
+        helmetGroup.add(mesh(new THREE.BoxGeometry(0.05, 0.06, 0.1), m.hard, sx * 0.2, 0.08, 0.02));
+        helmetGroup.add(mesh(new THREE.BoxGeometry(0.04, 0.03, 0.01), m.light, sx * 0.2, 0.09, 0.075));
+      });
     }
+    helmetGroup.add(mesh(new THREE.TorusGeometry(0.205, 0.012, 8, 32), m.metal, 0, -0.12, 0).rotateX(Math.PI / 2)); // visor assembly rim
   }
 
   // ----- Arms: shoulder -> upper arm -> elbow -> forearm -> glove -----
@@ -209,6 +254,12 @@ export function createSuitedAstronaut(suitId) {
       r.position.y = -0.05;
       shoulder.add(r);
     }
+    if (side < 0 && (suitId === "a7l" || suitId === "emu")) {
+      // the flag patch: a curved piece on the outside of the upper arm
+      const patch = new THREE.Mesh(new THREE.CylinderGeometry(0.0815, 0.0815, 0.07, 16, 1, true, -Math.PI / 2 - 0.55, 1.1), m.flag);
+      patch.position.y = -0.1;
+      shoulder.add(patch);
+    }
     if (look.stripes && side < 0) {
       shoulder.add(mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.05, 14), m.red, 0, -0.12, 0)); // commander stripe
     }
@@ -224,9 +275,22 @@ export function createSuitedAstronaut(suitId) {
     const hand = new THREE.Group();
     hand.position.y = -0.31;
     elbow.add(hand);
-    const glove = mesh(new THREE.BoxGeometry(0.1, 0.13, 0.06), look.body === "hard" ? m.darkCloth : m.rubber, 0, -0.06, 0);
-    hand.add(glove);
-    hand.add(mesh(new THREE.BoxGeometry(0.03, 0.06, 0.04), look.body === "hard" ? m.darkCloth : m.rubber, side * -0.055, -0.03, 0.02)); // thumb
+    const gloveMat = look.body === "hard" ? m.darkCloth : m.rubber;
+    hand.add(mesh(new THREE.BoxGeometry(0.1, 0.08, 0.06), gloveMat, 0, -0.04, 0));               // palm
+    [-0.033, -0.011, 0.011, 0.033].forEach(function (x, i) {                    // four fingers, slightly curled
+      const finger = new THREE.Mesh(new THREE.CapsuleGeometry(0.011, 0.04 - Math.abs(i - 1.5) * 0.006, 2, 8), gloveMat);
+      finger.position.set(x, -0.105, 0.008);
+      finger.rotation.x = 0.25;
+      hand.add(finger);
+    });
+    const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.012, 0.03, 2, 8), gloveMat);
+    thumb.position.set(side * -0.055, -0.045, 0.025);
+    thumb.rotation.set(0.5, 0, side * 0.6);
+    hand.add(thumb);
+    if (look.pack === "plss-emu" && side < 0) {                                 // the cuff checklist on the left wrist
+      elbow.add(mesh(new THREE.BoxGeometry(0.09, 0.07, 0.03), m.hard, 0, -0.22, 0.08));
+    }
+    mergeStatic(hand);
     return { shoulder: shoulder, elbow: elbow, hand: hand, side: side };
   }
 
@@ -251,10 +315,17 @@ export function createSuitedAstronaut(suitId) {
     knee.add(ankle);
     const bootMat = look.boots === "iva" ? m.black : look.boots === "emu" ? m.hard : m.cloth;
     ankle.add(mesh(new THREE.BoxGeometry(0.16, 0.12, 0.28), bootMat, 0, -0.04, 0.04));
-    ankle.add(mesh(new THREE.BoxGeometry(0.17, 0.035, 0.3), m.rubber, 0, -0.1, 0.04)); // ribbed sole
+    ankle.add(mesh(new THREE.BoxGeometry(0.17, 0.035, 0.3), m.rubber, 0, -0.1, 0.04)); // sole
+    for (let i = 0; i < 6; i++) ankle.add(mesh(new THREE.BoxGeometry(0.17, 0.012, 0.02), m.rubber, 0, -0.122, -0.08 + i * 0.048)); // its ribs
+    ankle.add(mesh(new THREE.BoxGeometry(0.165, 0.02, 0.01), m.rib, 0, -0.02, 0.185));            // toe cap seam
+    mergeStatic(ankle);
     if (look.boots === "lunar") ankle.add(mesh(new THREE.CylinderGeometry(0.1, 0.11, 0.1, 14), m.cloth, 0, 0.05, 0));
     return { hip: hip, knee: knee, ankle: ankle, side: side };
   }
+
+  mergeStatic(spine);
+  if (spine.children.length) spine.children.forEach(function (c) { if (c.isGroup && c !== neck) mergeStatic(c); }); // the backpack
+  mergeStatic(helmetGroup);
 
   const L = { arm: arm(-1), leg: leg(-1) };
   const R = { arm: arm(1), leg: leg(1) };

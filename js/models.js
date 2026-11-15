@@ -10,7 +10,7 @@
 
 import * as THREE from "three";
 import { createSuitedAstronaut } from "./astronaut.js";
-import { foil, panelBump, paintSpeckle, worldUV, bellGeometry, nozzleHeat, nozzleTubesBump, mergeStatic } from "./model-detail.js";
+import { foil, panelBump, paintSpeckle, corrugationBump, worldUV, bellGeometry, nozzleHeat, nozzleTubesBump, mergeStatic } from "./model-detail.js";
 
 export const UPRIGHT_MODELS = new Set([
   "lunar-module", "lm-ascent", "rover", "curiosity", "perseverance", "helicopter", "helicopter-flying",
@@ -88,6 +88,41 @@ export function strut(a, b, radius, material, segments) {
 // A rocket nozzle (chamber, throat and curved bell) hanging down from y = top
 function nozzleBell(exitR, length, material, segments) {
   return new THREE.Mesh(bellGeometry(exitR, length, segments || 32), material);
+}
+
+// Gives textured parts (foil, panels) texture coordinates in model units, so the crinkles and panel seams
+// keep a sensible size on big and small parts alike instead of stretching around a whole cylinder.
+// Each geometry is changed once (shared geometries are marked). Run before mergeStatic.
+function detailUV(group, tile) {
+  const m = getMaterials();
+  const tiled = [m.foilGold, m.foilBlack, m.foilSilver, m.panelSilver, m.panelGray, m.panelWhite, m.ribbedBlack];
+  group.traverse(function (o) {
+    if (!o.isMesh || tiled.indexOf(o.material) === -1) return;
+    const g = o.geometry;
+    if (g.userData.uvDone || !g.parameters) return;
+    const t = tile || (o.material.userData.tile || 1.2);
+    const q = g.parameters;
+    if (g.type === "CylinderGeometry") worldUV(g, Math.PI * (q.radiusTop + q.radiusBottom), q.height, t);
+    else if (g.type === "BoxGeometry") { const big = Math.max(q.width, q.height, q.depth); worldUV(g, big, big, t); }
+    else if (g.type === "SphereGeometry") worldUV(g, Math.PI * 2 * q.radius, Math.PI * q.radius, t);
+    else return;
+    g.userData.uvDone = true;
+  });
+  return group;
+}
+
+// A radioisotope power generator (RTG): a dark finned cylinder along +Y, centred on the origin
+function rtgUnit(radius, length, m, fins) {
+  const g = new THREE.Group();
+  g.add(cyl(radius * 0.55, radius * 0.55, length, m.black, 16));
+  const n = fins || 8;
+  for (let i = 0; i < n; i++) {
+    const fin = box(radius * 0.08, length * 0.94, radius * 2, m.black);
+    fin.rotation.y = (i / n) * Math.PI;
+    g.add(fin);
+  }
+  [-1, 1].forEach(function (e) { g.add(put(cyl(radius * 0.6, radius * 0.6, length * 0.04, m.metal, 16), 0, e * length * 0.5, 0)); });
+  return g;
 }
 
 // A cluster of four small thrusters (an RCS "quad") on a short boom, facing out along +X
@@ -217,7 +252,14 @@ function getMaterials() {
 
   const airbagFabric = new THREE.MeshStandardMaterial({ color: 0xe6dfcb, bumpMap: goldFoil.bump, bumpScale: 2.2, roughness: 0.95 });
 
+  // Phase 2: yellow EVA handrails (Hubble), ribbed black shingles (Gemini), sunshield film (Webb)
+  const handrail = new THREE.MeshStandardMaterial({ color: 0xd9b43c, roughness: 0.5, metalness: 0.2 });
+  const ribbedBlack = new THREE.MeshStandardMaterial({ color: 0x232428, bumpMap: corrugationBump(), bumpScale: 1.6, roughness: 0.55, metalness: 0.3 });
+  ribbedBlack.userData.tile = 0.5;
+  const kapton = new THREE.MeshStandardMaterial({ color: 0xc7a6d4, metalness: 0.75, roughness: 0.3, side: THREE.DoubleSide });
+
   cache = {
+    handrail: handrail, ribbedBlack: ribbedBlack, kapton: kapton,
     airbagFabric: airbagFabric,
     foilGold: foilGold, foilBlack: foilBlack, foilSilver: foilSilver,
     panelSilver: panelSilver, panelGray: panelGray, panelWhite: panelWhite, nozzle: nozzle,
@@ -556,115 +598,185 @@ function createLmAscent() {
   return stage;
 }
 
-// Voyager-style probe: big dish facing +Z (toward the Sun or Earth), booms behind it
+// Voyager 1 and 2 (1977). From NASA/JPL: a 3.7 m high-gain dish (+Z) on a ten-sided equipment bus 1.8 m
+// across; three RTGs on one boom; the science boom with the scan platform (cameras) on the other side; a
+// 13 m magnetometer boom (shortened here so the model fits the scenes); two 10 m plasma-wave antennas; and
+// the gold-plated Golden Record on the side of the bus. Scale: 1 unit = about 1.5 m.
 function createVoyager() {
   const m = getMaterials();
   const probe = new THREE.Group();
 
   const profile = [];
-  for (let r = 0; r <= 1.2; r += 0.1) profile.push(new THREE.Vector2(r, 0.35 * r * r));
-  const dish = new THREE.Mesh(new THREE.LatheGeometry(profile, 40), m.dish);
-  dish.rotation.x = Math.PI / 2;
-  probe.add(dish);
+  for (let r = 0; r <= 1.22; r += 0.061) profile.push(new THREE.Vector2(r, 0.32 * r * r));
+  const hga = new THREE.Mesh(new THREE.LatheGeometry(profile, 48), m.dish);
+  hga.rotation.x = Math.PI / 2;
+  probe.add(hga);
+  probe.add(put(cyl(1.23, 1.23, 0.04, m.panelSilver, 48), 0, 0, 0.47).rotateX(Math.PI / 2)); // dish rim
+  probe.add(put(cyl(0.03, 0.09, 0.5, m.panelWhite, 10), 0, 0, 0.55).rotateX(Math.PI / 2));  // feed (subreflector)
+  [0, 1, 2, 3].forEach(function (k) {
+    const a = (k / 4) * Math.PI * 2 + 0.4;
+    probe.add(strut(V(Math.cos(a) * 1.05, Math.sin(a) * 1.05, 0.38), V(0, 0, 0.8), 0.01, m.metal, 4));
+  });
 
-  const bus = cyl(0.45, 0.45, 0.5, m.gold, 10);
+  // ten-sided bus with its gold record, and the propellant tank behind
+  const bus = cyl(0.6, 0.6, 0.32, m.panelSilver, 10);
   bus.rotation.x = Math.PI / 2;
-  probe.add(put(bus, 0, 0, -0.3));
+  probe.add(put(bus, 0, 0, -0.25));
+  probe.add(put(cyl(0.58, 0.58, 0.34, m.foilBlack, 10).rotateX(Math.PI / 2), 0, 0, -0.27));
+  probe.add(put(new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 12), m.foilGold), 0, 0, -0.55));
+  const record = cyl(0.16, 0.16, 0.02, m.foilGold, 32);
+  record.rotation.z = Math.PI / 2;
+  probe.add(put(record, 0.6, 0, -0.25));
 
   const back = -0.4;
-  probe.add(strut(new THREE.Vector3(0.3, 0, back), new THREE.Vector3(1.9, 0.1, back - 0.2), 0.03, m.metal));
-  [0.9, 1.3, 1.7].forEach(function (x) {
-    const rtg = cyl(0.09, 0.09, 0.3, m.black, 12);
+  // RTG boom: three RTGs end to end
+  probe.add(strut(V(0.5, 0, back), V(2.0, 0.1, back - 0.2), 0.03, m.metal, 6));
+  [1.05, 1.42, 1.79].forEach(function (x) {
+    const rtg = rtgUnit(0.15, 0.32, m, 6);
     rtg.rotation.z = Math.PI / 2;
-    probe.add(put(rtg, x, 0.05, back - 0.1));
+    rtg.position.set(x, 0.05 + (x - 1.05) * 0.07, back - 0.1 - (x - 1.05) * 0.1);
+    probe.add(rtg);
   });
 
-  probe.add(strut(new THREE.Vector3(-0.3, -0.1, back), new THREE.Vector3(-1.6, -0.7, back - 0.2), 0.03, m.metal));
-  probe.add(put(box(0.35, 0.25, 0.3, m.gold), -1.6, -0.7, back - 0.2));
-
-  probe.add(strut(new THREE.Vector3(0, 0.3, back), new THREE.Vector3(-0.1, 2.5, back - 0.5), 0.02, m.metal));
-  probe.add(put(box(0.12, 0.12, 0.12, m.black), -0.1, 2.5, back - 0.5));
-
-  // Scan platform with the cameras, at the end of the science boom
-  probe.add(put(box(0.3, 0.22, 0.3, m.white), -1.6, -0.45, back - 0.2));
-  [-0.08, 0.08].forEach(function (x) {
-    const camera = cyl(0.05, 0.05, 0.3, m.black, 12);
+  // science boom with the scan platform (narrow and wide-angle cameras, spectrometers)
+  probe.add(strut(V(-0.5, -0.1, back), V(-1.7, -0.7, back - 0.2), 0.035, m.metal, 6));
+  probe.add(put(box(0.35, 0.25, 0.3, m.foilGold), -1.7, -0.75, back - 0.2));
+  const platform = new THREE.Group();
+  platform.position.set(-1.7, -0.45, back - 0.2);
+  platform.add(box(0.36, 0.2, 0.32, m.panelWhite));
+  [-0.09, 0.09].forEach(function (x, i) {
+    const camera = cyl(i ? 0.05 : 0.07, i ? 0.05 : 0.07, i ? 0.32 : 0.42, m.black, 14);
     camera.rotation.x = Math.PI / 2;
-    probe.add(put(camera, -1.6 + x, -0.3, back));
+    platform.add(put(camera, x, 0.15, 0.15));
   });
+  probe.add(platform);
+  probe.add(put(box(0.18, 0.12, 0.18, m.foilGold), -1.1, -0.42, back - 0.1)); // cosmic ray instrument
 
-  // Golden Record on the side of the body, and the long, thin magnetometer boom
-  const record = cyl(0.16, 0.16, 0.02, m.gold, 32);
-  record.rotation.z = Math.PI / 2;
-  probe.add(put(record, 0.46, 0, -0.3));
-  probe.add(strut(V(0, -0.2, back), V(0.3, -3.6, back - 0.6), 0.008, m.metal));
+  // magnetometer boom (a thin lattice mast) and the two plasma-wave antennas
+  probe.add(strut(V(0, -0.3, back), V(0.3, -3.6, back - 0.6), 0.012, m.metal, 6));
+  probe.add(strut(V(0.06, -0.3, back), V(0.36, -3.6, back - 0.6), 0.006, m.metal, 4));
+  probe.add(put(box(0.1, 0.1, 0.1, m.panelWhite), 0.15, -2.0, back - 0.35));
+  probe.add(put(box(0.12, 0.12, 0.12, m.panelWhite), 0.3, -3.6, back - 0.6));
+  [-1, 1].forEach(function (side) { probe.add(strut(V(side * 0.3, 0.4, back), V(side * 1.6, 3.2, back - 0.3), 0.006, m.metal, 4)); });
+  probe.add(strut(V(0, 0.3, back), V(-0.1, 2.0, back - 0.5), 0.015, m.metal, 6)); // low-energy charged particle boom
+  probe.add(put(box(0.12, 0.12, 0.12, m.foilGold), -0.1, 2.0, back - 0.5));
 
+  detailUV(probe);
+  mergeStatic(probe);
   probe.userData.size = 3.8;
   return probe;
 }
 
-// Parker-style probe: heat shield toward +Z (the Sun)
+// Parker Solar Probe (2018), +Z toward the Sun. From NASA/JHUAPL: the 2.3 m Thermal Protection System, a
+// carbon-foam shield 11.4 cm thick with a white Sun-facing coating, on struts above the hexagonal bus; two
+// water-cooled solar arrays that fold back into the shadow near the Sun; four radiators on top for that
+// cooling water; the four FIELDS antennas sticking out past the shield; the Faraday cup (SWEAP) looking
+// at the Sun; and a magnetometer boom behind. Scale: about 1 unit = 1.1 m.
 function createParker() {
   const m = getMaterials();
   const probe = new THREE.Group();
 
-  const shield = cyl(0.85, 1.05, 0.16, m.white, 6);
+  const shield = cyl(1.05, 1.05, 0.1, m.panelWhite, 6);
   shield.rotation.x = Math.PI / 2;
-  probe.add(put(shield, 0, 0, 0.6));
+  probe.add(put(shield, 0, 0, 0.62));
+  const edge = cyl(1.06, 1.06, 0.06, m.black, 6);                              // carbon edge and back face
+  edge.rotation.x = Math.PI / 2;
+  probe.add(put(edge, 0, 0, 0.55));
+  for (let i = 0; i < 6; i++) {                                                // shield struts down to the bus
+    const a = (i / 6) * Math.PI * 2;
+    probe.add(strut(V(Math.cos(a) * 0.7, Math.sin(a) * 0.7, 0.52), V(Math.cos(a) * 0.38, Math.sin(a) * 0.38, 0.28), 0.02, m.metal, 6));
+  }
 
-  const shieldEdge = cyl(0.88, 0.88, 0.04, m.black, 6);
-  shieldEdge.rotation.x = Math.PI / 2;
-  probe.add(put(shieldEdge, 0, 0, 0.5));
-
-  const body = cyl(0.4, 0.45, 0.9, m.gold, 6);
+  const body = cyl(0.42, 0.45, 0.8, m.foilBlack, 6);
   body.rotation.x = Math.PI / 2;
-  probe.add(put(body, 0, 0, 0));
+  probe.add(put(body, 0, 0, -0.05));
+  probe.add(put(cyl(0.44, 0.44, 0.04, m.panelGray, 6).rotateX(Math.PI / 2), 0, 0, 0.36));
 
+  // water-cooled solar arrays, angled back (as at closest approach they tuck behind the shield)
   [-1, 1].forEach(function (side) {
-    const wing = box(0.9, 0.025, 0.45, m.solar);
-    wing.position.set(side * 0.78, 0, 0.05);
-    wing.rotation.z = side * 0.15;
+    probe.add(strut(V(side * 0.42, 0, 0.05), V(side * 0.62, 0, 0.05), 0.035, m.metal));
+    const wing = new THREE.Group();
+    wing.add(box(0.9, 0.025, 0.45, m.solar));
+    wing.add(put(box(0.92, 0.03, 0.04, m.panelSilver), 0, 0, 0.24));
+    wing.add(put(box(0.92, 0.03, 0.04, m.panelSilver), 0, 0, -0.24));
+    wing.position.set(side * 1.05, 0, 0.0);
+    wing.rotation.y = side * 0.35;
     probe.add(wing);
-    probe.add(strut(new THREE.Vector3(side * 0.4, 0, 0.05), new THREE.Vector3(side * 0.5, 0, 0.05), 0.03, m.metal));
   });
-
-  const profile = [];
-  for (let r = 0; r <= 0.4; r += 0.08) profile.push(new THREE.Vector2(r, 0.5 * r * r));
-  const dish = new THREE.Mesh(new THREE.LatheGeometry(profile, 24), m.dish);
-  dish.rotation.x = -Math.PI / 2;
-  probe.add(put(dish, 0, 0.1, -0.55));
-
-  probe.add(strut(new THREE.Vector3(0.2, 0, -0.45), new THREE.Vector3(1.0, 0.2, -1.3), 0.02, m.metal));
-
-  // Cooling radiators on top, and the cup that measures the solar wind (it peeks past the shield)
-  [-0.25, 0.25].forEach(function (x) {
-    probe.add(put(box(0.35, 0.3, 0.03, m.white), x, 0.55, 0.15));
+  // four radiators on top for the cooling water
+  [-0.36, -0.12, 0.12, 0.36].forEach(function (x) {
+    probe.add(put(box(0.2, 0.42, 0.025, m.panelWhite), x, 0.62, 0.05));
   });
-  probe.add(strut(V(0.35, 0.3, 0.1), V(0.75, 0.75, 0.9), 0.012, m.metal));
-  probe.add(put(cyl(0.05, 0.05, 0.08, m.silver, 12), 0.75, 0.75, 0.92));
+  probe.add(put(box(0.86, 0.04, 0.3, m.panelGray), 0, 0.42, 0.05));
 
+  // four FIELDS antennas peeking past the shield, and the Faraday cup
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    probe.add(strut(V(Math.cos(a) * 0.95, Math.sin(a) * 0.95, 0.5), V(Math.cos(a) * 2.0, Math.sin(a) * 2.0, 0.5), 0.008, m.panelWhite, 4));
+  }
+  probe.add(strut(V(0.35, 0.3, 0.1), V(0.75, 0.75, 0.9), 0.012, m.metal, 6));
+  probe.add(put(cyl(0.05, 0.05, 0.08, m.panelSilver, 12).rotateX(Math.PI / 2), 0.75, 0.75, 0.92));
+
+  // high-gain dish at the back and the magnetometer boom
+  const hga = dish(0.32, 0.08, m.dish, 24);
+  hga.rotation.x = -Math.PI / 2;
+  probe.add(put(hga, 0, 0.1, -0.55));
+  probe.add(strut(V(0.2, 0, -0.45), V(1.0, 0.2, -1.3), 0.015, m.metal, 6));
+  [0.5, 0.75, 1.0].forEach(function (k) { probe.add(put(box(0.06, 0.06, 0.06, m.panelWhite), 0.2 + 0.8 * k, 0.2 * k, -0.45 - 0.85 * k)); });
+
+  detailUV(probe);
+  mergeStatic(probe);
   probe.userData.size = 2.7;
   return probe;
 }
 
-// A Mars cruise capsule: aeroshell with heat shield at the front and a cruise stage with a solar ring behind
+// A Mars entry capsule with its cruise stage (Curiosity/Perseverance style), forward = +Z (heat shield).
+// The heat shield is a 70-degree sphere-cone (very blunt); the backshell has a steeper cone and the
+// parachute cover on top; the cruise stage is a ring of solar cells with radiators and thrusters.
 function createCapsule() {
   const m = getMaterials();
   const inner = new THREE.Group();
 
-  inner.add(put(cyl(0.35, 1.1, 0.5, m.heat, 48), 0, 0.25, 0));      // heat shield (blunt nose)
-  inner.add(put(cyl(1.1, 0.5, 0.9, m.white, 48), 0, -0.45, 0));      // backshell
-  inner.add(put(cyl(0.55, 0.55, 0.25, m.gold, 32), 0, -1.0, 0));     // cruise stage
-
+  // heat shield: a sphere-cone 70 degrees from the axis (profile rotated around Y)
+  const R = 1.1;
+  const nose = R * 0.25;
+  const shieldProfile = [new THREE.Vector2(0, 0.42)];
+  for (let i = 0; i <= 6; i++) {                                               // rounded nose
+    const a = (i / 6) * (Math.PI / 2 - 70 * Math.PI / 180);
+    shieldProfile.push(new THREE.Vector2(Math.sin(a) * nose, 0.42 - nose + Math.cos(a) * nose));
+  }
+  const last = shieldProfile[shieldProfile.length - 1];
+  shieldProfile.push(new THREE.Vector2(R, last.y - (R - last.x) / Math.tan(70 * Math.PI / 180)));
+  shieldProfile.push(new THREE.Vector2(R * 0.98, 0));
+  inner.add(new THREE.Mesh(new THREE.LatheGeometry(shieldProfile.slice().reverse(), 48), m.heat));
+  // backshell: a cone and the parachute cover
+  inner.add(put(cyl(R, R * 0.55, 0.75, m.panelWhite, 48), 0, -0.375, 0));
+  inner.add(put(cyl(R * 0.55, R * 0.42, 0.25, m.panelWhite, 32), 0, -0.875, 0));
+  inner.add(put(cyl(R * 1.005, R * 1.005, 0.04, m.panelGray, 48), 0, -0.02, 0));
+  [0, 1, 2, 3].forEach(function (i) {                                          // backshell thrusters
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    inner.add(put(box(0.12, 0.1, 0.12, m.panelGray), Math.cos(a) * 0.78, -0.55, Math.sin(a) * 0.78));
+  });
+  // cruise stage: hub, solar ring, radiators
+  inner.add(put(cyl(0.5, 0.5, 0.25, m.foilGold, 24), 0, -1.13, 0));
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.55, 1.05, 48), m.solar);
   ring.rotation.x = -Math.PI / 2;
-  inner.add(put(ring, 0, -1.0, 0));
-
+  inner.add(put(ring, 0, -1.26, 0));
+  const ringBack = new THREE.Mesh(new THREE.RingGeometry(0.55, 1.05, 48), m.panelGray);
+  ringBack.rotation.x = Math.PI / 2;
+  inner.add(put(ringBack, 0, -1.25, 0));
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    inner.add(put(box(0.04, 0.06, 0.32, m.panelWhite), Math.cos(a) * 0.82, -1.22, Math.sin(a) * 0.82).rotateY(-a));
+  }
   [0, 1, 2, 3].forEach(function (i) {
-    const angle = (i * Math.PI) / 2;
-    inner.add(put(box(0.1, 0.14, 0.1, m.metal), Math.cos(angle) * 0.9, -0.78, Math.sin(angle) * 0.9));
+    const a = (i * Math.PI) / 2;
+    const bell = nozzleBell(0.04, 0.1, m.nozzle, 10);
+    bell.position.set(Math.cos(a) * 0.45, -1.25, Math.sin(a) * 0.45);
+    inner.add(bell);
   });
-
+  detailUV(inner);
+  mergeStatic(inner);
   return forward(inner, 2.2);
 }
 
@@ -1301,57 +1413,118 @@ function createVikingLander() {
   return lander;
 }
 
-// Phoenix (2008) and InSight (2018): a deck on three legs with two round, fan-shaped solar arrays.
-// userData.setArrays(0) = folded, setArrays(1) = open. InSight also places its seismometer on the ground.
+// Phoenix (2008) and InSight (2018): a ten-sided deck on three legs with two round solar arrays that open
+// like paper fans (InSight's are 2.2 m across, from NASA/JPL), a camera mast, a weather mast, a robotic arm,
+// and twelve small descent engines in groups under the deck. userData.setArrays(0) = folded,
+// setArrays(1) = open. InSight also places its seismometer and heat probe on the ground.
 function createDeckLander(kind) {
   const m = getMaterials();
   const lander = new THREE.Group();
+  const deck = new THREE.Group();
   const isInsight = kind === "insight";
   const arrayRadius = isInsight ? 1.08 : 0.9;
 
-  lander.add(put(cyl(0.72, 0.72, 0.32, m.gold, 12), 0, 1.0, 0));
-  lander.add(put(cyl(0.75, 0.75, 0.05, m.white, 12), 0, 1.18, 0));
+  deck.add(put(cyl(0.72, 0.72, 0.3, m.foilGold, 10), 0, 1.0, 0));
+  deck.add(put(cyl(0.75, 0.75, 0.05, m.panelWhite, 10), 0, 1.18, 0));
+  deck.add(put(cyl(0.73, 0.7, 0.04, m.foilBlack, 10), 0, 0.84, 0));
+  // instruments and boxes on the deck
+  deck.add(put(box(0.36, 0.18, 0.28, m.panelWhite), 0.15, 1.3, -0.25));
+  deck.add(put(box(0.24, 0.14, 0.22, m.foilGold), -0.25, 1.28, -0.3));
+  if (isInsight) {
+    [-1, 1].forEach(function (s2) { deck.add(put(cyl(0.05, 0.08, 0.14, m.panelWhite, 12), s2 * 0.25, 1.28, 0.4)); }); // RISE horns
+    deck.add(put(cyl(0.03, 0.03, 0.35, m.panelWhite, 8), 0.45, 1.35, 0.05));          // UHF helix
+  } else {
+    deck.add(put(box(0.3, 0.2, 0.3, m.panelWhite), 0.3, 1.3, 0.25));                 // TEGA ovens
+    deck.add(put(box(0.25, 0.15, 0.2, m.panelGray), -0.35, 1.28, 0.2));              // MECA
+  }
 
-  // Camera mast and weather mast
-  lander.add(strut(V(-0.3, 1.2, 0.35), V(-0.3, 2.0, 0.35), 0.03, m.white));
-  lander.add(put(box(0.22, 0.12, 0.14, m.white), -0.3, 2.05, 0.35));
-  lander.add(strut(V(0.35, 1.2, -0.3), V(0.35, 2.1, -0.3), 0.015, m.metal));
+  // camera mast (Phoenix) or deck cameras (InSight), and the weather mast with its wind sensors
+  if (!isInsight) {
+    deck.add(strut(V(-0.3, 1.2, 0.35), V(-0.3, 2.0, 0.35), 0.03, m.panelWhite));
+    deck.add(put(box(0.22, 0.12, 0.14, m.panelWhite), -0.3, 2.05, 0.35));
+    [-0.05, 0.05].forEach(function (x) { deck.add(put(cyl(0.025, 0.025, 0.03, m.black, 10).rotateX(Math.PI / 2), -0.3 + x, 2.05, 0.43)); });
+    deck.add(strut(V(0.35, 1.2, -0.3), V(0.35, 2.1, -0.3), 0.015, m.metal));
+    deck.add(put(cyl(0.006, 0.006, 0.12, m.metal, 4), 0.35, 2.16, -0.3));             // the telltale
+  } else {
+    [-1, 1].forEach(function (s2) {
+      deck.add(strut(V(s2 * 0.4, 1.2, -0.4), V(s2 * 0.55, 1.5, -0.55), 0.015, m.metal, 6));
+      deck.add(put(box(0.08, 0.05, 0.12, m.panelWhite), s2 * 0.55, 1.52, -0.55));   // wind and temperature sensors
+    });
+  }
 
-  // Robotic arm (with a scoop on Phoenix, a grapple on InSight)
-  lander.add(strut(V(0.45, 1.15, 0.5), V(0.85, 1.6, 1.2), 0.04, m.metal));
-  lander.add(strut(V(0.85, 1.6, 1.2), V(1.15, 0.7, 1.75), 0.035, m.metal));
-  lander.add(put(box(0.16, 0.12, 0.2, m.metal), 1.18, 0.6, 1.8));
+  // robotic arm (a scoop on Phoenix, a grapple on InSight)
+  deck.add(strut(V(0.45, 1.15, 0.5), V(0.85, 1.6, 1.2), 0.04, m.panelWhite));
+  deck.add(put(new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), m.metal), 0.85, 1.6, 1.2));
+  deck.add(strut(V(0.85, 1.6, 1.2), V(1.15, 0.7, 1.75), 0.035, m.panelWhite));
+  deck.add(put(box(0.16, 0.12, 0.2, m.metal), 1.18, 0.6, 1.8));
+  deck.add(put(box(0.08, 0.06, 0.08, m.black), 1.12, 0.72, 1.7));                // arm camera
 
-  // Round solar arrays: they unfold like paper fans
+  // three legs with footpads
+  for (let k2 = 0; k2 < 3; k2++) {
+    const a = (k2 * Math.PI * 2) / 3 + Math.PI / 6;
+    const dir = V(Math.cos(a), 0, Math.sin(a));
+    const side = V(-dir.z, 0, dir.x);
+    const top = dir.clone().multiplyScalar(0.62).setY(0.95);
+    const foot = dir.clone().multiplyScalar(1.2).setY(0.08);
+    deck.add(strut(top, foot, 0.04, m.panelSilver, 10));
+    [-1, 1].forEach(function (s2) {
+      deck.add(strut(dir.clone().multiplyScalar(0.5).add(side.clone().multiplyScalar(s2 * 0.3)).setY(0.85), foot.clone().lerp(top, 0.45), 0.02, m.metal, 6));
+    });
+    const pad = footpad(0.16, m.panelSilver);
+    pad.position.copy(foot).setY(0.065);
+    deck.add(pad);
+  }
+
+  // twelve descent engines: three groups of four
+  const engines = [];
+  [0, 1, 2].forEach(function (k2) {
+    const angle = (k2 * Math.PI * 2) / 3 + Math.PI / 2;
+    const x = Math.cos(angle) * 0.4;
+    const z = Math.sin(angle) * 0.4;
+    deck.add(put(box(0.2, 0.06, 0.2, m.panelGray), x, 0.83, z));
+    [[1, 1], [-1, 1], [1, -1], [-1, -1]].forEach(function (c) {
+      const bell = nozzleBell(0.035, 0.1, m.nozzle, 10);
+      bell.position.set(x + c[0] * 0.05, 0.8, z + c[1] * 0.05);
+      deck.add(bell);
+    });
+    engines.push(V(x, 0.68, z));
+  });
+  detailUV(deck);
+  mergeStatic(deck);
+  lander.add(deck);
+
+  // round solar arrays: ten triangular gores with ribs, unfolding like paper fans
   const arrays = [];
   [-1, 1].forEach(function (side) {
     const holder = new THREE.Group();
     holder.position.set(side * 0.75, 1.1, 0);
-    const panel = cyl(arrayRadius, arrayRadius, 0.03, m.solar, 10);
-    panel.position.set(side * (arrayRadius + 0.05), 0, 0);
-    const rim = cyl(arrayRadius + 0.02, arrayRadius + 0.02, 0.02, m.white, 10);
-    rim.position.copy(panel.position);
-    rim.position.y -= 0.02;
-    holder.add(rim);
-    holder.add(panel);
+    const fan = new THREE.Group();
+    fan.position.set(side * (arrayRadius + 0.05), 0, 0);
+    const gores = 10;
+    for (let i = 0; i < gores; i++) {
+      const a0 = (i / gores) * Math.PI * 2;
+      const a1 = ((i + 1) / gores) * Math.PI * 2;
+      const r = arrayRadius * 0.97;
+      fan.add(triangle(V(0, 0.016, 0), V(Math.cos(a1) * r, 0.016, Math.sin(a1) * r), V(Math.cos(a0) * r, 0.016, Math.sin(a0) * r), m.solar));
+      fan.add(strut(V(0, 0.02, 0), V(Math.cos(a0) * arrayRadius, 0.02, Math.sin(a0) * arrayRadius), 0.008, m.panelSilver, 4));
+    }
+    fan.add(cyl(arrayRadius + 0.02, arrayRadius + 0.02, 0.02, m.panelWhite, gores));
+    fan.add(put(cyl(0.08, 0.08, 0.05, m.panelGray, 12), 0, 0.02, 0));
+    holder.add(fan);
     lander.add(holder);
     arrays.push({ holder: holder, side: side });
   });
-
-  landingLegs(lander, 3, 0.6, 0.95, 1.2, 0.16, m.metal, m.silver, Math.PI / 6);
 
   // InSight's instruments: the seismometer under its dome-shaped shield, and the heat probe
   let instruments = null;
   if (isInsight) {
     instruments = new THREE.Group();
-    const shield = new THREE.Mesh(
-      new THREE.SphereGeometry(0.35, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-      m.white
-    );
+    const shield = new THREE.Mesh(new THREE.SphereGeometry(0.35, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), m.panelSilver);
     shield.position.set(-0.4, 0, 1.9);
     instruments.add(shield);
-    instruments.add(put(cyl(0.38, 0.4, 0.05, m.gold, 24), -0.4, 0.02, 1.9));
-    instruments.add(put(box(0.3, 0.25, 0.3, m.gold), 0.6, 0.12, 1.9));
+    instruments.add(put(cyl(0.38, 0.4, 0.05, m.foilGold, 24), -0.4, 0.02, 1.9));
+    instruments.add(put(box(0.3, 0.25, 0.3, m.foilGold), 0.6, 0.12, 1.9));
+    instruments.add(put(cyl(0.02, 0.02, 0.1, m.metal, 8), 0.6, 0.3, 1.9));
     instruments.visible = false;
     lander.add(instruments);
   }
@@ -1366,15 +1539,6 @@ function createDeckLander(kind) {
     if (instruments) instruments.visible = true;
   };
   lander.userData.setArrays(1);
-
-  const engines = [];
-  [0, 1, 2].forEach(function (k) {
-    const angle = (k * Math.PI * 2) / 3 + Math.PI / 2;
-    const x = Math.cos(angle) * 0.4;
-    const z = Math.sin(angle) * 0.4;
-    lander.add(put(cyl(0.04, 0.08, 0.15, m.bell, 12), x, 0.78, z));
-    engines.push(V(x, 0.68, z));
-  });
 
   lander.userData.size = isInsight ? 6 : 5.5;
   lander.userData.engines = engines;
@@ -1657,10 +1821,10 @@ function createBlueGhost() {
 function createCentaurStage() {
   const m = getMaterials();
   const inner = new THREE.Group();
-  inner.add(put(cyl(1.5, 1.5, 9.5, m.silver, 32), 0, 0, 0));
-  inner.add(put(cyl(1.0, 1.5, 1.2, m.silver, 32), 0, 5.35, 0));
+  inner.add(put(cyl(1.5, 1.5, 9.5, m.panelSilver, 32), 0, 0, 0));
+  inner.add(put(cyl(1.0, 1.5, 1.2, m.panelSilver, 32), 0, 5.35, 0));
   [-0.5, 0.5].forEach(function (x) {
-    inner.add(put(cyl(0.3, 0.65, 1.4, m.bell, 20), x, -5.4, 0));
+    inner.add(put(nozzleBell(0.65, 1.4, m.nozzle, 24), x, (-5.4) + (1.4) / 2, 0));
   });
   return forward(inner, 12);
 }
@@ -1669,9 +1833,9 @@ function createCentaurStage() {
 function createLcross() {
   const m = getMaterials();
   const inner = new THREE.Group();
-  inner.add(new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.6, 24, 1, true), m.silver));
-  inner.add(put(box(0.7, 0.5, 0.5, m.gold), 0, 0, 0.85));
-  inner.add(put(box(0.6, 0.4, 0.6, m.white), 0.75, 0, -0.3));
+  inner.add(new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.6, 24, 1, true), m.panelSilver));
+  inner.add(put(box(0.7, 0.5, 0.5, m.foilGold), 0, 0, 0.85));
+  inner.add(put(box(0.6, 0.4, 0.6, m.panelWhite), 0.75, 0, -0.3));
   const panel = box(1.2, 0.03, 0.8, m.solar);
   panel.position.set(-1.4, 0, 0);
   inner.add(panel);
@@ -1683,10 +1847,10 @@ function createLcross() {
 function createMessenger() {
   const m = getMaterials();
   const craft = new THREE.Group();
-  const shade = box(2.5, 1.9, 0.08, m.white);
+  const shade = box(2.5, 1.9, 0.08, m.panelWhite);
   shade.position.set(0, 0, 0.85);
   craft.add(shade);
-  craft.add(put(box(1.3, 1.3, 1.4, m.gold), 0, 0, 0));
+  craft.add(put(box(1.3, 1.3, 1.4, m.foilGold), 0, 0, 0));
   [-1, 1].forEach(function (side) {
     craft.add(strut(V(side * 0.65, 0, 0), V(side * 1.2, 0, 0), 0.04, m.metal));
     craft.add(put(box(1.5, 0.03, 0.7, m.solar), side * 2.0, 0, 0));
@@ -1702,7 +1866,7 @@ function createVenusProbe(large) {
   const inner = new THREE.Group();
   const scale = large ? 1.0 : 0.55;
   inner.add(put(cyl(0.2 * scale, 0.75 * scale, 0.45 * scale, m.heat, 32), 0, 0.2 * scale, 0));
-  inner.add(put(new THREE.Mesh(new THREE.SphereGeometry(0.4 * scale, 24, 16), m.silver), 0, -0.25 * scale, 0));
+  inner.add(put(new THREE.Mesh(new THREE.SphereGeometry(0.4 * scale, 24, 16), m.panelSilver), 0, -0.25 * scale, 0));
   return forward(inner, 1.6 * scale);
 }
 
@@ -1719,22 +1883,22 @@ function createGalileoOrbiter() {
   const ribs = 18;
   for (let i = 0; i < ribs; i++) {
     const angle = (i / ribs) * Math.PI * 2;
-    antenna.add(strut(V(0, 0, 0), V(Math.cos(angle) * 1.6, 0.55, Math.sin(angle) * 1.6), 0.02, m.gold));
+    antenna.add(strut(V(0, 0, 0), V(Math.cos(angle) * 1.6, 0.55, Math.sin(angle) * 1.6), 0.02, m.foilGold));
   }
   const mesh = dish(1.6, 0.55, m.dish, 18);
   antenna.add(mesh);
   antenna.position.y = 1.7;
   craft.add(antenna);
 
-  craft.add(put(cyl(0.12, 0.12, 0.8, m.white, 12), 0, 1.3, 0));          // antenna mast
-  craft.add(put(cyl(0.75, 0.75, 0.7, m.gold, 10), 0, 0.6, 0));            // spinning section
+  craft.add(put(cyl(0.12, 0.12, 0.8, m.panelWhite, 12), 0, 1.3, 0));          // antenna mast
+  craft.add(put(cyl(0.75, 0.75, 0.7, m.foilGold, 10), 0, 0.6, 0));            // spinning section
   craft.add(put(cyl(0.6, 0.75, 0.45, m.black, 10), 0, 0, 0));             // despun section
-  craft.add(put(cyl(0.18, 0.3, 0.35, m.bell, 12), 0, -0.4, 0));           // main engine
+  craft.add(put(nozzleBell(0.3, 0.35, m.nozzle, 24), 0, (-0.4) + (0.35) / 2, 0));           // main engine
 
   // Two booms with the radioisotope power generators
   [-1, 1].forEach(function (side) {
     craft.add(strut(V(side * 0.6, 0.6, 0), V(side * 2.4, 0.4, 0.4 * side), 0.035, m.metal));
-    const rtg = cyl(0.17, 0.17, 0.9, m.black, 12);
+    const rtg = rtgUnit(0.22, 0.9, m, 8);
     rtg.rotation.z = Math.PI / 2;
     craft.add(put(rtg, side * 2.3, 0.4, 0.4 * side));
   });
@@ -1742,7 +1906,7 @@ function createGalileoOrbiter() {
   // Science boom with the magnetometers, and the scan platform with cameras underneath
   craft.add(strut(V(0, 0.6, 0.6), V(0.3, 0.9, 5.5), 0.025, m.metal));
   craft.add(strut(V(0, -0.1, -0.5), V(0, -0.9, -0.9), 0.04, m.metal));
-  craft.add(put(box(0.5, 0.35, 0.4, m.white), 0, -1.0, -0.95));
+  craft.add(put(box(0.5, 0.35, 0.4, m.panelWhite), 0, -1.0, -0.95));
 
   // Point the antenna forward (+Z)
   const outer = new THREE.Group();
@@ -1765,9 +1929,9 @@ function createGalileoProbe() {
 
   // Descent module: a squat drum with antenna and instrument ports
   const module = new THREE.Group();
-  module.add(put(cyl(0.33, 0.36, 0.4, m.silver, 24), 0, -0.25, 0));
+  module.add(put(cyl(0.33, 0.36, 0.4, m.panelSilver, 24), 0, -0.25, 0));
   module.add(put(cyl(0.12, 0.12, 0.12, m.black, 12), 0, -0.5, 0));
-  module.add(put(box(0.08, 0.06, 0.08, m.gold), 0.3, -0.2, 0.1));
+  module.add(put(box(0.08, 0.06, 0.08, m.foilGold), 0.3, -0.2, 0.1));
   inner.add(module);
 
   const outer = forward(inner, 1.3);
@@ -1775,44 +1939,70 @@ function createGalileoProbe() {
   return outer;
 }
 
-// Cassini: tall body with a 4 m dish on top, the gold-wrapped Huygens probe on one side,
-// three power generators, and a long magnetometer boom. Forward (+Z) = the dish side.
+// Cassini (1997-2017) with the Huygens probe. From NASA/JPL: 6.8 m tall and about 4 m wide; the 4 m
+// high-gain dish on top, the electronics ring under it, the big propellant tanks wrapped in gold and black
+// insulation, two main engines under covers, three RTGs, the remote-sensing pallet (cameras), the 11 m
+// magnetometer boom and three 10 m radio and plasma wave antennas; Huygens (2.7 m) on the side.
+// Forward (+Z) = the dish side.
 function createCassini(withHuygens) {
   const m = getMaterials();
   const craft = new THREE.Group();
+  const body = new THREE.Group();
 
-  const antenna = dish(1.95, 0.5, m.dish, 40);
+  const antenna = dish(1.95, 0.5, m.dish, 48);
   antenna.position.y = 3.0;
-  craft.add(antenna);
-  craft.add(put(cyl(0.1, 0.25, 0.4, m.metal, 12), 0, 3.1, 0));            // feed
-  craft.add(put(cyl(0.75, 0.75, 0.6, m.black, 12), 0, 2.6, 0));           // electronics bus
-  craft.add(put(cyl(0.7, 0.75, 1.9, m.gold, 24), 0, 1.25, 0));            // propellant tanks in gold blanket
-  craft.add(put(cyl(0.55, 0.7, 0.4, m.gold, 24), 0, 0.1, 0));
-  [-0.35, 0.35].forEach(function (x) {
-    craft.add(put(cyl(0.16, 0.32, 0.55, m.bell, 16), x, -0.35, 0));       // two main engines
+  body.add(antenna);
+  body.add(put(cyl(1.96, 1.96, 0.05, m.panelSilver, 48), 0, 3.5, 0));
+  [0, 1, 2].forEach(function (k) {                                              // feed tripod and low-gain antenna
+    const a = (k / 3) * Math.PI * 2;
+    body.add(strut(V(Math.cos(a) * 0.9, 3.22, Math.sin(a) * 0.9), V(0, 4.1, 0), 0.015, m.metal, 4));
   });
+  body.add(put(cyl(0.12, 0.2, 0.25, m.panelWhite, 12), 0, 4.15, 0));
+  body.add(put(cyl(0.75, 0.75, 0.6, m.foilBlack, 12), 0, 2.6, 0));             // electronics bus (12 bays)
+  body.add(put(cyl(0.76, 0.76, 0.05, m.panelGray, 12), 0, 2.32, 0));
+  body.add(put(cyl(0.7, 0.75, 1.9, m.foilGold, 24), 0, 1.25, 0));              // propellant tanks
+  body.add(put(cyl(0.55, 0.7, 0.4, m.foilBlack, 24), 0, 0.1, 0));              // lower equipment module
+  [-0.35, 0.35].forEach(function (x) {                                         // two main engines under covers
+    const bell = nozzleBell(0.3, 0.55, m.nozzle, 24);
+    bell.position.set(x, -0.08, 0);
+    body.add(bell);
+  });
+  body.add(put(new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), m.foilBlack), 0, -0.5, 0).rotateX(Math.PI));
 
-  // Three radioisotope power generators near the bottom
+  // three RTGs near the bottom
   [0, 1, 2].forEach(function (k) {
     const angle = (k * Math.PI * 2) / 3 + 0.4;
-    const rtg = cyl(0.16, 0.16, 1.1, m.black, 12);
+    const rtg = rtgUnit(0.22, 1.1, m, 8);
     rtg.rotation.z = Math.PI / 2;
     rtg.rotation.y = -angle;
-    rtg.position.set(Math.cos(angle) * 0.95, 0.15, Math.sin(angle) * 0.95);
+    rtg.position.set(Math.cos(angle) * 1.0, 0.15, Math.sin(angle) * 1.0);
     craft.add(rtg);
   });
 
-  // Remote sensing pallet (cameras) and the 11 m magnetometer boom
-  craft.add(put(box(0.6, 0.9, 0.35, m.white), 0, 2.0, -0.85));
-  craft.add(strut(V(0.7, 2.6, 0), V(5.5, 2.9, 0.2), 0.02, m.metal));
+  // remote-sensing pallet (cameras), fields-and-particles pallet, magnetometer boom, RPWS antennas
+  body.add(put(box(0.6, 0.9, 0.35, m.panelWhite), 0, 2.0, -0.88));
+  [-0.15, 0.12].forEach(function (x, i) { body.add(put(cyl(i ? 0.08 : 0.12, i ? 0.08 : 0.12, 0.5, m.black, 14), x, 2.3, -1.12)); });
+  body.add(put(box(0.5, 0.5, 0.3, m.foilGold), 0.85, 1.9, 0.0));
+  body.add(strut(V(0.7, 2.6, 0), V(5.5, 2.9, 0.2), 0.02, m.metal, 6));
+  body.add(strut(V(0.72, 2.62, 0.02), V(5.5, 2.92, 0.22), 0.01, m.metal, 4));
+  [2.5, 4.0, 5.5].forEach(function (x) { body.add(put(box(0.14, 0.14, 0.14, m.panelWhite), x, 2.6 + (x - 0.7) * 0.06, 0.2 * (x - 0.7) / 4.8)); });
+  [[-1, 0.3], [-0.3, -1], [0.6, 0.9]].forEach(function (d) {
+    body.add(strut(V(d[0] * 0.5, 2.0, d[1] * 0.5), V(d[0] * 3.5, 1.4, d[1] * 3.5), 0.006, m.metal, 4));
+  });
+  detailUV(body);
+  mergeStatic(body);
+  craft.add(body);
 
-  // Huygens, attached on the side
+  // Huygens, attached on the side: the gold-wrapped probe and its support ring
   let huygens = null;
   if (withHuygens) {
     huygens = new THREE.Group();
-    huygens.add(put(cyl(0.18, 1.0, 0.35, m.gold, 40), 0, 0, 0));
+    huygens.add(put(cyl(0.25, 1.0, 0.35, m.foilGold, 48), 0, 0, 0));
+    huygens.add(put(cyl(1.01, 1.01, 0.05, m.panelGray, 48), 0, -0.18, 0));
+    huygens.add(put(cyl(0.5, 0.6, 0.18, m.foilGold, 32), 0, -0.28, 0));
+    detailUV(huygens);
     huygens.rotation.x = Math.PI / 2;
-    huygens.position.set(0, 1.4, 0.95);
+    huygens.position.set(0, 1.4, 1.02);
     craft.add(huygens);
   }
 
@@ -1837,8 +2027,8 @@ function createHuygens() {
   inner.add(shield);
 
   const module = new THREE.Group();
-  module.add(put(cyl(0.65, 0.65, 0.35, m.silver, 32), 0, -0.2, 0));
-  module.add(put(cyl(0.5, 0.65, 0.2, m.gold, 32), 0, -0.45, 0));
+  module.add(put(cyl(0.65, 0.65, 0.35, m.panelSilver, 32), 0, -0.2, 0));
+  module.add(put(cyl(0.5, 0.65, 0.2, m.foilGold, 32), 0, -0.45, 0));
   module.add(put(box(0.12, 0.1, 0.12, m.black), 0.45, -0.25, 0.2));       // camera
   inner.add(module);
 
@@ -1879,78 +2069,131 @@ export function createParachute(radius) {
   return chute;
 }
 
-// The backshell (cone) and heat shield (userData.heatShield) that carry a Mars lander through the atmosphere.
-// The heat shield is at the bottom (-Y), so the cone points up.
+// The backshell and heat shield (userData.heatShield) that carry a Mars lander through the atmosphere.
+// The heat shield is at the bottom (-Y), so the cone points up: a 70-degree sphere-cone shield, and a
+// backshell with the parachute cover on top and small thrusters.
 export function createBackshell(radius) {
   const m = getMaterials();
   const shell = new THREE.Group();
-  shell.add(put(cyl(radius * 0.4, radius, radius * 0.9, m.white, 40), 0, radius * 0.45, 0));
+  const body = new THREE.Group();
+  body.add(put(cyl(radius * 0.5, radius, radius * 0.8, m.panelWhite, 48), 0, radius * 0.4, 0));
+  body.add(put(cyl(radius * 0.38, radius * 0.5, radius * 0.22, m.panelWhite, 32), 0, radius * 0.91, 0));
+  body.add(put(cyl(radius * 1.005, radius * 1.005, radius * 0.03, m.panelGray, 48), 0, radius * 0.015, 0));
+  [0, 1, 2, 3].forEach(function (i) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    body.add(put(box(radius * 0.1, radius * 0.08, radius * 0.1, m.panelGray), Math.cos(a) * radius * 0.72, radius * 0.4, Math.sin(a) * radius * 0.72));
+  });
+  detailUV(body, radius * 0.8);
+  mergeStatic(body);
+  shell.add(body);
   const shield = new THREE.Group();
-  shield.add(put(cyl(radius, radius * 0.3, radius * 0.3, m.heat, 40), 0, -radius * 0.15, 0));
+  const profile = [new THREE.Vector2(0, -radius * 0.36), new THREE.Vector2(radius * 0.2, -radius * 0.33), new THREE.Vector2(radius, -radius * 0.03), new THREE.Vector2(radius * 0.98, 0)];
+  shield.add(new THREE.Mesh(new THREE.LatheGeometry(profile, 48), m.heat));
   shell.add(shield);
   shell.userData.heatShield = shield;
   shell.userData.size = radius * 2;
   return shell;
 }
 
-// Sky crane descent stage (Curiosity, Perseverance): a frame with fuel tanks and eight engines pointing down
+// Sky crane descent stage (Curiosity, Perseverance). From NASA/JPL: a frame carrying three spherical
+// propellant tanks and eight throttleable engines in pairs at the corners, canted outward; the landing
+// radar on the underside; the bridle that lowered the rover on cables (drawn by the landing scene).
 function createSkyCrane() {
   const m = getMaterials();
   const stage = new THREE.Group();
+  const frame = new THREE.Group();
 
-  stage.add(put(box(2.2, 0.35, 2.6, m.metal), 0, 0.5, 0));
-  [[1, 1], [-1, 1], [1, -1], [-1, -1]].forEach(function (c) {
-    stage.add(put(new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 12), m.silver), c[0] * 0.65, 0.85, c[1] * 0.75));
+  frame.add(put(box(2.2, 0.3, 2.6, m.foilGold), 0, 0.5, 0));
+  frame.add(put(box(2.24, 0.04, 2.64, m.panelSilver), 0, 0.67, 0));
+  [-1.1, 1.1].forEach(function (x) { [-1.3, 1.3].forEach(function (z) { frame.add(put(box(0.14, 0.4, 0.14, m.panelSilver), x, 0.48, z)); }); });
+  [[0.6, 0.65], [-0.6, 0.65], [0, -0.7]].forEach(function (c) {                 // three propellant tanks
+    frame.add(put(new THREE.Mesh(new THREE.SphereGeometry(0.4, 24, 16), m.panelSilver), c[0], 0.95, c[1]));
   });
-  stage.add(put(cyl(0.18, 0.18, 0.3, m.white, 12), 0, 0.9, 0));
-
+  frame.add(put(box(0.5, 0.25, 0.4, m.foilBlack), 0, 0.85, 0.05));               // electronics
+  frame.add(put(cyl(0.18, 0.18, 0.3, m.panelWhite, 12), 0, 1.0, 0));             // bridle (cable) unit
+  [[0.4, 0.4], [-0.4, 0.4], [0.4, -0.4], [-0.4, -0.4]].forEach(function (c) {   // radar antennas underneath
+    frame.add(put(cyl(0.1, 0.1, 0.04, m.panelWhite, 12), c[0], 0.33, c[1]));
+  });
+  // engine pods at the four corners
   const engines = [];
   [[1, 1], [-1, 1], [1, -1], [-1, -1]].forEach(function (c) {
+    frame.add(put(box(0.3, 0.2, 0.55, m.panelGray), c[0] * 1.1, 0.45, c[1] * 1.3));
     [0.15, -0.15].forEach(function (offset) {
       const x = c[0] * 1.15;
       const z = c[1] * 1.3 + offset * c[1];
-      const bell = cyl(0.06, 0.12, 0.25, m.bell, 12);
-      bell.position.set(x, 0.25, z);
-      bell.rotation.x = c[1] * 0.25;
-      stage.add(bell);
+      const bell = nozzleBell(0.11, 0.26, m.nozzle, 16);
+      bell.position.set(x, 0.38, z);
+      bell.rotation.x = -c[1] * 0.25;
+      frame.add(bell);
       engines.push(V(x, 0.1, z));
     });
   });
+  detailUV(frame);
+  mergeStatic(frame);
+  stage.add(frame);
 
   stage.userData.size = 3;
   stage.userData.engines = engines;
   return stage;
 }
 
-// A small Mars helicopter (upright). Its rotors spin only when flying = true.
+// Ingenuity, the Mars helicopter (upright), built from NASA/JPL's sizes (drawn about 4% larger, so the
+// rotors are 1.25 m across as before): 49 cm tall, two counter-rotating rotors 1.2 m across, the solar panel on top of
+// the mast, a small box-shaped fuselage wrapped in insulation, and four thin carbon-fibre legs.
+// Its rotors spin only when flying = true.
 function createHelicopter(flying) {
   const m = getMaterials();
   const copter = new THREE.Group();
+  const k = 1.04;
+  const g = new THREE.Group();
+  g.scale.setScalar(k);
+  copter.add(g);
 
-  copter.add(put(box(0.3, 0.28, 0.3, m.gold), 0, 0.8, 0));
-  copter.add(put(box(0.56, 0.02, 0.56, m.solar), 0, 1.06, 0));
-  copter.add(put(cyl(0.02, 0.02, 0.35, m.metal, 8), 0, 1.25, 0));
-
+  const body = new THREE.Group();
+  body.add(put(box(0.136, 0.13, 0.163, m.foilGold), 0, 0.2, 0));               // fuselage
+  body.add(put(box(0.14, 0.02, 0.167, m.panelGray), 0, 0.27, 0));
+  body.add(put(box(0.02, 0.03, 0.03, m.black), 0.07, 0.17, 0.05));              // navigation camera
+  body.add(put(cyl(0.008, 0.008, 0.06, m.panelWhite, 8), -0.05, 0.3, -0.05));   // antenna
+  body.add(put(cyl(0.012, 0.012, 0.21, m.panelSilver, 10), 0, 0.37, 0));        // mast
+  body.add(put(box(0.17, 0.008, 0.11, m.solar), 0, 0.49, 0));                   // solar panel on top
+  body.add(put(box(0.175, 0.006, 0.115, m.panelSilver), 0, 0.485, 0));
   [[1, 1], [-1, 1], [1, -1], [-1, -1]].forEach(function (c) {
-    copter.add(strut(
-      new THREE.Vector3(c[0] * 0.1, 0.68, c[1] * 0.1),
-      new THREE.Vector3(c[0] * 0.38, 0.02, c[1] * 0.38),
-      0.015, m.metal
-    ));
+    body.add(strut(V(c[0] * 0.05, 0.16, c[1] * 0.06), V(c[0] * 0.24, 0.005, c[1] * 0.24), 0.004, m.metal, 5));
+    body.add(put(new THREE.Mesh(new THREE.SphereGeometry(0.01, 8, 6), m.metal), c[0] * 0.24, 0.005, c[1] * 0.24));
   });
+  mergeStatic(body);
+  g.add(body);
 
-  const rotorTop = new THREE.Group();
-  rotorTop.position.y = 1.4;
-  rotorTop.add(box(1.25, 0.012, 0.09, m.black));
-  rotorTop.add(box(0.09, 0.012, 1.25, m.black));
-  copter.add(rotorTop);
-
-  const rotorBottom = new THREE.Group();
-  rotorBottom.position.y = 1.3;
-  rotorBottom.add(box(1.25, 0.012, 0.09, m.black));
-  rotorBottom.add(box(0.09, 0.012, 1.25, m.black));
-  rotorBottom.rotation.y = Math.PI / 4;
-  copter.add(rotorBottom);
+  // two rotors, two blades each: wide near the hub, narrowing to the tip
+  const blade = function () {
+    const shape = new THREE.Shape();
+    shape.moveTo(0.03, -0.02);
+    shape.quadraticCurveTo(0.25, -0.05, 0.6, -0.012);
+    shape.lineTo(0.6, 0.01);
+    shape.quadraticCurveTo(0.25, 0.04, 0.03, 0.02);
+    shape.closePath();
+    const geometry = new THREE.ShapeGeometry(shape);
+    geometry.rotateX(-Math.PI / 2);
+    return geometry;
+  };
+  const bladeGeometry = blade();
+  const bladeMaterial = new THREE.MeshStandardMaterial({ color: 0x2a2b30, roughness: 0.6, side: THREE.DoubleSide });
+  const rotor = function (y) {
+    const r = new THREE.Group();
+    r.position.y = y;
+    [0, Math.PI].forEach(function (a) {
+      const b = new THREE.Mesh(bladeGeometry, bladeMaterial);
+      b.rotation.y = a;
+      r.add(b);
+    });
+    r.add(cyl(0.025, 0.025, 0.02, m.panelSilver, 12));
+    return r;
+  };
+  const rotorTop = rotor(0.44);
+  const rotorBottom = rotor(0.38);
+  rotorBottom.rotation.y = Math.PI / 2;
+  g.add(rotorTop);
+  g.add(rotorBottom);
 
   copter.userData.spinning = Boolean(flying);
   copter.userData.update = function (delta) {
@@ -1961,7 +2204,6 @@ function createHelicopter(flying) {
   copter.userData.size = 1.4;
   return copter;
 }
-
 
 // =====================================================================
 // Added for the Spacecraft & Hardware Explorer and the new mission replays.
@@ -2005,10 +2247,10 @@ function createPioneer() {
     probe.add(strut(V(Math.cos(a) * 0.9, Math.sin(a) * 0.9, 0.3), V(0, 0, 0.8), 0.012, m.metal));
   });
 
-  const bus = cyl(0.45, 0.45, 0.36, m.gold, 6);
+  const bus = cyl(0.45, 0.45, 0.36, m.foilGold, 6);
   bus.rotation.x = Math.PI / 2;
   probe.add(put(bus, 0, 0, -0.35));
-  probe.add(put(box(0.36, 0.22, 0.25, m.silver), 0, -0.5, -0.35));            // science compartment
+  probe.add(put(box(0.36, 0.22, 0.25, m.panelSilver), 0, -0.5, -0.35));            // science compartment
 
   [-1, 1].forEach(function (side) {                                          // two RTG booms, 120 degrees apart
     const end = V(side * 1.5, 0.75, -0.45);
@@ -2018,8 +2260,8 @@ function createPioneer() {
     probe.add(put(rtg, end.x, end.y, end.z));
   });
   probe.add(strut(V(0, -0.4, -0.35), V(0, -3.2, -0.6), 0.008, m.metal));     // magnetometer boom
-  probe.add(put(box(0.12, 0.12, 0.12, m.white), 0, -3.2, -0.6));
-  probe.add(put(box(0.16, 0.002, 0.1, m.gold), 0.46, 0.0, -0.35).rotateZ(Math.PI / 2)); // the plaque
+  probe.add(put(box(0.12, 0.12, 0.12, m.panelWhite), 0, -3.2, -0.6));
+  probe.add(put(box(0.16, 0.002, 0.1, m.foilGold), 0.46, 0.0, -0.35).rotateZ(Math.PI / 2)); // the plaque
 
   probe.userData.size = 4.2;
   return probe;
@@ -2030,7 +2272,7 @@ function createNewHorizons() {
   const m = getMaterials();
   const craft = new THREE.Group();
 
-  const body = cyl(0.75, 0.75, 0.55, m.gold, 3);
+  const body = cyl(0.75, 0.75, 0.55, m.foilGold, 3);
   body.rotation.x = Math.PI / 2;
   craft.add(put(body, 0, 0, -0.25));
   const antenna = dish(1.05, 0.25, m.dish, 40);
@@ -2048,36 +2290,53 @@ function createNewHorizons() {
     craft.add(fin);
   }
   craft.add(put(cyl(0.11, 0.11, 0.3, m.black, 16).rotateX(Math.PI / 2), -0.35, 0.45, -0.05));   // LORRI telescope
-  craft.add(put(box(0.25, 0.18, 0.2, m.silver), 0.3, 0.45, -0.1));             // Ralph
+  craft.add(put(box(0.25, 0.18, 0.2, m.panelSilver), 0.3, 0.45, -0.1));             // Ralph
   craft.userData.size = 2.6;
   return craft;
 }
 
-// Hubble: a 13 m silver tube with the aperture door at the front (+Z), two solar wings and two antenna booms.
-// setDeploy: the solar wings swing out from the body and unroll; the door opens.
+// Hubble Space Telescope, built in meters from NASA's published sizes: 13.2 m long and 4.2 m across at the
+// aft shroud; the forward shell and light shield about 3.1 m across; the aperture door at the front (+Z).
+// Two rigid solar arrays (fitted in 2002, about 7.1 x 2.6 m each), two high-gain antennas on booms,
+// silver insulation blankets, the equipment bays with their doors, and the yellow handrails astronauts
+// used on the servicing missions. setDeploy: the solar wings swing out and extend; the door opens.
 function createHubble() {
   const m = getMaterials();
   const scope = new THREE.Group();
+  const body = new THREE.Group();
+  const along = function (mesh, z) { mesh.rotation.x = Math.PI / 2; mesh.position.z = z; body.add(mesh); return mesh; };
 
-  const tubeMesh = cyl(1.1, 1.1, 6.5, m.silver, 32);
-  tubeMesh.rotation.x = Math.PI / 2;
-  scope.add(put(tubeMesh, 0, 0, 0.6));
-  const aft = cyl(1.4, 1.4, 3.6, m.silver, 32);                               // wider equipment section at the back
-  aft.rotation.x = Math.PI / 2;
-  scope.add(put(aft, 0, 0, -4.2));
-  [-2.4, -5.8].forEach(function (z) {
-    const band = cyl(1.42, 1.42, 0.12, m.black, 32);
-    band.rotation.x = Math.PI / 2;
-    scope.add(put(band, 0, 0, z));
+  along(cyl(1.55, 1.55, 5.4, m.foilSilver, 40), 3.7);                          // light shield
+  along(cyl(1.57, 1.57, 0.12, m.panelGray, 40), 1.0);
+  along(cyl(1.55, 1.55, 3.0, m.foilSilver, 40), -0.5);                         // forward shell
+  along(cyl(2.1, 1.6, 0.5, m.panelSilver, 40), -2.25);                         // step out to the equipment section
+  along(cyl(2.1, 2.1, 1.8, m.panelSilver, 10), -3.4);                          // equipment section (10 bays)
+  along(cyl(2.1, 2.1, 2.3, m.foilSilver, 40), -5.45);                          // aft shroud
+  along(cyl(2.12, 2.12, 0.1, m.panelGray, 40), -6.6);                          // aft bulkhead
+  for (let i = 0; i < 10; i++) {                                                // bay doors
+    const a = (i / 10) * Math.PI * 2 + Math.PI / 10;
+    const door = box(1.1, 0.04, 1.4, m.panelGray);
+    door.position.set(Math.cos(a) * 2.03, Math.sin(a) * 2.03, -3.4);
+    door.rotation.z = a - Math.PI / 2;
+    body.add(door);
+  }
+  // handrails along the forward shell and aft shroud
+  [0, 1, 2, 3].forEach(function (i) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    body.add(strut(V(Math.cos(a) * 1.63, Math.sin(a) * 1.63, -1.9), V(Math.cos(a) * 1.63, Math.sin(a) * 1.63, 0.9), 0.025, m.handrail, 6));
+    body.add(strut(V(Math.cos(a) * 2.18, Math.sin(a) * 2.18, -6.4), V(Math.cos(a) * 2.18, Math.sin(a) * 2.18, -4.4), 0.025, m.handrail, 6));
   });
-  const ring = cyl(1.2, 1.2, 0.3, m.black, 32);
-  ring.rotation.x = Math.PI / 2;
-  scope.add(put(ring, 0, 0, 3.85));
+  // two magnetometers and the low-gain antenna at the front
+  [-1, 1].forEach(function (side) { body.add(put(box(0.2, 0.2, 0.35, m.panelWhite), side * 1.3, 1.0, 6.2)); });
+  body.add(put(cyl(0.06, 0.12, 0.3, m.panelWhite, 10), 0, -1.6, 6.0).rotateX(Math.PI / 2));
+  detailUV(body);
+  mergeStatic(body);
+  scope.add(body);
 
-  const door = new THREE.Group();                                             // aperture door, hinged on top
-  door.position.set(0, 1.1, 4.0);
-  const doorPanel = cyl(1.15, 1.15, 0.08, m.white, 32);
-  doorPanel.position.set(0, -1.1, 0.0);
+  const door = new THREE.Group();                                               // aperture door, hinged on top
+  door.position.set(0, 1.55, 6.45);
+  const doorPanel = cyl(1.5, 1.5, 0.1, m.panelWhite, 40);
+  doorPanel.position.set(0, -1.55, 0.0);
   doorPanel.rotation.x = Math.PI / 2;
   door.add(doorPanel);
   scope.add(door);
@@ -2085,22 +2344,27 @@ function createHubble() {
   const wings = [];
   [-1, 1].forEach(function (side) {
     const hinge = new THREE.Group();
-    hinge.position.set(side * 1.45, 0, -2.4);
-    const mast = strut(V(0, 0, 0), V(side * 0.8, 0, 0), 0.04, m.metal);
-    hinge.add(mast);
-    const panel = box(5.4, 0.03, 2.2, m.solar);                                // rolled-out blanket
-    panel.position.set(side * 3.5, 0, 0);
+    hinge.position.set(side * 1.6, 0, -2.2);
+    hinge.add(strut(V(0, 0, 0), V(side * 0.8, 0, 0), 0.06, m.metal));
+    const panel = new THREE.Group();                                            // two panels either side of a mast
+    panel.add(box(7.1, 0.05, 0.12, m.metal));
+    [-1, 1].forEach(function (e) {
+      panel.add(put(box(7.0, 0.03, 1.2, m.solar), 0, 0, e * 0.68));
+      panel.add(put(box(7.1, 0.035, 0.04, m.panelSilver), 0, 0, e * 1.3));
+    });
+    panel.position.set(side * 4.35, 0, 0);
     hinge.add(panel);
     scope.add(hinge);
     wings.push({ hinge: hinge, panel: panel, side: side });
   });
 
-  [-1, 1].forEach(function (side) {                                          // two high-gain antennas on booms
-    scope.add(strut(V(0, side * 1.1, -1.5), V(0, side * 2.6, -1.5), 0.04, m.metal));
-    const a = dish(0.4, 0.1, m.dish, 20);
-    a.position.set(0, side * 2.65, -1.5);
+  [-1, 1].forEach(function (side) {                                             // high-gain antennas on booms
+    scope.add(strut(V(0, side * 1.55, -1.0), V(0, side * 3.4, -1.0), 0.05, m.panelSilver));
+    const a = dish(0.66, 0.16, m.dish, 24);
+    a.position.set(0, side * 3.45, -1.0);
     a.rotation.x = side > 0 ? 0 : Math.PI;
     scope.add(a);
+    scope.add(put(cyl(0.02, 0.05, 0.35, m.metal, 8), 0, side * 3.6, -1.0));
   });
 
   scope.userData.size = 13;
@@ -2108,10 +2372,11 @@ function createHubble() {
     const swing = clamp01(f * 2);
     const unroll = clamp01(f * 2 - 0.6);
     wings.forEach(function (w) {
+      const k = 0.08 + 0.92 * unroll;
       w.hinge.rotation.z = 0;
       w.hinge.rotation.y = w.side * (1 - swing) * (Math.PI / 2);   // folded along the tube, then out
-      w.panel.scale.x = 0.08 + 0.92 * unroll;
-      w.panel.position.x = w.side * (0.8 + 2.7 * (0.08 + 0.92 * unroll));
+      w.panel.scale.x = k;
+      w.panel.position.x = w.side * (0.8 + 3.55 * k);
     });
     door.rotation.x = -clamp01(f * 1.6 - 0.6) * 1.75;
   };
@@ -2131,23 +2396,48 @@ function createJwst() {
   shieldShape.moveTo(0, 7.1); shieldShape.lineTo(10.5, 0); shieldShape.lineTo(0, -7.1); shieldShape.lineTo(-10.5, 0);
   shieldShape.closePath();
   const layerGeometry = new THREE.ShapeGeometry(shieldShape);
-  const layerMaterial = new THREE.MeshStandardMaterial({ color: 0xc9a9d6, metalness: 0.7, roughness: 0.35, side: THREE.DoubleSide });
   for (let i = 0; i < 5; i++) {
-    const layer = new THREE.Mesh(layerGeometry, layerMaterial);
+    const layer = new THREE.Mesh(layerGeometry, m.kapton);
     layer.rotation.x = -Math.PI / 2;
     layer.position.y = -i * 0.18;
     layer.scale.setScalar(1 - i * 0.03);
     shield.add(layer);
   }
+  // spreader bars and the two booms that pulled the sunshield out (they spread with it)
+  [[0, 7.1], [0, -7.1], [10.5, 0], [-10.5, 0]].forEach(function (c) {
+    shield.add(strut(V(0, -0.4, 0), V(c[0], 0.02, -c[1]), 0.06, m.panelGray, 6));
+  });
   inner.add(shield);
 
-  inner.add(put(box(2.2, 1.0, 2.2, m.black), 0, -1.6, 0));                    // spacecraft bus (under the shield)
+  // spacecraft bus under the shield: dark panels, the solar array, the high-gain dish and the trim flap
+  inner.add(put(box(2.2, 1.0, 2.2, m.foilBlack), 0, -1.6, 0));
+  inner.add(put(box(2.25, 0.08, 2.25, m.panelGray), 0, -1.08, 0));
   inner.add(put(new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.04, 1.2), m.solar), 0, -2.2, -1.6));
+  inner.add(strut(V(0, -2.1, -1.1), V(0, -2.2, -1.0), 0.05, m.metal));
+  const jwstHga = dish(0.3, 0.08, m.dish, 20);
+  jwstHga.position.set(0.7, -2.25, 0.6);
+  jwstHga.rotation.x = Math.PI;
+  inner.add(jwstHga);
+  inner.add(strut(V(0.7, -2.1, 0.6), V(0.7, -2.25, 0.6), 0.04, m.metal));
+  const flap = box(2.2, 0.03, 0.9, m.kapton);
+  flap.position.set(0, -0.2, -7.6);
+  flap.rotation.x = -0.6;
+  inner.add(flap);
+  inner.add(strut(V(0, -0.4, -6.9), V(0, -0.2, -7.4), 0.04, m.metal));
 
   const optics = new THREE.Group();                                           // the telescope, standing on the shield
   optics.position.y = 0.6;
   inner.add(optics);
-  optics.add(put(box(1.2, 4.2, 1.2, m.black), 0, 2.1, -1.0));                 // backplane tower
+  // backplane (a black frame behind the mirror), the instrument module behind it, and the tower
+  optics.add(put(box(1.0, 1.2, 1.0, m.foilBlack), 0, 0.3, -1.0));
+  optics.add(put(box(1.6, 1.9, 1.3, m.foilBlack), 0, 2.4, -1.15));            // ISIM: the four science instruments
+  [-1.6, 1.6].forEach(function (x) {
+    optics.add(strut(V(x, 0.6, -0.35), V(x, 4.2, -0.35), 0.06, m.black, 6));
+    optics.add(strut(V(x, 0.6, -0.35), V(0, 0.8, -1.0), 0.05, m.black, 6));
+  });
+  optics.add(strut(V(-1.6, 4.2, -0.35), V(1.6, 4.2, -0.35), 0.06, m.black, 6));
+  optics.add(strut(V(-1.6, 0.6, -0.35), V(1.6, 0.6, -0.35), 0.06, m.black, 6));
+  optics.add(put(box(0.35, 0.35, 0.6, m.black), 0, 2.4, 0.2));                // aft optics at the center
 
   const hexGeometry = new THREE.CylinderGeometry(0.66, 0.66, 0.08, 6);
   // Not fully metallic: with nothing around to reflect, a pure metal would look black
@@ -2218,12 +2508,12 @@ function createJwst() {
 function createLro() {
   const m = getMaterials();
   const craft = new THREE.Group();
-  craft.add(put(box(1.4, 1.9, 1.4, m.gold), 0, 0, 0));
+  craft.add(put(box(1.4, 1.9, 1.4, m.foilGold), 0, 0, 0));
   craft.add(put(box(1.45, 0.25, 1.45, m.black), 0, 0.95, 0));
   [-0.35, 0, 0.35].forEach(function (x, i) {                                  // LROC cameras and other instruments
     craft.add(put(cyl(0.13, 0.13, 0.45 + i * 0.05, m.black, 16), x, 1.2, 0.35));
   });
-  craft.add(put(box(0.35, 0.3, 0.35, m.white), -0.3, 1.2, -0.3));
+  craft.add(put(box(0.35, 0.3, 0.35, m.panelWhite), -0.3, 1.2, -0.3));
   craft.add(strut(V(0.7, -0.3, 0), V(1.2, -0.3, 0), 0.05, m.metal));
   craft.add(put(box(3.2, 0.04, 2.2, m.solar), 2.8, -0.3, 0));                 // solar array
   craft.add(strut(V(-0.7, -0.6, 0), V(-1.8, -1.0, 0), 0.04, m.metal));
@@ -2235,22 +2525,54 @@ function createLro() {
   return craft;
 }
 
-// Orion: the crew module (forward, +Z) on the European Service Module with four X-shaped solar wings.
+// Orion (Artemis): the crew module (forward, +Z) with its silver backshell and windows, on ESA's European
+// Service Module: radiators on the sides, the main engine (an OMS-E from the Space Shuttle), eight
+// auxiliary thrusters, and four solar wings in an X, each of three panels (about 7 m long).
 function createOrion() {
   const m = getMaterials();
   const inner = new THREE.Group();
-  inner.add(put(cyl(0.95, 0.95, 1.6, m.white, 40), 0, 0.8, 0));               // service module
-  inner.add(put(cyl(0.96, 0.96, 0.08, m.black, 40), 0, 1.6, 0));
-  inner.add(put(cyl(0.5, 0.97, 1.3, m.silver, 40), 0, 2.3, 0));               // crew module
-  inner.add(put(cyl(0.95, 0.95, 0.12, m.heat, 40), 0, 1.68, 0));
-  inner.add(put(cyl(0.22, 0.22, 0.2, m.metal, 16), 0, 3.05, 0));              // docking hatch
-  inner.add(put(cyl(0.18, 0.45, 0.7, m.bell, 24), 0, -0.3, 0));               // main engine
-  for (let i = 0; i < 4; i++) {
+  const body = new THREE.Group();
+  body.add(put(cyl(0.95, 0.95, 1.6, m.panelWhite, 40), 0, 0.8, 0));            // service module
+  for (let i = 0; i < 4; i++) {                                                 // radiator panels
+    const a = (i / 4) * Math.PI * 2;
+    body.add(put(box(0.8, 1.1, 0.03, m.panelSilver), Math.cos(a) * 0.96, 0.85, Math.sin(a) * 0.96).rotateY(-a + Math.PI / 2));
+  }
+  body.add(put(cyl(0.96, 0.96, 0.08, m.black, 40), 0, 1.6, 0));
+  body.add(put(cyl(0.5, 0.97, 1.3, m.foilSilver, 40), 0, 2.3, 0));              // crew module
+  body.add(put(cyl(0.98, 0.98, 0.12, m.heat, 40), 0, 1.68, 0));
+  body.add(put(cyl(0.22, 0.25, 0.2, m.panelGray, 16), 0, 3.05, 0));             // docking hatch
+  const lean = Math.atan2(0.97 - 0.5, 1.3);
+  [-0.5, -0.17, 0.17, 0.5].forEach(function (a) {                               // four windows
+    const w = box(0.18, 0.18, 0.03, m.black);
+    w.rotation.order = "YXZ";
+    w.rotation.set(-lean, a, 0);
+    const r = 0.97 - (0.55 / 1.3) * (0.97 - 0.5) + 0.02;
+    w.position.set(Math.sin(a) * r, 2.2, Math.cos(a) * r);
+    body.add(w);
+  });
+  body.add(put(cyl(0.6, 0.95, 0.3, m.panelGray, 32), 0, -0.15, 0));             // spacecraft adapter ring
+  const main = nozzleBell(0.42, 0.8, m.nozzle, 28);
+  main.position.y = -0.2;
+  body.add(main);
+  for (let i = 0; i < 8; i++) {                                                 // auxiliary thrusters
+    const a = (i / 8) * Math.PI * 2;
+    const t = nozzleBell(0.05, 0.14, m.nozzle, 10);
+    t.position.set(Math.cos(a) * 0.75, -0.02, Math.sin(a) * 0.75);
+    body.add(t);
+  }
+  detailUV(body);
+  mergeStatic(body);
+  inner.add(body);
+  for (let i = 0; i < 4; i++) {                                                 // four solar wings, three panels each
     const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
     const dir = V(Math.cos(a), 0, Math.sin(a));
-    inner.add(strut(dir.clone().multiplyScalar(0.95).setY(0.6), dir.clone().multiplyScalar(1.4).setY(0.6), 0.04, m.metal));
-    const wing = box(3.2, 0.03, 0.9, m.solar);
-    wing.position.copy(dir.clone().multiplyScalar(3.0).setY(0.6));
+    inner.add(strut(dir.clone().multiplyScalar(0.95).setY(0.6), dir.clone().multiplyScalar(1.45).setY(0.6), 0.04, m.metal));
+    const wing = new THREE.Group();
+    [0, 1, 2].forEach(function (j) {
+      wing.add(put(box(1.0, 0.03, 0.9, m.solar), -1.08 + j * 1.08, 0, 0));
+      wing.add(put(box(1.04, 0.035, 0.94, m.panelSilver), -1.08 + j * 1.08, -0.01, 0));
+    });
+    wing.position.copy(dir.clone().multiplyScalar(3.05).setY(0.6));
     wing.rotation.y = -a;
     inner.add(wing);
   }
@@ -2298,7 +2620,7 @@ function createApolloCm() {
 function createOrionCm() {
   const m = getMaterials();
   const capsule = new THREE.Group();
-  capsule.add(put(cyl(0.5, 1.0, 1.3, m.silver, 40), 0, 0.72, 0));
+  capsule.add(put(cyl(0.5, 1.0, 1.3, m.panelSilver, 40), 0, 0.72, 0));
   capsule.add(put(cyl(1.0, 0.92, 0.12, m.heat, 40), 0, 0.03, 0));
   capsule.add(put(cyl(0.22, 0.22, 0.2, m.metal, 16), 0, 1.45, 0));
   addChutes(capsule, 3, 1.5, 1.5);
@@ -2310,32 +2632,59 @@ function createOrionCm() {
 function createSampleCapsule() {
   const m = getMaterials();
   const capsule = new THREE.Group();
-  capsule.add(put(cyl(0.18, 0.4, 0.3, m.white, 32), 0, 0.22, 0));
+  capsule.add(put(cyl(0.18, 0.4, 0.3, m.panelWhite, 32), 0, 0.22, 0));
   capsule.add(put(cyl(0.4, 0.3, 0.12, m.heat, 32), 0, 0.03, 0));
   addChutes(capsule, 1, 0.7, 0.8);
   capsule.userData.size = 0.8;
   return capsule;
 }
 
-// Gemini capsule with its white adapter section behind it (forward, +Z = the capsule nose)
+// Gemini capsule with its adapter section behind it (forward, +Z = the capsule nose). From NASA: the
+// re-entry module 2.3 m across at the base, covered in black ribbed shingles; two windows; the white
+// adapter (equipment and retrograde sections) behind it, 3 m across.
 function createGemini() {
   const m = getMaterials();
   const inner = new THREE.Group();
-  inner.add(put(cyl(1.5, 1.5, 0.2, m.white, 36), 0, -1.2, 0));
-  inner.add(put(cyl(1.15, 1.5, 1.4, m.white, 36), 0, -0.4, 0));              // adapter section
-  inner.add(put(cyl(0.48, 1.15, 1.4, m.black, 36), 0, 1.0, 0));              // re-entry module
-  inner.add(put(cyl(0.38, 0.48, 0.9, m.black, 24), 0, 2.15, 0));            // nose (radar and parachute section)
-  inner.add(put(box(0.3, 0.25, 0.08, m.metal), 0.3, 1.05, 0.62));
-  inner.add(put(box(0.3, 0.25, 0.08, m.metal), -0.3, 1.05, 0.62));
+  inner.add(put(cyl(1.5, 1.5, 0.2, m.panelWhite, 40), 0, -1.2, 0));
+  inner.add(put(cyl(1.15, 1.5, 1.4, m.panelWhite, 40), 0, -0.4, 0));          // adapter section
+  for (let i = 0; i < 16; i++) {                                               // adapter stringers
+    const a = (i / 16) * Math.PI * 2;
+    const st = strut(V(Math.cos(a) * 1.51, -1.1, Math.sin(a) * 1.51), V(Math.cos(a) * 1.16, 0.3, Math.sin(a) * 1.16), 0.02, m.panelGray, 4);
+    inner.add(st);
+  }
+  inner.add(put(cyl(1.16, 1.16, 0.06, m.panelGray, 40), 0, 0.32, 0));
+  inner.add(put(cyl(0.48, 1.15, 1.4, m.ribbedBlack, 40), 0, 1.05, 0));       // re-entry module
+  inner.add(put(cyl(0.38, 0.48, 0.9, m.ribbedBlack, 24), 0, 2.2, 0));       // nose (radar and parachute section)
+  inner.add(put(cyl(0.3, 0.38, 0.12, m.panelGray, 24), 0, 2.7, 0));
+  const lean = Math.atan2(1.15 - 0.48, 1.4);
+  [-0.32, 0.32].forEach(function (a) {                                         // two windows (hatches)
+    const w = box(0.28, 0.32, 0.04, m.panelSilver);
+    w.rotation.order = "YXZ";
+    w.rotation.set(-lean, a, 0);
+    const r = 1.15 - (0.75 / 1.4) * (1.15 - 0.48) + 0.02;
+    w.position.set(Math.sin(a) * r, 1.1, Math.cos(a) * r);
+    inner.add(w);
+  });
+  detailUV(inner);
+  mergeStatic(inner);
   return forward(inner, 3.8);
 }
 
 function createGeminiCm() {
   const m = getMaterials();
   const capsule = new THREE.Group();
-  capsule.add(put(cyl(0.48, 1.15, 1.4, m.black, 36), 0, 0.75, 0));
+  capsule.add(put(cyl(0.48, 1.15, 1.4, m.ribbedBlack, 36), 0, 0.75, 0));
   capsule.add(put(cyl(1.15, 1.1, 0.1, m.heat, 36), 0, 0.03, 0));
-  capsule.add(put(cyl(0.38, 0.48, 0.6, m.black, 24), 0, 1.75, 0));
+  capsule.add(put(cyl(0.38, 0.48, 0.6, m.ribbedBlack, 24), 0, 1.75, 0));
+  const lean = Math.atan2(1.15 - 0.48, 1.4);
+  [-0.32, 0.32].forEach(function (a) {
+    const w = box(0.28, 0.32, 0.04, m.panelSilver);
+    w.rotation.order = "YXZ";
+    w.rotation.set(-lean, a, 0);
+    const r = 1.15 - (0.75 / 1.4) * (1.15 - 0.48) + 0.02;
+    w.position.set(Math.sin(a) * r, 0.8, Math.cos(a) * r);
+    capsule.add(w);
+  });
   addChutes(capsule, 1, 2.0, 2.2);
   capsule.userData.size = 2.2;
   return capsule;
@@ -2345,8 +2694,8 @@ function createGeminiCm() {
 function createOsirisRex() {
   const m = getMaterials();
   const craft = new THREE.Group();
-  craft.add(put(box(2.0, 2.0, 2.0, m.silver), 0, 0, 0));
-  craft.add(put(box(2.02, 0.3, 2.02, m.gold), 0, 0.85, 0));
+  craft.add(put(box(2.0, 2.0, 2.0, m.panelSilver), 0, 0, 0));
+  craft.add(put(box(2.02, 0.3, 2.02, m.foilGold), 0, 0.85, 0));
   [-1, 1].forEach(function (side) {
     craft.add(strut(V(side, 0.3, 0), V(side * 1.4, 0.3, 0), 0.05, m.metal));
     craft.add(put(box(2.6, 0.04, 1.8, m.solar), side * 2.7, 0.3, 0));
@@ -2355,7 +2704,7 @@ function createOsirisRex() {
   hga.position.set(0, 1.0, -0.4);
   hga.rotation.x = -0.3;
   craft.add(hga);
-  craft.add(put(cyl(0.18, 0.4, 0.3, m.white, 24), 0.5, 1.15, 0.6));          // sample return capsule
+  craft.add(put(cyl(0.18, 0.4, 0.3, m.panelWhite, 24), 0.5, 1.15, 0.6));          // sample return capsule
   const arm = new THREE.Group();                                              // TAGSAM
   arm.add(strut(V(0, -1.0, 0.6), V(0, -2.1, 1.4), 0.04, m.metal));
   arm.add(strut(V(0, -2.1, 1.4), V(0, -3.0, 1.6), 0.04, m.metal));
@@ -2370,14 +2719,14 @@ function createOsirisRex() {
 function createStardust() {
   const m = getMaterials();
   const craft = new THREE.Group();
-  craft.add(put(box(1.0, 1.0, 1.5, m.gold), 0, 0, 0));
+  craft.add(put(box(1.0, 1.0, 1.5, m.foilGold), 0, 0, 0));
   [-1, 1].forEach(function (side) {
     craft.add(put(box(2.2, 0.04, 0.9, m.solar), side * 1.65, 0, 0.1));
   });
   [0.95, 1.15].forEach(function (z, i) {                                      // Whipple shields
-    craft.add(put(box(1.3 + i * 0.1, 1.2 + i * 0.1, 0.04, m.white), 0, 0, z));
+    craft.add(put(box(1.3 + i * 0.1, 1.2 + i * 0.1, 0.04, m.panelWhite), 0, 0, z));
   });
-  craft.add(put(cyl(0.22, 0.4, 0.3, m.white, 24).rotateX(-Math.PI / 2), 0, 0, -0.95)); // capsule at the back
+  craft.add(put(cyl(0.22, 0.4, 0.3, m.panelWhite, 24).rotateX(-Math.PI / 2), 0, 0, -0.95)); // capsule at the back
   const collector = new THREE.Group();
   collector.position.set(0, 0.5, -0.9);
   const racket = new THREE.Group();
@@ -2401,11 +2750,11 @@ function createStardust() {
 function createSkylab() {
   const m = getMaterials();
   const inner = new THREE.Group();
-  inner.add(put(cyl(3.3, 3.3, 14.6, m.white, 36), 0, 0, 0));                 // workshop
+  inner.add(put(cyl(3.3, 3.3, 14.6, m.panelWhite, 36), 0, 0, 0));                 // workshop
   inner.add(put(cyl(3.32, 3.32, 0.4, m.black, 36), 0, 7.1, 0));
-  inner.add(put(cyl(1.6, 1.6, 5.2, m.silver, 24), 0, 9.9, 0));               // airlock module
-  inner.add(put(cyl(1.5, 1.5, 5.2, m.white, 24), 0, 15.1, 0));               // docking adapter
-  const parasol = box(7.0, 0.05, 7.0, m.gold);                                // improvised sunshade
+  inner.add(put(cyl(1.6, 1.6, 5.2, m.panelSilver, 24), 0, 9.9, 0));               // airlock module
+  inner.add(put(cyl(1.5, 1.5, 5.2, m.panelWhite, 24), 0, 15.1, 0));               // docking adapter
+  const parasol = box(7.0, 0.05, 7.0, m.foilGold);                                // improvised sunshade
   parasol.position.set(0, 0, 3.45);
   parasol.rotation.x = Math.PI / 2;
   inner.add(parasol);
@@ -2413,7 +2762,7 @@ function createSkylab() {
   inner.add(put(box(9.5, 0.06, 4.6, m.solar), 8.8, 2.0, 0).rotateZ(0));
   const atm = new THREE.Group();                                              // Apollo Telescope Mount
   atm.position.set(0, 14.8, 3.6);
-  atm.add(put(cyl(1.2, 1.2, 3.0, m.gold, 8).rotateX(Math.PI / 2), 0, 0, 0));
+  atm.add(put(cyl(1.2, 1.2, 3.0, m.foilGold, 8).rotateX(Math.PI / 2), 0, 0, 0));
   const blades = [];
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
@@ -2441,8 +2790,8 @@ function createSkylab() {
 function createZaryaUnity() {
   const m = getMaterials();
   const inner = new THREE.Group();
-  inner.add(put(cyl(2.05, 2.05, 9.0, m.white, 32), 0, 0, 0));                // Zarya, main body
-  inner.add(put(cyl(1.35, 2.05, 2.4, m.white, 32), 0, 5.7, 0));              // tapered front
+  inner.add(put(cyl(2.05, 2.05, 9.0, m.panelWhite, 32), 0, 0, 0));                // Zarya, main body
+  inner.add(put(cyl(1.35, 2.05, 2.4, m.panelWhite, 32), 0, 5.7, 0));              // tapered front
   inner.add(put(cyl(0.7, 0.7, 1.0, m.metal, 16), 0, 7.4, 0));
   inner.add(put(cyl(2.07, 2.07, 0.3, m.black, 32), 0, -2, 0));
   [-1, 1].forEach(function (side) {
@@ -2450,9 +2799,9 @@ function createZaryaUnity() {
     inner.add(put(box(10.6, 0.06, 3.3, m.solar), side * 8.2, -3.2, 0));
   });
   const unity = new THREE.Group();
-  unity.add(put(cyl(2.25, 2.25, 5.5, m.silver, 32), 0, 0, 0));               // Unity node
-  unity.add(put(cyl(1.0, 1.4, 2.0, m.white, 24), 0, 3.6, 0));                 // mating adapter
-  unity.add(put(cyl(1.0, 1.4, 2.0, m.white, 24), 0, -3.6, 0).rotateX(Math.PI));
+  unity.add(put(cyl(2.25, 2.25, 5.5, m.panelSilver, 32), 0, 0, 0));               // Unity node
+  unity.add(put(cyl(1.0, 1.4, 2.0, m.panelWhite, 24), 0, 3.6, 0));                 // mating adapter
+  unity.add(put(cyl(1.0, 1.4, 2.0, m.panelWhite, 24), 0, -3.6, 0).rotateX(Math.PI));
   inner.add(unity);
   const station = forward(inner, 22);
   station.userData.setDeploy = function (f) {
@@ -2527,50 +2876,76 @@ function createSeis() {
   return group;
 }
 
-// Crew Dragon: the capsule (nose cone hinged on top) on its trunk, which carries solar cells and small fins.
+// Crew Dragon: the capsule (nose cone hinged on top, with four windows, Draco thrusters and four
+// SuperDraco pods) on its trunk, which carries solar cells on one side and four small fins.
+function dragonCapsuleParts(group, noseOpen) {
+  const m = getMaterials();
+  group.add(put(cyl(1.85, 1.85, 0.12, m.heat, 48), 0, 0.05, 0));               // heat shield
+  group.add(put(cyl(1.15, 1.85, 2.0, m.panelWhite, 48), 0, 1.1, 0));           // capsule
+  group.add(put(cyl(1.16, 1.86, 0.25, m.black, 48), 0, 0.6, 0));               // dark band
+  const lean = Math.atan2(1.85 - 1.15, 2.0);
+  const onWall = function (mesh, angle, y) {
+    const r = 1.85 - ((y - 0.1) / 2.0) * (1.85 - 1.15) + 0.02;
+    mesh.rotation.order = "YXZ";
+    mesh.rotation.set(-lean, angle, 0);
+    mesh.position.set(Math.sin(angle) * r, y, Math.cos(angle) * r);
+    group.add(mesh);
+  };
+  [-0.55, -0.18, 0.18, 0.55].forEach(function (a) { onWall(box(0.3, 0.32, 0.04, m.black), a, 1.55); });      // windows
+  onWall(box(0.75, 0.8, 0.03, m.panelGray), Math.PI, 1.3);                                                   // side hatch
+  [0, 1, 2, 3].forEach(function (i) {                                          // SuperDraco pods
+    const a = (i / 4) * Math.PI * 2 + 0.3;
+    onWall(box(0.38, 0.5, 0.08, m.black), a + Math.PI / 2, 0.95);
+  });
+  group.add(put(cyl(0.3, 1.1, 0.6, m.panelWhite, 40), 0, noseOpen ? 2.4 : 2.4, 0)); // nose cone
+  group.add(put(cyl(1.12, 1.12, 0.04, m.panelGray, 40), 0, 2.1, 0));
+}
+
 function createDragon() {
   const m = getMaterials();
   const inner = new THREE.Group();
-  inner.add(put(cyl(1.85, 1.85, 2.6, m.white, 36), 0, -1.3, 0));            // trunk
-  inner.add(put(cyl(1.865, 1.865, 1.2, m.solar, 36), 0, -1.6, 0));           // solar cells on one half
+  inner.add(put(cyl(1.85, 1.85, 2.6, m.panelWhite, 48), 0, -1.3, 0));          // trunk
+  const cells = new THREE.Mesh(new THREE.CylinderGeometry(1.865, 1.865, 2.2, 48, 1, true, 0, Math.PI), m.solar);
+  cells.position.y = -1.35;
+  inner.add(cells);                                                             // solar cells on one side
   [0, 1, 2, 3].forEach(function (i) {
     const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-    const fin = box(0.05, 1.1, 0.6, m.white);
+    const fin = box(0.05, 1.1, 0.6, m.panelWhite);
     fin.position.set(Math.cos(a) * 1.95, -2.1, Math.sin(a) * 1.95);
     fin.rotation.y = -a;
     inner.add(fin);
   });
-  inner.add(put(cyl(1.85, 1.85, 0.12, m.heat, 36), 0, 0.05, 0));            // heat shield
-  inner.add(put(cyl(1.15, 1.85, 2.0, m.white, 36), 0, 1.1, 0));             // capsule
-  inner.add(put(cyl(1.16, 1.86, 0.25, m.black, 36), 0, 0.6, 0));            // dark band with the Draco thrusters
-  [0, 1, 2, 3].forEach(function (i) {
-    const a = (i / 4) * Math.PI * 2 + 0.3;
-    inner.add(put(box(0.36, 0.22, 0.1, m.black), Math.cos(a) * 1.45, 1.0, Math.sin(a) * 1.45));
-  });
-  const noseCone = put(cyl(0.3, 1.1, 0.6, m.white, 36), 0, 2.4, 0);          // nose cone (opens in orbit)
-  inner.add(noseCone);
+  dragonCapsuleParts(inner, false);
+  detailUV(inner);
+  mergeStatic(inner);
   return forward(inner, 8);
 }
 
 // Crew Dragon coming home: the capsule alone, standing upright (heat shield down). Before re-entry the
 // trunk is jettisoned, so it is not drawn here.
 function createDragonCapsule() {
-  const m = getMaterials();
   const capsule = new THREE.Group();
-  capsule.add(put(cyl(1.85, 1.85, 0.12, m.heat, 36), 0, 0.05, 0));          // heat shield
-  capsule.add(put(cyl(1.15, 1.85, 2.0, m.white, 36), 0, 1.1, 0));           // capsule
-  capsule.add(put(cyl(1.16, 1.86, 0.25, m.black, 36), 0, 0.6, 0));          // dark band with the Draco thrusters
-  [0, 1, 2, 3].forEach(function (i) {
-    const a = (i / 4) * Math.PI * 2 + 0.3;
-    capsule.add(put(box(0.36, 0.22, 0.1, m.black), Math.cos(a) * 1.45, 1.0, Math.sin(a) * 1.45));
-  });
-  capsule.add(put(cyl(0.3, 1.1, 0.6, m.white, 36), 0, 2.4, 0));             // nose cone (closed for landing)
+  const body = new THREE.Group();
+  dragonCapsuleParts(body, false);
+  detailUV(body);
+  mergeStatic(body);
+  capsule.add(body);
   capsule.userData.size = 4.2;
   return capsule;
 }
 
 // ---------- Choose a model by name ----------
+// Phase 2 models get their foil and panel textures mapped at a sensible size (see detailUV)
+const DETAIL_UV_MODELS = ["centaur", "lcross", "messenger", "venus-probe-large", "venus-probe-small", "galileo-orbiter",
+  "galileo-probe", "huygens", "pioneer", "new-horizons", "lro", "orion-cm", "src", "osiris-rex", "stardust", "skylab",
+  "zarya-unity", "jwst"];
 export function createModel(name) {
+  const model = buildModel(name);
+  if (DETAIL_UV_MODELS.indexOf(name) !== -1) detailUV(model);
+  return model;
+}
+
+function buildModel(name) {
   switch (name) {
     case "voyager": return createVoyager();
     case "parker": return createParker();

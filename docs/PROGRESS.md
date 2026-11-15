@@ -321,6 +321,106 @@ The first countdown caption describes each pad, and rockets that were stacked on
 - Venus texture 404 fixed.
 - `docs/ASSETS.md` lists the Venus files by their real names.
 
+## Completed (2026-11-15): Kampu Space Master Doc (17)
+- **Builder "next" button:**
+  - It now sits in a bar pinned to the bottom of the screen, centred, big, and pulses once when a step is ready. Back is on the left; "Step 2 of 5 · 40% built" is on the right.
+  - The step bar stays pinned at the top while you scroll.
+  - Files: `js/simulator.js`, `css/style.css`.
+- **Builder progress:** the steps are now segments like the replay timeline (done = filled green, current = outlined and half filled). The green ✓ text and the thin bar are gone.
+- **Narration:**
+  - Sentences are queued back to back, so there are no timer gaps.
+  - Neural ("Natural") voices are no longer pitch-shifted, and the newest Edge "Multilingual" natural voices are preferred.
+  - Scene waits: title card 2.2 s (was 3.2), the beat after the voice 0.35 s (was 0.9), silence fallback 1.5 s (was 3).
+  - Generic explanation lines are only added when a mission's own text is short. Apollo 11 got its own NASA-sourced text for the orbit, departure and descent scenes (`story` in `data/hardware-replays.js`), and silent departure scenes now have a line.
+  - Files: `js/narrator.js`, `js/mission-player.js`, `js/mission-plan.js`.
+- **Missions page:**
+  - It opens with "What would you like to do?" and two big cards, Real Missions and Free Build.
+  - The browse view has a wider sidebar (300 px), a centred column (max 1180 px), and roomier cards and spacing.
+  - Real Missions | Free Build is a centred switch at the top of the Missions page and the builder.
+  - One themed scrollbar style is used across the site.
+  - Files: `index.html`, `js/main.js`, `css/style.css`.
+- **Free Build astronaut guide (`js/guide-astronaut.js`, new):**
+  - A second astronaut walks beside you.
+  - Near an object, Y or "Ask your guide" makes it walk over and tell the object's story, built only from its information card.
+  - The talk is spoken with subtitles; ✕ stops it.
+  - "Hide guide" is in the HUD and remembered in Settings (`guideHidden`).
+  - Y is listed in How to play.
+- **Apollo 11 first-person moonwalk (`data/moonwalks.js`, new; `moonwalkShot` in `js/space-film.js`):**
+  - It replaces the general "On the surface" scene with eight beats: first step, contingency sample, Aldrin, plaque, flag, experiments, rocks, and back inside.
+  - You see through Armstrong's helmet (gloves, visor edge) while Aldrin works beside you.
+  - Real quotes (ALSJ) show with the speaker's name and are read in a second voice after the narration.
+  - Each beat is a replay scene, so pause, skip and the progress bar work; each scene lasts as long as its words.
+  - A "Recreation based on the Apollo 11 transcript" tag stays visible. The final beat ends with three key takeaways.
+- **Tested in the browser:**
+  - builder steps and the pinned next button (desktop and 375 px);
+  - the Missions chooser, then browse, then the switch both ways (desktop and 375 px);
+  - the guide (Y, subtitles, ✕, Hide/Show, saved setting) at Tranquility Base in a Free Build mission;
+  - narration timing (sentences back to back; the quote follows the narration);
+  - every moonwalk beat on its own, and the Apollo 11 replay from the first step through Liftoff;
+  - no console errors.
+- **Not verified:**
+  - how the "Natural" voices sound on the team's Edge (the test browser only had David, Mark and Zira);
+  - the exact minute of the middle moonwalk beats (shown as "During the moonwalk", because the project's sources don't give them).
+- **Next:**
+  - moonwalks for Apollo 12, 15 and 17 after review;
+  - Apollo 12/15/17, Curiosity and Perseverance still use their existing event text for orbit and descent (it is detailed, but they have no `story` of their own yet).
+
+## Completed (2026-11-15): rebuilding the code-built models, Phase 3 (equipment and astronaut), awaiting review
+- **Equipment (`js/equipment-models.js`, all 15 items, same keys):**
+  - **Hasselblad 500EL:** silver body, motor drive, lens rings with the focus tabs for gloved fingers, film magazine and trigger grip.
+  - **Sample bag and scoop:** a wrinkled bag with a numbered tag and closure; a scoop with a locking collar.
+  - **Mast heads:** Mastcam-Z with two zoom cameras, Mastcam with two different lenses; Navcams and the laser window on both.
+  - **Robotic arm:** joints and a five-tool turret with a drill bit.
+  - **Sample tubes:** white tubes with seals (the seal colour is illustrative).
+  - **Relay dish:** feed struts and a rim.
+  - **Cameras, radio and SAFER:** a camera with grip and viewfinder; a radio with display and switches; SAFER with its thrusters, nitrogen tanks and hand controller.
+  - **Collected objects:** a lumpy rock, orange soil with glass beads, the Apollo 15 plaque and figurine, and the landing-site marker (labelled illustrative).
+- **Astronaut (`js/astronaut.js`):** every joint, pose and animation is unchanged. Added:
+  - a woven cloth bump;
+  - the US flag patch on the left shoulder (A7-L and EMU);
+  - gloves with fingers and thumb;
+  - controls and straps on the chest box;
+  - the Apollo oxygen hoses and purge valve, and PLSS seams;
+  - EMU helmet lights on both sides and the cuff checklist;
+  - the visor assembly rim and ribbed boot soles.
+
+  Still parts are merged. Each suit is 20–28k triangles and 34–63 meshes.
+- **Tested in the browser:**
+  - all 15 equipment items and all 5 suits build;
+  - all 10 animation states run on every suit;
+  - walking on foot in exploration (Free Build Moon site);
+  - the Apollo 12 landing with two astronauts hopping;
+  - no errors.
+- **Not verified:** the equipment rack and inventory pictures inside the builder (the models were checked on their own).
+
+## In progress (2026-11-15): rebuilding the code-built models, Phase 2 (spacecraft) done, awaiting review
+- **Rebuilt in full (`js/models.js`):**
+  - **Hubble:** now at real proportions (13.2 m long, 4.2 m across). It has silver insulation, the ten equipment-bay doors, yellow handrails, two rigid solar arrays (2002 type), the high-gain antennas and magnetometers.
+  - **Webb:** sunshield spreader bars, the backplane frame and instrument module, the high-gain dish and the trim flap.
+  - **Cassini/Huygens:** foil-wrapped tanks, finned RTGs, two engine bells, the camera pallet, the magnetometer boom and three plasma-wave antennas.
+  - **Voyager:** a 1.8 m ten-sided bus (in proportion to the 3.7 m dish), three finned RTGs, the scan platform, plasma-wave antennas and the Golden Record.
+  - **Parker:** shield struts, water-cooled arrays and four radiators, the FIELDS antennas, the Faraday cup and the magnetometer boom.
+  - **Mars entry capsule and backshell:** a 70-degree sphere-cone heat shield, the parachute cover, backshell thrusters, and the cruise-stage ring with radiators.
+  - **Sky crane:** three propellant tanks, eight canted engine bells in four pods, and radar.
+  - **Ingenuity:** real proportions (49 cm tall, 1.2 m rotors), curved blades, the solar panel on the mast and thin legs.
+  - **Phoenix/InSight:** solar arrays made of ten gores with ribs, deck instruments, wind sensors, an arm camera, twelve descent engines and footpads.
+  - **Orion:** radiators, the main engine and eight auxiliary thrusters, crew windows, and three-panel solar wings.
+  - **Dragon:** windows, hatch, SuperDraco pods, and solar cells on half of the trunk.
+  - **Gemini:** ribbed black shingles, adapter stringers and windows.
+- **Shared upgrade for the rest** (Centaur, LCROSS, MESSENGER, Venus probes, Galileo and its probe, Huygens, Pioneer, New Horizons, LRO, the sample capsule, OSIRIS-REx, Stardust, Skylab, Zarya/Unity, the Orion and Gemini capsules):
+  - insulation-foil and panel textures, mapped at a sensible size (`detailUV`);
+  - real engine bells;
+  - finned RTGs (Galileo).
+- **Hooks kept:** `setDeploy` (Hubble, Webb, Skylab, Zarya/Unity, Stardust), `setArrays` and `deployInstruments`, `heatShield`, `chutes`, `huygens`, `flame`, `engines`, and the helicopter's `update`.
+- **Size:** every model is under 9k triangles (budget 60k) and has 2–57 meshes.
+- **Tested in the browser:**
+  - all 34 models build;
+  - deploy and array functions run from 0 to 1;
+  - landing replays run without errors: InSight (arrays open, seismometer placed), Phoenix, Curiosity and Perseverance (backshell, sky crane), Huygens, the Galileo probe, Cassini and Pioneer Venus;
+  - Ingenuity is visible in the Mars surface film.
+- **Not verified:** Hubble and Webb unfolding inside a full mission replay (the functions were run directly), and frame rate on the team's computers.
+- **Next:** Phase 3, the equipment and the astronaut.
+
 ## In progress (2026-11-15): rebuilding the code-built models (Phase 1 of 3 done, awaiting review)
 Goal: bring the models built in code closer to NASA's 3D models. Models that already load NASA's file are unchanged.
 - **Shared toolkit `js/model-detail.js` (new):** textures drawn in code, with nothing downloaded:

@@ -547,6 +547,10 @@ bayBack.addEventListener("click", function () {
   setBayTab(steps[i - 1]);
 });
 if (bayNext.parentNode && bayNext.parentNode.insertBefore) bayNext.parentNode.insertBefore(bayBack, bayNext);
+// Master Doc 17: "Step 2 of 5" beside the next button, which sits centred in a bar pinned to the bottom
+const bayCount = document.createElement("span");
+bayCount.className = "bay-count";
+if (bayNext.parentNode && bayNext.parentNode.appendChild) bayNext.parentNode.appendChild(bayCount);
 
 // (the build sheet over the 3D bay was removed earlier; kept as a no-op for safety)
 function renderBuildSheet() {}
@@ -574,7 +578,20 @@ function renderBayChrome() {
   const next = nextStation();
   bayNext.classList.toggle("hidden", !next);
   if (next) bayNext.textContent = next[1] + " \u2192";
+  // a gentle pulse when the button first becomes available on a step, so the eye finds it
+  const readyKey = state.bayTab + (next ? next[0] : "");
+  if (next && bayNext.dataset.ready !== readyKey) {
+    bayNext.classList.remove("pulse");
+    void bayNext.offsetWidth;
+    bayNext.classList.add("pulse");
+  }
+  bayNext.dataset.ready = next ? readyKey : "";
   bayBack.classList.toggle("hidden", current <= 0);
+  // the launch step counts as built once you reach it (everything before it is done)
+  const doneCount = steps.filter(function (tab) { return stepDone(tab) || (tab === "review" && state.bayTab === "review"); }).length;
+  bayCount.textContent = state.bayTab === "review"
+    ? "Step " + (current + 1) + " of " + steps.length + " \u00b7 ready to launch"
+    : "Step " + (current + 1) + " of " + steps.length + " \u00b7 " + Math.round(doneCount / steps.length * 100) + "% built";
 }
 
 export function showSimStep(step) {

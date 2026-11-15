@@ -20,6 +20,7 @@ import { createModel } from "./models.js";
 import { nasaUsableInScene, upgradeToNasaModel, announceNasaModel } from "./nasa-models.js";
 import { createSuitedAstronaut } from "./astronaut.js";
 import { createParticleSystem } from "./particles.js";
+import { MOONWALKS } from "../data/moonwalks.js";
 import { buildTerrainShape, buildGround, heightAt } from "./terrain.js";
 import { play, setLoop } from "./sounds.js";
 import { getPlaybackSpeed } from "./playback.js";
@@ -118,8 +119,8 @@ window.addEventListener("resize", resize);
 
 // ----- Worlds -----
 const TEXTURES = {
-  earth: "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg",
-  moon: "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/moon_1024.jpg",
+  earth: "assets/textures/earth_atmos_2048.jpg",
+  moon: "assets/textures/moon_1024.jpg",
   mars: "assets/textures/mars.jpg", venus: "assets/textures/venus.jpg", mercury: "assets/textures/mercury.jpg",
   jupiter: "assets/textures/jupiter.jpg", saturn: "assets/textures/saturn.jpg", uranus: "assets/textures/uranus.jpg",
   neptune: "assets/textures/neptune.jpg", sun: "assets/textures/sun.jpg"
@@ -1050,13 +1051,453 @@ function finaleShot(o) {
   };
 }
 
+// ----- First-person moonwalk (Kampu Space Master Doc 17) -----
+// One beat of a crewed moonwalk (data/moonwalks.js), seen through the commander's helmet: gloved hands in
+// view, the Lunar Module, the other astronaut working beside you, and what was set up in the earlier beats
+// (footprints, the flag, the experiments). The user does not steer; the replay's pause, skip and progress
+// bar work as for every other scene. Positions, movements and models are simplified (a recreation).
+// Directions in this scene: +Z = west (the Lunar Module's ladder faced west, away from the low morning Sun
+// in the east), +X = south.
+const FP_FOV = 62;
+const EYE = 1.62; // eye height inside the helmet (m)
+let fpHands = null;
+let fpNote = null;
+
+function fpMaterials() {
+  return {
+    cloth: new THREE.MeshStandardMaterial({ color: 0xeceae4, roughness: 0.9 }),
+    ring: new THREE.MeshStandardMaterial({ color: 0x2d5fb8, roughness: 0.5, metalness: 0.3 }),
+    glove: new THREE.MeshStandardMaterial({ color: 0x3a3b3f, roughness: 0.9 }),
+    metal: new THREE.MeshStandardMaterial({ color: 0xb8bcc4, roughness: 0.3, metalness: 0.85 })
+  };
+}
+
+// The commander's forearms and gloves, fixed in front of the camera
+function makeHands() {
+  const m = fpMaterials();
+  const hands = new THREE.Group();
+  hands.name = "fp-hands";
+  ["L", "R"].forEach(function (key) {
+    const side = key === "L" ? -1 : 1;
+    const arm = new THREE.Group();
+    const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.3, 16), m.cloth);
+    fore.rotation.x = Math.PI / 2;
+    fore.position.z = 0.17;
+    arm.add(fore);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.064, 0.013, 8, 20), m.ring);
+    arm.add(ring);
+    const palm = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.05, 0.12), m.glove);
+    palm.position.z = -0.08;
+    arm.add(palm);
+    [-0.04, -0.013, 0.013, 0.04].forEach(function (x) {
+      const finger = new THREE.Mesh(new THREE.CapsuleGeometry(0.013, 0.05, 2, 8), m.glove);
+      finger.rotation.x = Math.PI / 2 - 0.5;
+      finger.position.set(x, -0.02, -0.17);
+      arm.add(finger);
+    });
+    const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.014, 0.04, 2, 8), m.glove);
+    thumb.rotation.set(Math.PI / 2, 0, side * -0.8);
+    thumb.position.set(side * -0.065, 0.01, -0.1);
+    arm.add(thumb);
+    arm.userData.rest = new THREE.Vector3(side * 0.22, -0.24, -0.62);
+    arm.position.copy(arm.userData.rest);
+    arm.rotation.set(-0.25, side * -0.15, 0);
+    hands.add(arm);
+    hands.userData[key] = arm;
+  });
+  // the scoop (contingency sample) and the tongs (sampling), shown when a beat needs them
+  const scoop = new THREE.Group();
+  scoop.add(new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.1, 8), m.metal));
+  const pan = new THREE.Mesh(new THREE.SphereGeometry(0.07, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), m.metal);
+  pan.rotation.x = Math.PI;
+  pan.position.y = -0.56;
+  scoop.add(pan);
+  scoop.position.set(0, -0.45, -0.12);
+  scoop.rotation.x = 0.5;
+  scoop.visible = false;
+  hands.userData.R.add(scoop);
+  hands.userData.scoop = scoop;
+  return hands;
+}
+
+function setFirstPerson(on, note) {
+  const screen = document.getElementById("film-screen");
+  if (screen) screen.classList.toggle("first-person", Boolean(on));
+  if (on && screen && !fpNote) {
+    const visor = document.createElement("div");
+    visor.className = "fp-visor";
+    visor.setAttribute("aria-hidden", "true");
+    screen.appendChild(visor);
+    fpNote = document.createElement("p");
+    fpNote.className = "fp-note";
+    screen.appendChild(fpNote);
+  }
+  if (fpNote) {
+    fpNote.textContent = on ? (note || "Recreation") : "";
+    fpNote.classList.toggle("hidden", !on);
+  }
+  if (camera) {
+    if (on) {
+      if (!fpHands) fpHands = makeHands();
+      if (!camera.parent) scene.add(camera);
+      if (fpHands.parent !== camera) camera.add(fpHands);
+      camera.fov = FP_FOV;
+    } else {
+      if (fpHands && fpHands.parent) fpHands.parent.remove(fpHands);
+      camera.fov = 40;
+    }
+    camera.updateProjectionMatrix();
+  }
+}
+
+// A canvas picture, drawn once
+function picture(w, h, draw) {
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  draw(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+let flagTexture = null;
+let plaqueTexture = null;
+function usFlag() {
+  if (!flagTexture) flagTexture = picture(190, 100, function (ctx, w, h) {
+    for (let i = 0; i < 13; i++) { ctx.fillStyle = i % 2 ? "#f4f2ec" : "#b22234"; ctx.fillRect(0, (i * h) / 13, w, h / 13 + 1); }
+    ctx.fillStyle = "#3c3b6e";
+    ctx.fillRect(0, 0, w * 0.4, (h * 7) / 13);
+    ctx.fillStyle = "#f4f2ec";
+    for (let r = 0; r < 9; r++) for (let c = 0; c < (r % 2 ? 5 : 6); c++) ctx.fillRect(4 + c * 12 + (r % 2) * 6, 3 + r * 5.6, 2.2, 2.2);
+  });
+  return flagTexture;
+}
+// The plaque on the ladder leg: Earth's two hemispheres above the words (drawn simply)
+function plaqueImage() {
+  if (!plaqueTexture) plaqueTexture = picture(256, 160, function (ctx, w, h) {
+    ctx.fillStyle = "#c9ccd1";
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = "#55585e";
+    ctx.lineWidth = 2;
+    [w * 0.33, w * 0.67].forEach(function (x) { ctx.beginPath(); ctx.arc(x, 44, 32, 0, Math.PI * 2); ctx.stroke(); });
+    ctx.fillStyle = "#3a3d42";
+    ctx.font = "bold 13px sans-serif";
+    ctx.textAlign = "center";
+    ["HERE MEN FROM THE PLANET EARTH", "FIRST SET FOOT UPON THE MOON", "JULY 1969, A.D.", "WE CAME IN PEACE FOR ALL MANKIND"].forEach(function (line, i) {
+      ctx.fillText(line, w / 2, 98 + i * 15);
+    });
+  });
+  return plaqueTexture;
+}
+
+function moonwalkShot(o) {
+  const walk = MOONWALKS[o.mission] || MOONWALKS.apollo11;
+  const order = walk.beats.map(function (b) { return b.id; });
+  const step = Math.max(0, order.indexOf(o.beat));
+  const after = function (id) { return step >= order.indexOf(id); };
+
+  // the ground of the real landing site, a black sky, a low Sun in the east and Earth high in the west
+  buildTerrainShape("moon", walk.site, walk.site.length * 97 + 13);
+  const ground = new THREE.Group();
+  buildGround(ground, "moon", [{ x: 0, z: 0 }, { x: 0, z: 8 }, { x: -3, z: 10 }, { x: 16, z: 4 }]);
+  shotGroup.add(ground);
+  scene.background = new THREE.Color(0x000000);
+  stars.visible = true;
+  const sunDir = V(0.1, 0.25, -1).normalize();
+  sunLight.position.copy(sunDir).multiplyScalar(1000);
+  sunLight.intensity = 3.2;
+  sunSprite.position.copy(sunDir).multiplyScalar(20000);
+  ambient.intensity = 0.07;
+  const earth = makeWorld("earth", 22);
+  earth.position.copy(V(0.35, 0.9, 0.55).normalize().multiplyScalar(1200));
+  const gy = heightAt(0, 0);
+  const at = function (x, z) { return V(x, heightAt(x, z), z); };
+
+  // the Lunar Module (its ladder faces +Z) at its real size: about 9.4 m across the footpads
+  const lmHolder = makeCraft("lunar-module", 10);
+  lmHolder.position.set(0, gy, 0);
+  const k = 0.42 * lmHolder.userData.model.scale.x;
+  const lmPoint = function (x, y, z) { return V(x * k, gy + y * k, z * k); };
+  const ladderTop = lmPoint(0, 3.1, 2.85);
+  const ladderBottom = lmPoint(0, 0.8, 4.3);
+  const porch = lmPoint(0, 3.2, 2.5);
+  const padTop = lmPoint(0, 0.45, 4.7);
+  const onLadder = function (f) { return ladderTop.clone().lerp(ladderBottom, f); };
+
+  // the plaque on the ladder leg (behind the lower rungs)
+  const plaque = new THREE.Mesh(new THREE.PlaneGeometry(0.23, 0.15), new THREE.MeshStandardMaterial({ map: plaqueImage(), emissive: 0xffffff, emissiveMap: plaqueImage(), emissiveIntensity: 0.35, metalness: 0.6, roughness: 0.35 }));
+  plaque.position.copy(onLadder(0.7)).add(V(0, 0, -0.06));
+  plaque.lookAt(plaque.position.clone().add(V(0, 0.55, 1)));
+  shotGroup.add(plaque);
+
+  // footprints: more of them as the moonwalk goes on
+  const printMat = new THREE.MeshStandardMaterial({ color: 0x2c2b29, roughness: 1 });
+  const printGeo = new THREE.BoxGeometry(0.14, 0.012, 0.3);
+  const prints = step === 0 ? 0 : 16 + step * 22;
+  for (let i = 0; i < prints; i++) {
+    const a = i * 2.39996;
+    const r = 3.2 + ((i * 37) % 100) / 100 * (6 + step * 2.4);
+    const x = Math.sin(a) * r * 0.9 + (i % 3) * 0.2;
+    const z = Math.abs(Math.cos(a)) * r + 3.2;
+    const p = new THREE.Mesh(printGeo, printMat);
+    p.position.copy(at(x, z)).add(V(0, 0.004, 0));
+    p.rotation.y = a;
+    shotGroup.add(p);
+  }
+  // the first footprint, beside the footpad
+  const firstPrint = new THREE.Mesh(printGeo, printMat);
+  firstPrint.position.copy(at(0.35, padTop.z + 0.75)).add(V(0, 0.004, 0));
+  firstPrint.visible = step > 0;
+  shotGroup.add(firstPrint);
+
+  // the flag (after it was planted): pole, the top rod that holds it out, and the flag
+  const flagSpot = at(-3.5, 10);
+  const flag = new THREE.Group();
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0xd8dbe0, metalness: 0.7, roughness: 0.3 });
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 2.3, 8), poleMat);
+  pole.position.y = 1.15;
+  flag.add(pole);
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.5, 8), poleMat);
+  rod.rotation.z = Math.PI / 2;
+  rod.position.set(0.75, 2.25, 0);
+  flag.add(rod);
+  const clothGeo = new THREE.PlaneGeometry(1.5, 0.9, 12, 6);
+  const cp = clothGeo.attributes.position;
+  for (let i = 0; i < cp.count; i++) cp.setZ(i, Math.sin(cp.getX(i) * 6) * 0.03 * (cp.getX(i) + 0.75)); // the crinkles it was known for
+  clothGeo.computeVertexNormals();
+  const cloth = new THREE.Mesh(clothGeo, new THREE.MeshStandardMaterial({ map: usFlag(), side: THREE.DoubleSide, roughness: 0.8 }));
+  cloth.position.set(0.75, 1.8, 0);
+  flag.add(cloth);
+  flag.position.copy(flagSpot);
+  flag.rotation.y = -0.5;
+  flag.visible = after("flag");
+  shotGroup.add(flag);
+
+  // the experiments, about 17 m south (+X) of the lander
+  const pseSpot = at(17, 2);
+  const lrrrSpot = at(15, 6.5);
+  const pse = createModel("pse");
+  pse.scale.setScalar(0.9);
+  pse.position.copy(pseSpot);
+  pse.visible = after("experiments");
+  shotGroup.add(pse);
+  const lrrr = createModel("lrrr");
+  lrrr.scale.setScalar(1.3);
+  lrrr.position.copy(lrrrSpot);
+  lrrr.rotation.y = Math.PI;
+  lrrr.visible = after("experiments");
+  shotGroup.add(lrrr);
+
+  // a few rocks to sample, and the sample box
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x6d6a64, roughness: 1, flatShading: true });
+  const rocks = [];
+  for (let i = 0; i < 7; i++) {
+    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.06 + (i % 3) * 0.03, 0), rockMat);
+    r.position.copy(at(-2.3 + (i % 4) * 0.35, 7.6 + Math.floor(i / 4) * 0.45)).add(V(0, 0.03, 0));
+    shotGroup.add(r);
+    rocks.push(r);
+  }
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.2, 0.3), new THREE.MeshStandardMaterial({ color: 0xc9ccd1, metalness: 0.8, roughness: 0.3 }));
+  box.position.copy(at(-1.4, 8.4)).add(V(0, 0.1, 0));
+  box.visible = after("samples");
+  shotGroup.add(box);
+
+  // the other astronaut
+  const buddy = createSuitedAstronaut(walk.crew.suit || "a7l");
+  buddy.traverse(function (m) { if (m.isMesh) m.castShadow = true; });
+  shotGroup.add(buddy);
+  const place = function (p, yaw) { buddy.position.copy(p); buddy.rotation.y = yaw; };
+
+  // the camera: a helmet that moves smoothly between eye positions
+  const eye = V(0, 0, 0);
+  const look = V(0, 0, 0);
+  function view(position, target, dt, rate) {
+    const kk = dt === undefined ? 1 : 1 - Math.exp(-(rate || 2.2) * dt);
+    eye.lerp(position, kk);
+    look.lerp(target, kk);
+    camera.position.copy(eye);
+    camLook.copy(look);
+    camera.lookAt(look);
+  }
+  function hands(t, pose) {
+    const H = fpHands;
+    if (!H) return;
+    const L = H.userData.L;
+    const R = H.userData.R;
+    const sway = Math.sin(t * 1.3) * 0.01;
+    L.position.copy(L.userData.rest).add(V(0, sway, 0));
+    R.position.copy(R.userData.rest).add(V(0, -sway, 0));
+    L.rotation.set(0.15, 0.2, 0);
+    R.rotation.set(0.15, -0.2, 0);
+    H.userData.scoop.visible = false;
+    H.visible = true;
+    if (pose === "ladder") {
+      const c = Math.sin(t * 2.6);
+      L.position.add(V(-0.1, 0.06 + Math.max(0, c) * 0.08, -0.2));
+      R.position.add(V(0.1, 0.06 + Math.max(0, -c) * 0.08, -0.2));
+      L.rotation.set(0.35, 0.25, 0);
+      R.rotation.set(0.35, -0.25, 0);
+    } else if (pose === "scoop") {
+      H.userData.scoop.visible = true;
+      R.position.add(V(-0.05, -0.16 + Math.sin(t * 2.2) * 0.04, -0.05));
+      R.rotation.set(-0.45 + Math.sin(t * 2.2) * 0.12, -0.2, 0);
+      L.position.add(V(0.02, -0.05, 0.05));
+    } else if (pose === "reach") {
+      R.position.add(V(-0.04, -0.2 + Math.sin(t * 1.8) * 0.04, -0.12));
+      R.rotation.set(-0.5, -0.2, 0);
+    } else if (pose === "low") {
+      L.position.add(V(0, -0.12, 0.05));
+      R.position.add(V(0, -0.12, 0.05));
+    }
+  }
+
+  setFirstPerson(true, walk.note);
+  const startEye = V(0, gy + EYE, 12);
+  const B = o.beat;
+  // starting views, so each beat opens without a jump
+  const starts = {
+    ladder: [porch.clone().add(V(0, EYE, 0.45)), ladderTop.clone().add(V(0, 0.9, -1))],
+    contingency: [at(0.5, 7).add(V(0, EYE, 0)), at(0.5, 9).add(V(0, 0.2, 0))],
+    aldrin: [at(2.6, 9.6).add(V(0, EYE, 0)), onLadder(0.1)],
+    plaque: [plaque.position.clone().add(V(0.4, 0.55, 1.9)), plaque.position.clone()],
+    flag: [at(-0.8, 15).add(V(0, EYE, 0)), flagSpot.clone().add(V(0, 1.2, 0))],
+    experiments: [at(11.5, 3).add(V(0, EYE, 0)), pseSpot.clone().add(V(0, 0.3, 0))],
+    samples: [at(-1.9, 6.6).add(V(0, EYE, 0)), at(-1.9, 7.8)],
+    "return": [at(0.9, padTop.z + 2.4).add(V(0, EYE, 0)), onLadder(0.3)]
+  };
+  const s0 = starts[B] || [startEye, at(0, 0).add(V(0, 2, 0))];
+  eye.copy(s0[0]);
+  look.copy(s0[1]);
+
+  return {
+    duration: o.duration || 18,
+    start: function () { snapCamera(eye, look); },
+    update: function (t, u, dt) {
+      if (B === "ladder") {
+        // down the ladder facing the lander, a step off the footpad, then turn round to the plain
+        buddy.visible = false;
+        if (u < 0.6) {
+          const f = smooth(0.04, 0.6, u);
+          const p = onLadder(f).add(V(0, EYE - 0.35, 0.5));
+          view(p, onLadder(Math.min(1, f + 0.15)).add(V(0, 0.4, -0.6)), dt, 4);
+          hands(t, "ladder");
+        } else if (u < 0.74) {
+          const p = padTop.clone().add(V(0, EYE - 0.1, 0.6)).lerp(at(0.3, padTop.z + 0.8).add(V(0, EYE, 0)), smooth(0.6, 0.74, u));
+          view(p, p.clone().add(V(0, -1.2, 0.6)), dt, 3);
+          hands(t, "low");
+        } else {
+          // turned round: the first footprint, then the grey plain and the long shadows
+          const turn = smooth(0.74, 0.9, u);
+          const p = at(0.3, padTop.z + 1.1).add(V(0, EYE, 0));
+          const dir = V(Math.sin(turn * Math.PI) * 0.3, 0, -Math.cos(turn * Math.PI)).normalize();
+          const raise = smooth(0.84, 1, u);
+          view(p, p.clone().addScaledVector(dir, 3 + raise * 20).add(V(0, -1.4 + raise * 1.2, 0)), dt, 2.5);
+          hands(t, "low");
+        }
+      } else if (B === "contingency") {
+        buddy.visible = false;
+        const down = u < 0.62 ? 1 : 1 - smooth(0.62, 0.85, u);
+        const p = at(0.5, 7).add(V(0, EYE, 0));
+        view(p, p.clone().add(V(0.2 * Math.sin(t * 0.3), -1.5 * down - 0.1, 1.2 + (1 - down) * 18)), dt, 2);
+        hands(t, u < 0.62 ? "scoop" : "low");
+      } else if (B === "aldrin") {
+        // Aldrin comes down the ladder, hops back up to the first rung to test it, then walks out
+        let p;
+        if (u < 0.45) {
+          p = onLadder(smooth(0, 0.45, u)).add(V(0, -0.15, 0.25));
+          place(p, Math.PI);
+          buddy.userData.animate("climb", dt);
+        } else if (u < 0.6) {
+          const hop = Math.sin(smooth(0.45, 0.6, u) * Math.PI) * 0.45;
+          p = padTop.clone().add(V(0, hop - 0.3, 0.45));
+          place(p, Math.PI);
+          buddy.userData.animate("jump", dt, { verticalSpeed: hop > 0.2 ? 1 : -1 });
+        } else {
+          const w = smooth(0.62, 1, u);
+          p = at(0.3 * w, padTop.z + 0.6 + w * 2.4);
+          place(p, w > 0.05 ? 0.2 : Math.PI);
+          buddy.userData.animate(w < 0.98 ? "lunar-hop" : "idle", dt, { speed: 0.8 });
+        }
+        view(at(2.6, 9.6).add(V(0, EYE, 0)), buddy.position.clone().add(V(0, 1.2, 0)), dt, 2.5);
+        hands(t, "low");
+      } else if (B === "plaque") {
+        place(at(1.2, plaque.position.z + 0.9), -2.4);
+        buddy.userData.animate("idle", dt);
+        const push = smooth(0, 0.6, u);
+        const p = plaque.position.clone().add(V(0.4 - push * 0.3, 0.55 - push * 0.25, 1.9 - push * 1.25));
+        view(p, plaque.position.clone(), dt, 2.2);
+        hands(t, u > 0.25 && u < 0.6 ? "reach" : "low");
+      } else if (B === "flag") {
+        // the pole goes in (it would only go a little way: the soil is hard below the surface)
+        flag.visible = true;
+        const sink = smooth(0.05, 0.4, u);
+        flag.position.copy(flagSpot).add(V(0, 0.35 * (1 - sink), 0));
+        cloth.scale.x = 0.25 + 0.75 * smooth(0.4, 0.6, u);
+        cloth.position.x = 0.75 * cloth.scale.x;
+        rod.scale.y = cloth.scale.x;
+        rod.position.x = 0.75 * cloth.scale.x;
+        place(flagSpot.clone().add(V(0.55, 0, 0.35)), -2.2);
+        buddy.userData.animate(u < 0.62 ? "operate" : "idle", dt);
+        view(at(-0.8 - u * 0.6, 15 - u * 1.2).add(V(0, EYE, 0)), flagSpot.clone().add(V(0.3, 1.3, 0)), dt, 1.8);
+        hands(t, u < 0.4 ? "reach" : "low");
+      } else if (B === "experiments") {
+        const toReflector = smooth(0.55, 0.7, u);
+        const at1 = pseSpot.clone().add(V(-0.8, 0, 0.7));
+        const at2 = lrrrSpot.clone().add(V(-0.8, 0, -0.5));
+        place(at1.clone().lerp(at2, toReflector), toReflector > 0 && toReflector < 1 ? 0.3 : Math.PI / 2);
+        buddy.position.y = heightAt(buddy.position.x, buddy.position.z);
+        buddy.userData.animate(toReflector > 0 && toReflector < 1 ? "lunar-hop" : "operate", dt, { speed: 0.7 });
+        const target = pseSpot.clone().lerp(lrrrSpot, smooth(0.5, 0.75, u)).add(V(0, 0.4, 0));
+        view(at(11.5 + u * 1.2, 3 + u * 1.5).add(V(0, EYE, 0)), target, dt, 1.6);
+        hands(t, "low");
+      } else if (B === "samples") {
+        place(at(-0.6, 9.6), 2.6);
+        buddy.userData.animate("collect", dt, { progress: (t * 0.35) % 1 });
+        // pick up rocks one by one
+        const picked = Math.floor(smooth(0.1, 0.9, u) * rocks.length);
+        rocks.forEach(function (r, i) { r.visible = i >= picked; });
+        const p = at(-1.9, 6.6).add(V(0, EYE, 0));
+        view(p, at(-1.9 + Math.sin(t * 0.4) * 0.4, 7.9).add(V(0, u > 0.85 ? 1.2 : 0, 0)), dt, 1.6);
+        hands(t, "reach");
+      } else if (B === "return") {
+        if (u < 0.38) {
+          // Aldrin climbs up and in
+          const f = smooth(0, 0.36, u);
+          place(onLadder(1 - f).add(V(0, -0.15, 0.25)), Math.PI);
+          buddy.visible = f < 0.97;
+          buddy.userData.animate("climb", dt);
+          view(at(0.9, padTop.z + 2.4).add(V(0, EYE, 0)), buddy.position.clone().add(V(0, 1.1, 0)), dt, 2.4);
+          hands(t, "low");
+        } else if (u < 0.74) {
+          // your turn: up the ladder, facing it
+          buddy.visible = false;
+          const f = 1 - smooth(0.4, 0.74, u);
+          view(onLadder(f).add(V(0, EYE - 0.35, 0.5)), onLadder(Math.max(0, f - 0.2)).add(V(0, 0.6, -0.6)), dt, 3.5);
+          hands(t, "ladder");
+        } else {
+          // from the porch, one last look: the flag, the footprints, then Earth high in the sky
+          buddy.visible = false;
+          const p = porch.clone().add(V(0, EYE, 0.5));
+          const up = smooth(0.86, 1, u);
+          const ground = flagSpot.clone().add(V(0, 1, 0));
+          const sky = p.clone().add(earth.position.clone().sub(p).normalize().multiplyScalar(30));
+          view(p, ground.lerp(sky, up), dt, 1.6);
+          if (fpHands) fpHands.visible = up < 0.3;
+        }
+      }
+    }
+  };
+}
+
 const SHOTS = {
   orbit: orbitShot, depart: departShot, cruise: cruiseShot, flyby: flybyShot, arrive: arriveShot, orbitAt: orbitAtShot,
-  deploy: deployShot, descend: descendShot, surface: surfaceShot, sample: sampleShot, sun: sunShot, ret: returnShot, finale: finaleShot
+  deploy: deployShot, descend: descendShot, surface: surfaceShot, sample: sampleShot, sun: sunShot, ret: returnShot, finale: finaleShot,
+  moonwalk: moonwalkShot
 };
 
 // ----- Running a shot -----
 function clearShot() {
+  setFirstPerson(false);
   if (camera) camera.up.set(0, 1, 0);
   while (shotGroup.children.length) shotGroup.remove(shotGroup.children[0]);
   worldsInShot.length = 0;
@@ -1131,6 +1572,7 @@ export function startFilm(shotSpec, onDone) {
 
 export function stopFilm() {
   running = false;
+  setFirstPerson(false);
   doneCallback = null;
   if (rafId !== null) {
     cancelAnimationFrame(rafId);

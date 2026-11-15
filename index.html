@@ -132,7 +132,7 @@
 
     <!-- Where this launch really happened (js/launch-cinematic.js, data/launch-sites.js) -->
     <aside id="cinema-site" class="cinema-site hidden" aria-label="Launch site">
-      <div class="cs-map"><img alt="Map of Earth with the launch site marked" decoding="async" src="https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/earth_atmos_2048.jpg"><span class="cs-dot" aria-hidden="true"></span></div>
+      <div class="cs-map"><img alt="Map of Earth with the launch site marked" decoding="async" src="assets/textures/earth_atmos_2048.jpg"><span class="cs-dot" aria-hidden="true"></span></div>
       <div class="cs-text">
         <em>Launch site</em>
         <b id="cinema-site-pad"></b>
@@ -487,11 +487,38 @@
       </div>
       <div id="explorer-categories" class="sidebar-list"></div>
       </div>
-      <button id="explorer-to-free" class="mode-switch-btn" type="button" title="Switch to Free Build">Switch to Free Build &rarr;</button>
       <p class="sidebar-foot">Official NASA 3D models where NASA has one &middot; otherwise representative models</p>
     </nav>
 
+    <!-- Master Doc 17: pick a mode first; the missions and hardware appear after you choose Real Missions -->
+    <section id="explorer-chooser" class="explorer-chooser" aria-labelledby="chooser-title">
+      <p class="eyebrow">Missions</p>
+      <h2 id="chooser-title">What would you like to do?</h2>
+      <p class="chooser-sub">Pick one to start. You can switch at any time with the switch at the top.</p>
+      <div class="chooser-cards">
+        <button type="button" id="chooser-real" class="chooser-card chooser-real">
+          <span class="chooser-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 5.8c1.7 1.4 2.5 3.5 2.5 5.8v2.8h-5v-2.8c0-2.3.8-4.4 2.5-5.8z"/><path d="M9.5 12.6l-1.6 2v1.6l1.6-.6M14.5 12.6l1.6 2v1.6l-1.6-.6M11 16.2l1 2 1-2"/></svg></span>
+          <span class="chooser-tag">History</span>
+          <b>Real Missions</b>
+          <span class="chooser-text">Explore missions that really flew and the machines they used, then watch each one replayed from launch to landing.</span>
+          <span class="chooser-go">Explore missions &rarr;</span>
+        </button>
+        <button type="button" id="chooser-free" class="chooser-card chooser-free">
+          <span class="chooser-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg></span>
+          <span class="chooser-tag">Engineer</span>
+          <b>Free Build</b>
+          <span class="chooser-text">Design your own mission: choose a rocket, a spacecraft, a suit and a destination, then launch it.</span>
+          <span class="chooser-go">Start building &rarr;</span>
+        </button>
+      </div>
+    </section>
+
     <main class="explorer-main">
+      <!-- Master Doc 17: the two modes, switched in the middle of the page -->
+      <div class="mode-segment" role="group" aria-label="Mode">
+        <button type="button" class="mode-seg active" aria-pressed="true" disabled>Real Missions</button>
+        <button id="explorer-to-free" type="button" class="mode-seg" aria-pressed="false" title="Switch to Free Build">Free Build</button>
+      </div>
       <div class="explorer-hero">
         <p class="eyebrow" id="explorer-eyebrow">Missions and the hardware they used</p>
         <h2 id="explorer-title">All missions</h2>
@@ -628,10 +655,14 @@
         </button>
       </div>
       <!-- the way to the other mode (Real Missions is the Missions page) -->
-      <button id="sim-switch" class="mode-switch-btn" type="button" title="Switch to Real Missions">Switch to Real Missions &rarr;</button>
+
     </nav>
 
     <main class="sim-main">
+      <div class="mode-segment" role="group" aria-label="Mode">
+        <button id="sim-switch" type="button" class="mode-seg" aria-pressed="false" title="Switch to Real Missions">Real Missions</button>
+        <button type="button" class="mode-seg active" aria-pressed="true" disabled>Free Build</button>
+      </div>
       <div id="sim-results" class="sim-results hidden"></div>
       <section id="sim-step-lab" class="sim-step-panel garage">
         <div class="garage-head">
@@ -795,6 +826,7 @@
       <!-- The camera follows you automatically (C still changes the view); site switching was removed -->
       <div class="explore-head-buttons">
         <button id="explore-end" class="small-button accent">End mission</button>
+        <button id="guide-toggle" class="small-button hidden" type="button" aria-pressed="true" title="Show or hide your astronaut guide">Hide guide</button>
         <button class="small-button explore-help" data-open-help title="How to play (?)"><span aria-hidden="true">?</span> How to play</button>
       </div>
     </div>
@@ -831,6 +863,13 @@
       </div>
     </div>
     <div id="explore-prompt" class="explore-prompt hidden"><b id="explore-prompt-name"></b><span id="explore-prompt-keys"></span></div>
+    <!-- Master Doc 17: the Free Build astronaut guide -->
+    <button id="guide-ask" class="guide-ask hidden" type="button">Ask your guide <kbd>Y</kbd></button>
+    <div id="guide-panel" class="guide-panel hidden" role="status" aria-live="polite">
+      <span class="guide-avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="6.5"/><path d="M8.2 9.2c0-1.6 1.7-2.7 3.8-2.7s3.8 1.1 3.8 2.7v1.2c0 1-1 1.7-2.1 1.7H10.3c-1.1 0-2.1-.7-2.1-1.7z"/><path d="M5 21c.8-3 3.6-4.8 7-4.8s6.2 1.8 7 4.8"/></svg></span>
+      <div class="guide-body"><b id="guide-title">Your guide</b><p id="guide-text"></p></div>
+      <button id="guide-close" class="guide-close" type="button" aria-label="Stop the guide talking" title="Stop talking">&#x2715;</button>
+    </div>
     <p id="explore-toast" class="explore-message hidden" aria-live="polite"></p>
     <div id="explore-flash" class="explore-flash hidden"></div>
     <div id="cockpit-panel" class="cockpit-panel hidden" aria-label="Spacecraft controls">
@@ -932,7 +971,7 @@
               <tbody>
               <tr><th scope="row"><a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener">Solar System Scope — planet maps</a></th><td>Surface maps of Mercury, Venus, Mars, Jupiter, Saturn (and rings), Uranus, Neptune, the Sun and the Moon in the Solar System view, home tour and mission film (Mars, Jupiter and Saturn also in 4096 px). Files go in <code>assets/textures/</code>.</td><td>CC BY 4.0 — attribution: “Solar System Scope”</td></tr>
               <tr><th scope="row"><a href="https://images.nasa.gov/details/PIA22770" target="_blank" rel="noopener">Titan map: NASA/JPL-Caltech/Space Science Institute (PIA22770)</a></th><td>Cassini's global near-infrared mosaic of Titan's surface, tinted orange for display, on Titan in the Solar System, its globe and the mission films.</td><td>Public domain (NASA)</td></tr>
-              <tr><th scope="row"><a href="https://github.com/mrdoob/three.js/tree/r160/examples/textures/planets" target="_blank" rel="noopener">three.js example textures (Earth and Moon)</a></th><td>Earth day map, normal map, ocean-shine (specular) map and clouds; the Moon map. Loaded from the jsDelivr CDN.</td><td>MIT License (three.js authors); Earth imagery based on NASA Blue Marble (public domain)</td></tr>
+              <tr><th scope="row"><a href="https://github.com/mrdoob/three.js/tree/r160/examples/textures/planets" target="_blank" rel="noopener">three.js example textures (Earth and Moon)</a></th><td>Earth day map, normal map, ocean-shine (specular) map and clouds; the Moon map. Copies saved in this project (assets/textures).</td><td>MIT License (three.js authors); Earth imagery based on NASA Blue Marble (public domain)</td></tr>
               <tr><th scope="row">Painted stand-ins</th><td>Seamless noise-painted planet maps shown while textures load or if a file is missing.</td><td>Made for this project</td></tr>
               </tbody>
             </table>
@@ -974,7 +1013,7 @@
               <tr><th scope="row"><a href="https://science.nasa.gov/3d-resources/" target="_blank" rel="noopener">NASA 3D Resources</a></th><td>Official 3D models (Saturn V, Apollo Lunar Module, Gemini, Galileo, Parker Solar Probe, Pioneer 10, Viking Lander, Perseverance, Agena Target Vehicle, Hubble, James Webb, Voyager, Cassini-Huygens, Lunar Reconnaissance Orbiter, MESSENGER, OSIRIS-REx, Stardust), loaded from NASA when online and labelled "NASA" where shown: the Missions page, the builder (cards and the assembly hall, including the Agena exhibit) and the mission scenes. Rockets, rovers, the Lunar Module and anything that unfolds keep the project's own models in the scenes, so stages can separate and parts can move.</td><td>NASA Images and Media Usage Guidelines (free to use; no endorsement implied)</td></tr>
               <tr><th scope="row"><a href="https://images.nasa.gov" target="_blank" rel="noopener">NASA Image and Video Library</a></th><td>One real photo per mission on the "Replay finished" card (links and captions in data/mission-photos.js), loaded from NASA when online.</td><td>NASA Images and Media Usage Guidelines (generally not copyrighted; no endorsement implied)</td></tr>
               <tr><th scope="row"><a href="https://threejs.org" target="_blank" rel="noopener">three.js r160</a></th><td>3D rendering, cameras, controls and the RoomEnvironment lighting in the Engineering Bay.</td><td>MIT License</td></tr>
-              <tr><th scope="row"><a href="https://www.jsdelivr.com/" target="_blank" rel="noopener">jsDelivr CDN</a></th><td>Delivers three.js and the Earth/Moon textures.</td><td>Free public CDN</td></tr>
+              <tr><th scope="row"><a href="https://www.jsdelivr.com/" target="_blank" rel="noopener">jsDelivr CDN</a></th><td>Delivers the three.js library.</td><td>Free public CDN</td></tr>
               <tr><th scope="row"><a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API" target="_blank" rel="noopener">Web Audio API and Web Speech API</a></th><td>All sounds are generated live in the browser; narration uses your browser’s own voices.</td><td>Built into the browser</td></tr>
               </tbody>
             </table>
@@ -1340,6 +1379,7 @@
         <dt><kbd>Space</kbd></dt><dd>Jump, or brake while driving</dd>
         <dt><kbd>E</kbd></dt><dd>Look at something, get in or out</dd>
         <dt><kbd>F</kbd></dt><dd>Record an object</dd>
+        <dt><kbd>Y</kbd></dt><dd>Ask your guide about an object (Free Build)</dd>
         <dt><kbd>Q</kbd></dt><dd>Use your item (<kbd>1</kbd>&ndash;<kbd>4</kbd> to choose)</dd>
         <dt><kbd>P</kbd></dt><dd>Take a photo</dd>
         <dt><kbd>Esc</kbd></dt><dd>Close or go back</dd>

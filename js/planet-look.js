@@ -3,12 +3,13 @@
 // Used by the home-screen tour and by the planet pictures on the destination cards.
 //
 // Real textures:
-//   - Earth (day map, normal map, ocean shine map, clouds) and the Moon come from the three.js examples on the jsDelivr CDN.
+//   - Earth (day map, normal map, ocean shine map, clouds) and the second Moon map are copies of the three.js r160
+//     example textures (MIT licence), saved in assets/textures/ (see docs/ASSETS.md).
 //   - The other planets need the Solar System Scope maps (CC BY 4.0) in assets/textures/ (see docs/ASSETS.md).
 
 import * as THREE from "three";
 
-const CDN = "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/textures/planets/";
+const CDN = "assets/textures/"; // the three.js example textures (was the jsDelivr CDN)
 const LOCAL = "assets/textures/";
 
 // colors: [base, dark, light] used by the painted stand-in. bands = gas or ice giant.
