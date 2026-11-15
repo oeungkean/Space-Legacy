@@ -12,9 +12,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { createLauncher, createAstronaut, strut } from "./models.js";
 import { createRocket } from "./rockets.js";
 import { createParticleSystem } from "./particles.js";
-import { planetMaterial, cloudMaterial, addSurfaceDetail } from "./planet-look.js";
-import { createGlow } from "./glow.js";
-import { launchPad, formatLatLon } from "../data/launch-sites.js";
+import { planetMaterial, cloudMaterial } from "./planet-look.js";
 import { play, isSoundOn, setSoundOn, onSoundChange, isGroupOn } from "./sounds.js";
 import { wantsReducedMotion } from "./settings.js";
 import { getPlaybackSpeed } from "./playback.js";
@@ -58,23 +56,6 @@ const SCENES = [
     duration: 16
   }
 ];
-// Rollout, before the countdown: how each rocket really got from its assembly building to the pad
-const ROLLOUT_SCENE = { id: "rollout", caption: "Rollout.", duration: 11 };
-const ROLLOUT_STYLE = {
-  // carried upright with its launch platform by a crawler-transporter
-  "saturn-v": "crawler", "saturn-v-skylab": "crawler", "sls": "crawler", "shuttle": "crawler", "shuttle-sts31": "crawler", "shuttle-sts88": "crawler",
-  // standing on a launch platform that rolls along rails
-  "atlas-v-401": "rail", "atlas-v-411": "rail", "atlas-v-541": "rail", "atlas-v-551": "rail", "titan-3e": "rail", "titan-4b": "rail", "ariane-5": "rail",
-  // lying down on a transporter-erector, raised upright at the pad
-  "falcon-9": "horizontal", "delta-4-heavy": "horizontal", "proton": "horizontal"
-  // Delta II, Titan II and Atlas-Centaur were stacked on the pad itself: no rollout
-};
-const ROLLOUT_CAPTION = {
-  crawler: "Rollout: a crawler-transporter carries the rocket, standing on its launch platform, out of the assembly building to the pad. The real crawler moves at about 1.6 km/h (1 mph), so it takes hours; this is sped up.",
-  rail: "Rollout: the rocket stands on its launch platform, which rolls along rails from the assembly building to the pad (sped up).",
-  horizontal: "Rollout: the rocket lies on its transporter-erector and rolls out of the hangar; at the pad it is raised upright (sped up)."
-};
-const BUILDING = new THREE.Vector3(-2400, 0, -1300); // the assembly building (see buildCoast)
 const LAUNCH_IGNITION = 6.2;   // seconds into the mission launch scene: engines start
 const LAUNCH_LIFTOFF = 9;      // hold-down arms release
 
@@ -86,14 +67,6 @@ const STAGE_SPLIT = {
 };
 // Crewed rockets drop a launch escape tower instead of a payload fairing
 const ESCAPE_TOWER = { "saturn-v": true, "sls": true };
-// Where the nose comes off, in meters up the model (measured from js/rockets.js), and the model's height:
-// the escape tower above the capsule, or the bottom of the payload fairing.
-const NOSE_CUT = {
-  "saturn-v": [112.3, 119.5], "saturn-v-skylab": [99, 108], "sls": [89.3, 98.1],
-  "titan-3e": [39, 56.5], "titan-4b": [36, 60], "delta-4-heavy": [42.8, 64], "atlas-centaur": [32.2, 42.8],
-  "delta-2": [33.1, 42], "delta-2-heavy": [33.1, 42], "atlas-v-401": [44.1, 57.4], "atlas-v-411": [44.1, 57.4],
-  "atlas-v-541": [34, 57], "atlas-v-551": [34, 57], "falcon-9": [55, 70], "proton": [41.5, 54.5], "ariane-5": [35.4, 53]
-};
 
 const LIFTOFF_AT = 2.5;          // seconds into the liftoff part
 const BOOSTER_SEPARATION = 4.5;  // seconds after liftoff
@@ -165,9 +138,6 @@ let reflections = null;       // environment map for metal and paint (built once
 let padGroup = null;
 let earthBall = null;
 let ascent = null;            // state of the climb to orbit
-let ascentTrail = null;       // the path flown, drawn on Earth
-let ascentMarker = null;      // a glow on the rocket for the pull-back
-let cloudDeck = null;         // clouds the rocket climbs through
 let totalTime = 0;
 let captionOverride = null;  // the mission name and date, in liftoff-only mode
 
@@ -261,11 +231,10 @@ function buildEnvironment() {
   ground.receiveShadow = true;
   padGroup.add(ground);
 
-  const padMaterial = new THREE.MeshStandardMaterial({ color: 0x8e8c87, roughness: 0.92 }); // weathered concrete, not white
+  const padMaterial = new THREE.MeshStandardMaterial({ color: 0xb8b8b4, roughness: 0.9 });
   const padMesh = new THREE.Mesh(new THREE.CylinderGeometry(24, 26, PAD_Y, 64), padMaterial);
   padMesh.position.y = PAD_Y / 2;
   padMesh.receiveShadow = true;
-  padMesh.userData.lc39 = true;
   padGroup.add(padMesh);
 
   const trench = new THREE.Mesh(
@@ -273,7 +242,6 @@ function buildEnvironment() {
     new THREE.MeshStandardMaterial({ color: 0x2a2a2c, roughness: 1 })
   );
   trench.position.y = PAD_Y / 2;
-  trench.userData.lc39 = true;
   padGroup.add(trench);
 
   const walkway = new THREE.Mesh(
@@ -310,13 +278,11 @@ function buildEnvironment() {
   [[-70, -40], [60, 70], [-25, 100]].forEach(function (p) {
     const pole = new THREE.Mesh(new THREE.BoxGeometry(0.6, 90, 0.6), poleMaterial);
     pole.position.set(p[0], 45, p[1]);
-    pole.userData.lc39 = true;
     padGroup.add(pole);
 
     const light = new THREE.Sprite(redLight);
     light.scale.set(4, 4, 1);
     light.position.set(p[0], 91, p[1]);
-    light.userData.lc39 = true;
     padGroup.add(light);
   });
 
@@ -336,26 +302,6 @@ function buildEnvironment() {
 // ----- The mission launch site: a coastal launch complex in the morning (different from the intro) -----
 // Flat scrubland, a crawlerway, an assembly building in the distance, a water tower and the ocean beside the pad.
 let coastGroup = null;
-
-// Dry steppe grass (Baikonur): tan and straw, with darker patches
-function steppeTexture() {
-  const drawing = document.createElement("canvas");
-  drawing.width = 512;
-  drawing.height = 512;
-  const ctx = drawing.getContext("2d");
-  ctx.fillStyle = "#a8956a";
-  ctx.fillRect(0, 0, 512, 512);
-  for (let i = 0; i < 9000; i++) {
-    const g = Math.floor(random(120, 180));
-    ctx.fillStyle = Math.random() < 0.3 ? "rgba(" + (g - 40) + "," + (g - 50) + "," + (g - 80) + ",0.35)" : "rgba(" + (g + 20) + "," + (g + 5) + "," + (g - 40) + ",0.3)";
-    ctx.fillRect(Math.random() * 512, Math.random() * 512, random(1, 4), random(1, 4));
-  }
-  const texture = new THREE.CanvasTexture(drawing);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(160, 160);
-  return texture;
-}
 
 function coastTexture() {
   const drawing = document.createElement("canvas");
@@ -407,36 +353,15 @@ function buildCoast() {
   land.position.y = -0.05;
   land.receiveShadow = true;
   coastGroup.add(land);
-  coastGroup.userData.land = land;
-  // The Atlantic Ocean, just east of the pad: small waves (a moving ripple map) that catch the sun,
-  // turquoise shallows and a line of surf along the beach
-  const waves = waveNormalTexture();
-  const ocean = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), new THREE.MeshStandardMaterial({
-    color: 0x1d5a80, roughness: 0.22, metalness: 0.2, normalMap: waves, normalScale: new THREE.Vector2(0.55, 0.55)
-  }));
+  // The Atlantic Ocean, just east of the pad, with a sandy beach
+  const ocean = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), new THREE.MeshStandardMaterial({ color: 0x2a6c94, roughness: 0.18, metalness: 0.35 }));
   ocean.rotation.x = -Math.PI / 2;
   ocean.position.set(4500 + 520, 0.02, 0);
-  ocean.receiveShadow = true;
   coastGroup.add(ocean);
-  coastGroup.userData.sea = [ocean];
-  coastGroup.userData.waves = waves;
-  const shallows = new THREE.Mesh(new THREE.PlaneGeometry(70, 9000), new THREE.MeshStandardMaterial({
-    color: 0x4fa6a6, roughness: 0.3, metalness: 0.1, transparent: true, opacity: 0.75, normalMap: waves, normalScale: new THREE.Vector2(0.3, 0.3)
-  }));
-  shallows.rotation.x = -Math.PI / 2;
-  shallows.position.set(555, 0.03, 0);
-  coastGroup.add(shallows);
-  coastGroup.userData.sea.push(shallows);
-  const surf = new THREE.Mesh(new THREE.PlaneGeometry(5, 9000), new THREE.MeshBasicMaterial({ color: 0xf2f6f8, transparent: true, opacity: 0.8 }));
-  surf.rotation.x = -Math.PI / 2;
-  surf.position.set(523, 0.04, 0);
-  coastGroup.add(surf);
-  coastGroup.userData.surf = surf;
   const beach = new THREE.Mesh(new THREE.PlaneGeometry(60, 9000), new THREE.MeshStandardMaterial({ color: 0xd9c9a0, roughness: 1 }));
   beach.rotation.x = -Math.PI / 2;
   beach.position.set(500, 0.01, 0);
   coastGroup.add(beach);
-  coastGroup.userData.sea.push(beach, surf);
   // Crawlerway: two gravel lanes leading to the assembly building
   const gravel = new THREE.MeshStandardMaterial({ color: 0xbab3a4, roughness: 1 });
   [-9, 9].forEach(function (offset) {
@@ -446,37 +371,23 @@ function buildCoast() {
     lane.position.set(-700 + offset, 0.03, -900);
     coastGroup.add(lane);
   });
-  // The assembly building, shaped after Kennedy's Vehicle Assembly Building (photo references): a tall
-  // high bay clad in light grey panels with darker vertical bands, tall narrow high-bay doors, a lower
-  // low-bay wing, a launch control building and the US flag painted high on its side. Simplified, and
-  // without agency logos. About 220 m long, 160 m wide and 160 m tall, like the real one.
-  const doors = buildAssemblyBuilding(coastGroup);
-  // the crawlerway out of the door: two wide gravel lanes
-  [-1, 1].forEach(function (side) {
-    const lane = new THREE.Mesh(new THREE.PlaneGeometry(14, 700), new THREE.MeshStandardMaterial({ color: 0xbab3a4, roughness: 1 }));
-    lane.rotation.x = -Math.PI / 2;
-    lane.position.set(-2400 + side * 13, 0.04, -1219 + 350);
-    lane.receiveShadow = true;
-    coastGroup.add(lane);
-  });
-  doors.userData.rollout = true;
-  // Launch Complex 39 (Kennedy): its own group, so other launch sites can look different
-  const lc39 = new THREE.Group();
-  coastGroup.add(lc39);
-  coastGroup.userData.padStyles = { lc39: lc39 };
+  // A large assembly building on the horizon (simple shape, no logos)
+  const building = new THREE.Mesh(new THREE.BoxGeometry(220, 160, 160), new THREE.MeshStandardMaterial({ color: 0xd5d8dc, roughness: 0.8 }));
+  building.position.set(-1500, 80, -1900);
+  coastGroup.add(building);
+  const doors = new THREE.Mesh(new THREE.PlaneGeometry(40, 140), new THREE.MeshStandardMaterial({ color: 0x9aa2ad, roughness: 0.7 }));
+  doors.position.set(-1500, 72, -1819);
+  coastGroup.add(doors);
   // Water tower for the sound suppression system
   const steel = new THREE.MeshStandardMaterial({ color: 0xc9ccd0, roughness: 0.5, metalness: 0.5 });
   for (let i = 0; i < 4; i++) {
     const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 70, 6), steel);
     leg.position.set(170 + (i % 2) * 14 - 7, 35, -230 + Math.floor(i / 2) * 14 - 7);
-    lc39.add(leg);
+    coastGroup.add(leg);
   }
   const tank = new THREE.Mesh(new THREE.SphereGeometry(14, 20, 14), steel);
   tank.position.set(170, 80, -230);
-  lc39.add(tank);
-  buildPadComplex();
-  buildRoadsAndBuildings();
-  buildVegetation();
+  coastGroup.add(tank);
   // Low clouds far away: each is a cluster of soft, overlapping puffs (billboards) with a flatter,
   // greyer base, instead of one hard-edged ellipsoid
   const puffTop = new THREE.SpriteMaterial({ map: cloudPuffTexture(), color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false });
@@ -500,879 +411,7 @@ function buildCoast() {
     const angle = random(0, Math.PI * 2);
     cloud.position.set(Math.cos(angle) * random(2400, 3400), random(380, 650), Math.sin(angle) * random(2400, 3400));
     coastGroup.add(cloud);
-    (coastGroup.userData.clouds = coastGroup.userData.clouds || []).push(cloud);
   }
-}
-
-
-// Light grey cladding: vertical panel seams, faint horizontal joints and a little weathering
-function facadeTexture(columns, rows) {
-  const c = document.createElement("canvas");
-  c.width = 256; c.height = 256;
-  const ctx = c.getContext && c.getContext("2d");
-  if (!ctx || !ctx.fillRect) return null;
-  ctx.fillStyle = "#c8ccd1";
-  ctx.fillRect(0, 0, 256, 256);
-  const w = 256 / columns;
-  for (let i = 0; i < columns; i++) {
-    ctx.fillStyle = i % 2 ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)";
-    ctx.fillRect(i * w, 0, w, 256);
-    ctx.fillStyle = "rgba(60,66,74,0.35)";
-    ctx.fillRect(i * w, 0, 1, 256);
-  }
-  ctx.fillStyle = "rgba(60,66,74,0.18)";
-  for (let j = 1; j < rows; j++) ctx.fillRect(0, (256 / rows) * j, 256, 1);
-  for (let k = 0; k < 220; k++) {
-    ctx.fillStyle = "rgba(80,84,90," + (Math.random() * 0.06).toFixed(3) + ")";
-    ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 6 + Math.random() * 20);
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-// The US flag (public domain design), drawn simply: 13 stripes and a blue field with rows of stars
-function flagTexture() {
-  const c = document.createElement("canvas");
-  c.width = 380; c.height = 200;
-  const ctx = c.getContext && c.getContext("2d");
-  if (!ctx || !ctx.fillRect) return null;
-  for (let i = 0; i < 13; i++) {
-    ctx.fillStyle = i % 2 ? "#ffffff" : "#b22234";
-    ctx.fillRect(0, (200 / 13) * i, 380, 200 / 13 + 1);
-  }
-  ctx.fillStyle = "#3c3b6e";
-  ctx.fillRect(0, 0, 152, 108);
-  ctx.fillStyle = "#ffffff";
-  for (let r = 0; r < 9; r++) {
-    const n = r % 2 ? 5 : 6;
-    for (let k = 0; k < n; k++) {
-      ctx.beginPath();
-      ctx.arc(13 + k * 25 + (r % 2 ? 12.5 : 0), 8 + r * 11.5, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-function buildAssemblyBuilding(group) {
-  const x0 = BUILDING.x;
-  const z0 = BUILDING.z;
-  const front = z0 + 80;                         // the face with the high-bay door (toward the pads)
-  const grey = new THREE.MeshStandardMaterial({ color: 0xffffff, map: facadeTexture(16, 10), roughness: 0.85 });
-  const band = new THREE.MeshStandardMaterial({ color: 0x5f666f, roughness: 0.8 });
-  const roof = new THREE.MeshStandardMaterial({ color: 0x8d939b, roughness: 0.9 });
-  const white = new THREE.MeshStandardMaterial({ color: 0xe9ecef, roughness: 0.7 });
-  const glass = new THREE.MeshStandardMaterial({ color: 0x1d2a38, roughness: 0.25, metalness: 0.6 });
-  const steel = new THREE.MeshStandardMaterial({ color: 0x8a9099, roughness: 0.6, metalness: 0.4 });
-  function box(w, h, d, material, x, y, z) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-    m.position.set(x, y, z);
-    m.castShadow = true;
-    m.receiveShadow = true;
-    group.add(m);
-    return m;
-  }
-  // the high bay, with a darker roof edge
-  box(220, 160, 160, grey, x0, 80, z0);
-  box(222, 3, 162, roof, x0, 161.5, z0);
-  // darker vertical bands: beside the door and at the corners, on the door face
-  [-36, 36, -102, 102].forEach(function (dx) {
-    box(Math.abs(dx) > 50 ? 16 : 12, 160, 1, band, x0 + dx, 80, front + 0.6);
-  });
-  // a second high-bay door outline on the side wall (closed), so the building reads from an angle
-  box(1, 140, 56, band, x0 + 110.6, 70, z0 - 20);
-  for (let i = 1; i < 7; i++) box(1.4, 0.8, 56, steel, x0 + 111.2, i * 20, z0 - 20);
-  // the open high-bay door: a dark doorway, its frame, and the raised door panels at the top
-  const doors = new THREE.Mesh(new THREE.PlaneGeometry(60, 150), new THREE.MeshStandardMaterial({ color: 0x15171b, roughness: 1 }));
-  doors.position.set(x0, 75, front + 1);
-  group.add(doors);
-  [-1, 1].forEach(function (side) { box(3, 152, 3, steel, x0 + side * 31, 76, front + 2); });
-  for (let i = 0; i < 4; i++) box(62, 3.2, 2, new THREE.MeshStandardMaterial({ color: 0x9aa2ad, roughness: 0.7 }), x0, 151 + i * 3.4, front + 2);
-  // the US flag, high on the door face
-  const flagMap = flagTexture();
-  const flag = new THREE.Mesh(new THREE.PlaneGeometry(56, 29.5), new THREE.MeshStandardMaterial({ map: flagMap, color: flagMap ? 0xffffff : 0xb22234, roughness: 0.8 }));
-  flag.position.set(x0 - 72, 118, front + 0.8);
-  group.add(flag);
-  // the low bay: a lower wing along one side, with its own grey cladding and doors
-  const lowMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: facadeTexture(10, 4), roughness: 0.85 });
-  box(150, 64, 120, lowMat, x0 - 185, 32, z0 + 10);
-  box(152, 2.5, 122, roof, x0 - 185, 65.2, z0 + 10);
-  [-40, 0, 40].forEach(function (dx) { box(22, 34, 1, band, x0 - 185 + dx, 17, z0 + 70.6); });
-  // the launch control building beside it: low and white, with a long band of slanted windows
-  box(90, 22, 44, white, x0 + 170, 11, front + 20);
-  const windows = new THREE.Mesh(new THREE.BoxGeometry(90.4, 7, 2), glass);
-  windows.position.set(x0 + 170, 18, front + 42.4);
-  windows.rotation.x = -0.35;
-  group.add(windows);
-  // a covered walkway between them, and a low utility annex
-  box(60, 6, 8, white, x0 + 140, 16, front + 4);
-  box(46, 14, 36, white, x0 - 290, 7, z0 + 40);
-  return doors;
-}
-
-// Small ripples for the ocean (a tiling normal map drawn from overlapping sine waves)
-function waveNormalTexture() {
-  const size = 128;
-  const c = document.createElement("canvas");
-  c.width = c.height = size;
-  const ctx = c.getContext && c.getContext("2d");
-  if (!ctx || !ctx.createImageData) return null;
-  const img = ctx.createImageData(size, size);
-  const h = function (x, y) {
-    const a = Math.PI * 2 / size;
-    return Math.sin(x * a * 3 + y * a * 1) * 0.5 + Math.sin(x * a * -2 + y * a * 5) * 0.35 +
-      Math.sin(x * a * 7 + y * a * 4) * 0.2 + Math.sin(x * a * -9 + y * a * 11) * 0.12;
-  };
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const dx = h(x + 1, y) - h(x - 1, y);
-      const dy = h(x, y + 1) - h(x, y - 1);
-      const n = new THREE.Vector3(-dx * 2.2, -dy * 2.2, 1).normalize();
-      const i = (y * size + x) * 4;
-      img.data[i] = (n.x * 0.5 + 0.5) * 255;
-      img.data[i + 1] = (n.y * 0.5 + 0.5) * 255;
-      img.data[i + 2] = (n.z * 0.5 + 0.5) * 255;
-      img.data[i + 3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  const texture = new THREE.CanvasTexture(c);
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(600, 600);
-  return texture;
-}
-
-// The pad itself: a wide concrete hardstand, the flame trench running out to one side, a perimeter
-// road and fence, and the two big spherical propellant tanks (liquid oxygen and fuel) with pipes to the pad
-function buildPadComplex() {
-  const pad = coastGroup.userData.padStyles.lc39;
-  const concrete = new THREE.MeshStandardMaterial({ color: 0x86837d, roughness: 0.95 });
-  const apron = new THREE.Mesh(new THREE.CylinderGeometry(78, 82, 0.4, 8), concrete);
-  apron.rotation.y = Math.PI / 8;
-  apron.position.y = 0.05;
-  apron.receiveShadow = true;
-  pad.add(apron);
-  const trench = new THREE.Mesh(new THREE.PlaneGeometry(16, 120), new THREE.MeshStandardMaterial({ color: 0x4a4740, roughness: 1 }));
-  trench.rotation.x = -Math.PI / 2;
-  trench.position.set(0, 0.28, -60);
-  pad.add(trench);
-  const road = new THREE.MeshStandardMaterial({ color: 0x3b3d40, roughness: 0.9 });
-  const ring = new THREE.Mesh(new THREE.RingGeometry(118, 126, 64), road);
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.06;
-  ring.receiveShadow = true;
-  pad.add(ring);
-  // fence posts around the pad (a dashed silver ring)
-  const fenceMat = new THREE.MeshStandardMaterial({ color: 0xb8bcc2, roughness: 0.6, metalness: 0.6 });
-  const fence = new THREE.InstancedMesh(new THREE.BoxGeometry(0.25, 2.4, 0.25), fenceMat, 120);
-  const m = new THREE.Matrix4();
-  for (let i = 0; i < 120; i++) {
-    const a = (i / 120) * Math.PI * 2;
-    m.makeTranslation(Math.cos(a) * 140, 1.2, Math.sin(a) * 140);
-    fence.setMatrixAt(i, m);
-  }
-  pad.add(fence);
-  // propellant spheres on short legs, white with a dark band, and pipes running to the pad
-  const white = new THREE.MeshStandardMaterial({ color: 0xeef0f2, roughness: 0.5, metalness: 0.2 });
-  const pipe = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.5, metalness: 0.6 });
-  [[-95, -75, 13], [90, -80, 11]].forEach(function (t) { // behind the pad, away from the cameras
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(t[2], 28, 18), white);
-    ball.position.set(t[0], t[2] + 3, t[1]);
-    ball.castShadow = true;
-    pad.add(ball);
-    const band = new THREE.Mesh(new THREE.TorusGeometry(t[2] * 1.0, 0.5, 6, 40), pipe);
-    band.rotation.x = Math.PI / 2;
-    band.position.copy(ball.position);
-    pad.add(band);
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, t[2] + 3, 6), pipe);
-      leg.position.set(t[0] + Math.cos(a) * t[2] * 0.8, (t[2] + 3) / 2, t[1] + Math.sin(a) * t[2] * 0.8);
-      pad.add(leg);
-    }
-    const length = Math.hypot(t[0], t[1]) - 26;
-    const run = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, length, 8), pipe);
-    run.rotation.z = Math.PI / 2;
-    run.rotation.y = -Math.atan2(t[1], t[0]);
-    const mid = new THREE.Vector3(t[0], 0, t[1]).normalize().multiplyScalar(26 + length / 2);
-    run.position.set(mid.x, 1.2, mid.z);
-    pad.add(run);
-  });
-}
-
-// Roads to the pad, a launch control building, workshops, and another launch tower down the coast
-function buildRoadsAndBuildings() {
-  const asphalt = new THREE.MeshStandardMaterial({ color: 0x35373a, roughness: 0.9 });
-  const lineMat = new THREE.MeshBasicMaterial({ color: 0xe9e2c8 });
-  [[0, 0.07, -760, 9, 1300, 0], [-520, 0.07, 160, 9, 1100, Math.PI / 2], [300, 0.07, -500, 7, 900, 0.3]].forEach(function (r) {
-    const road = new THREE.Mesh(new THREE.PlaneGeometry(r[3], r[4]), asphalt);
-    road.rotation.x = -Math.PI / 2;
-    road.rotation.z = r[5];
-    road.position.set(r[0], r[1], r[2]);
-    road.receiveShadow = true;
-    coastGroup.add(road);
-    const line = new THREE.Mesh(new THREE.PlaneGeometry(0.3, r[4]), lineMat);
-    line.rotation.x = -Math.PI / 2;
-    line.rotation.z = r[5];
-    line.position.set(r[0], r[1] + 0.01, r[2]);
-    coastGroup.add(line);
-  });
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0xd9dbdc, roughness: 0.8 });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x2e3a48, roughness: 0.3, metalness: 0.4 });
-  const roofMat = new THREE.MeshStandardMaterial({ color: 0x8d9298, roughness: 0.9 });
-  // [x, z, width, height, depth, window rows]
-  [[-640, 330, 70, 16, 34, 3], [-420, -260, 40, 9, 26, 2], [-470, -320, 26, 7, 20, 1], [260, -560, 34, 10, 22, 2],
-    [-760, -120, 50, 12, 30, 2], [380, 360, 30, 8, 18, 1]].forEach(function (b) {
-    const box = new THREE.Mesh(new THREE.BoxGeometry(b[2], b[3], b[4]), wallMat);
-    box.position.set(b[0], b[3] / 2, b[1]);
-    box.castShadow = true;
-    box.receiveShadow = true;
-    coastGroup.add(box);
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(b[2] + 1, 0.6, b[4] + 1), roofMat);
-    roof.position.set(b[0], b[3] + 0.3, b[1]);
-    coastGroup.add(roof);
-    for (let row = 0; row < b[5]; row++) {
-      const windows = new THREE.Mesh(new THREE.BoxGeometry(b[2] * 0.9, 1.4, b[4] + 0.2), darkMat);
-      windows.position.set(b[0], 2.5 + row * (b[3] - 3) / Math.max(1, b[5]), b[1]);
-      coastGroup.add(windows);
-    }
-  });
-  // another launch pad down the coast: its own tower and a rocket-less mount (simplified)
-  const far = buildTower(70);
-  far.position.set(260, 0, -1500);
-  far.scale.setScalar(0.9);
-  coastGroup.add(far);
-  const farPad = new THREE.Mesh(new THREE.CylinderGeometry(50, 54, 0.4, 8), new THREE.MeshStandardMaterial({ color: 0xaeaaa2, roughness: 0.95 }));
-  farPad.position.set(250, 0.05, -1500);
-  coastGroup.add(farPad);
-}
-
-// Florida scrub, palmettos and pine stands: thousands of low bushes and trees drawn as a few
-// instanced meshes (cheap to draw), kept off the pad, the roads and the beach
-function buildVegetation() {
-  const keepClear = function (x, z) {
-    const d = Math.hypot(x, z);
-    if (d < 150) return true;                                   // pad, apron, fence
-    if (x > 470) return true;                                   // beach and ocean
-    if (Math.abs(x) < 12 && z < 0 && z > -1420) return true;     // road north
-    if (Math.abs(z - 160) < 12 && x < -60) return true;          // road west
-    return false;
-  };
-  const shrubGeo = new THREE.IcosahedronGeometry(1, 0);
-  const shrubMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true });
-  const shrubs = new THREE.InstancedMesh(shrubGeo, shrubMat, 2600);
-  const pineGeo = new THREE.ConeGeometry(1, 3, 7);
-  const pineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true });
-  const pines = new THREE.InstancedMesh(pineGeo, pineMat, 700);
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const scale = new THREE.Vector3();
-  const pos = new THREE.Vector3();
-  const color = new THREE.Color();
-  let n = 0;
-  let tries = 0;
-  while (n < 2600 && tries < 20000) {
-    tries++;
-    const a = random(0, Math.PI * 2);
-    const d = 150 + Math.pow(Math.random(), 0.8) * 1500;
-    const x = Math.cos(a) * d;
-    const z = Math.sin(a) * d;
-    if (keepClear(x, z)) continue;
-    const r = random(1.4, 4.2);
-    pos.set(x, r * 0.35, z);
-    scale.set(r * random(1, 1.6), r * random(0.45, 0.7), r * random(1, 1.6));
-    q.setFromAxisAngle(UP_AXIS, random(0, Math.PI));
-    m.compose(pos, q, scale);
-    shrubs.setMatrixAt(n, m);
-    color.setHSL(random(0.2, 0.27), random(0.25, 0.4), random(0.2, 0.32));
-    shrubs.setColorAt(n, color);
-    n++;
-  }
-  shrubs.count = n;
-  let k = 0;
-  tries = 0;
-  while (k < 700 && tries < 20000) {
-    tries++;
-    // pines grow in stands: pick a stand center, then scatter around it
-    const a = random(0, Math.PI * 2);
-    const d = 260 + Math.random() * 1600;
-    const cx = Math.cos(a) * d;
-    const cz = Math.sin(a) * d;
-    for (let j = 0; j < 12 && k < 700; j++) {
-      const x = cx + random(-40, 40);
-      const z = cz + random(-40, 40);
-      if (keepClear(x, z)) continue;
-      const h = random(9, 18);
-      pos.set(x, h * 0.5 + 2, z);
-      scale.set(h * 0.22, h / 3, h * 0.22);
-      q.identity();
-      m.compose(pos, q, scale);
-      pines.setMatrixAt(k, m);
-      color.setHSL(random(0.25, 0.33), random(0.3, 0.45), random(0.14, 0.22));
-      pines.setColorAt(k, color);
-      k++;
-    }
-  }
-  pines.count = k;
-  coastGroup.userData.plants = [shrubs, pines];
-  [shrubs, pines].forEach(function (mesh) {
-    mesh.castShadow = false;
-    mesh.receiveShadow = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    coastGroup.add(mesh);
-  });
-}
-const UP_AXIS = new THREE.Vector3(0, 1, 0);
-
-// ----- Launch pads: each rocket's real kind of pad -----
-// lc39: Kennedy Launch Complex 39 (octagonal pad, propellant spheres, water tower)
-// slc41: Cape Canaveral Space Launch Complex 41, a "clean pad": the rocket arrives on its platform from
-//        a tall integration building nearby, with lightning towers around the pad and no tower at the rocket
-// mst: pads with a mobile service tower that rolls back before launch (Delta II, Delta IV, Atlas-Centaur)
-// erector: the Titan II Gemini pad, where the erector tower was lowered away from the rocket
-// ela3: Kourou, a launch table between concrete exhaust walls, with lightning towers
-// baikonur: a launch stand over a deep flame pit; the service tower is moved away
-const PAD_STYLE = {
-  "saturn-v": "lc39", "saturn-v-skylab": "lc39", sls: "lc39", shuttle: "lc39", "shuttle-sts31": "lc39", "shuttle-sts88": "lc39", "falcon-9": "lc39",
-  "atlas-v-401": "slc41", "atlas-v-411": "slc41", "atlas-v-541": "slc41", "atlas-v-551": "slc41", "titan-3e": "slc41", "titan-4b": "slc41",
-  "delta-2": "mst", "delta-2-heavy": "mst", "delta-4-heavy": "mst", "atlas-centaur": "mst",
-  "titan-2": "erector", "ariane-5": "ela3", proton: "baikonur"
-};
-// What the countdown says about the pad (the first caption), in each style
-const PAD_CAPTION = {
-  slc41: "T-10 seconds. The rocket stands on its mobile platform on a clean pad, rolled out from its integration building. Lightning towers surround it.",
-  mst: "T-10 seconds. The mobile service tower has rolled back on its rails; the rocket stands beside its umbilical tower.",
-  erector: "T-10 seconds. The erector that held the rocket has been lowered away. Only the umbilicals still connect it to the pad.",
-  ela3: "T-10 seconds. The rocket stands on its launch table between the concrete exhaust walls, surrounded by lightning towers.",
-  baikonur: "T-10 seconds. The rocket stands over a deep flame pit. Its service tower has been moved away along its rails."
-};
-let padStyle = "lc39";
-let padProps = {};
-
-function concrete(color) {
-  return new THREE.MeshStandardMaterial({ color: color || 0x86837d, roughness: 0.95 });
-}
-function lightningTower(height) {
-  const g = new THREE.Group();
-  const steel = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.6, metalness: 0.6 });
-  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.35, height, 0.35), steel);
-    leg.position.set(c[0] * 1.4, height / 2, c[1] * 1.4);
-    g.add(leg);
-  });
-  for (let y = 6; y < height; y += 8) {
-    const ring = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.25, 3.1), steel);
-    ring.position.y = y;
-    g.add(ring);
-  }
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.3, height * 0.25, 6), steel);
-  mast.position.y = height * 1.12;
-  g.add(mast);
-  return g;
-}
-function rails(group, fromZ, toZ, x) {
-  const steel = new THREE.MeshStandardMaterial({ color: 0x5e6268, roughness: 0.5, metalness: 0.7 });
-  [-3, 3].forEach(function (dx) {
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, Math.abs(toZ - fromZ)), steel);
-    rail.position.set((x || 0) + dx, 0.15, (fromZ + toZ) / 2);
-    group.add(rail);
-  });
-}
-
-function buildPadStyle(style) {
-  const styles = coastGroup.userData.padStyles;
-  if (styles[style]) return styles[style];
-  const g = new THREE.Group();
-  const white = new THREE.MeshStandardMaterial({ color: 0xdfe2e5, roughness: 0.6, metalness: 0.15 });
-  const steel = new THREE.MeshStandardMaterial({ color: 0x8c9199, roughness: 0.6, metalness: 0.5 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x2a2c2f, roughness: 1 });
-  if (style === "slc41") {
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(70, PAD_Y, 50), concrete());
-    slab.position.y = PAD_Y / 2;
-    g.add(slab);
-    [[-45, -35], [45, -35], [-45, 35], [45, 35]].forEach(function (c) {
-      const tower = lightningTower(85);
-      tower.position.set(c[0], 0, c[1]);
-      g.add(tower);
-    });
-    rails(g, -560, -10);
-    // the Vertical Integration Facility up the rails (simplified: a tall plain building)
-    const vif = new THREE.Mesh(new THREE.BoxGeometry(40, 90, 36), white);
-    vif.position.set(0, 45, -580);
-    g.add(vif);
-    const door = new THREE.Mesh(new THREE.PlaneGeometry(18, 80), dark);
-    door.position.set(0, 40, -561.9);
-    g.add(door);
-  } else if (style === "mst") {
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(60, PAD_Y, 60), concrete());
-    slab.position.y = PAD_Y / 2;
-    g.add(slab);
-    rails(g, 0, 0, 0);
-    const track = new THREE.Group();
-    [-6, 6].forEach(function (dz) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(220, 0.3, 0.4), steel);
-      rail.position.set(-110, 0.15, dz);
-      track.add(rail);
-    });
-    g.add(track);
-    // the mobile service tower: a tall boxy structure that rolls back along its rails
-    const mst = new THREE.Group();
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(22, 80, 22), new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.6, metalness: 0.3 }));
-    frame.position.y = 40;
-    mst.add(frame);
-    for (let y = 8; y < 80; y += 10) {
-      const band = new THREE.Mesh(new THREE.BoxGeometry(22.4, 0.6, 22.4), steel);
-      band.position.y = y;
-      mst.add(band);
-    }
-    g.add(mst);
-    g.userData.mst = mst;
-  } else if (style === "erector") {
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(50, PAD_Y, 40), concrete());
-    slab.position.y = PAD_Y / 2;
-    g.add(slab);
-    // the erector: a lattice frame hinged at its base that is lowered away from the rocket
-    const hinge = new THREE.Group();
-    hinge.position.set(-6, PAD_Y, 0);
-    const frame = buildTower(42);
-    frame.scale.set(0.6, 1, 0.6);
-    frame.position.set(-2, 0, 0);
-    hinge.add(frame);
-    g.add(hinge);
-    g.userData.erector = hinge;
-    // the blockhouse: a domed concrete bunker for the launch crew
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(16, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), concrete(0xa4a19a));
-    dome.position.set(-160, 0, 140);
-    g.add(dome);
-  } else if (style === "ela3") {
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(40, PAD_Y, 40), concrete());
-    slab.position.y = PAD_Y / 2;
-    g.add(slab);
-    // concrete walls on both sides where the exhaust ducts come out
-    [-1, 1].forEach(function (side) {
-      const shape = new THREE.Shape();
-      shape.moveTo(0, 0); shape.lineTo(70, 0); shape.lineTo(0, 22); shape.lineTo(0, 0);
-      const wall = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 30, bevelEnabled: false }), concrete(0x9b988f));
-      wall.position.set(side * 26, 0, -15);
-      wall.scale.x = side;
-      g.add(wall);
-    });
-    [[-55, -45], [55, -45], [-55, 45], [55, 45]].forEach(function (c) {
-      const tower = lightningTower(75);
-      tower.position.set(c[0], 0, c[1]);
-      g.add(tower);
-    });
-    rails(g, -900, -10);
-  } else if (style === "baikonur") {
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(60, PAD_Y, 50), concrete(0x8a8579));
-    slab.position.y = PAD_Y / 2;
-    g.add(slab);
-    // the flame pit: a deep opening in front of the launch stand
-    const pit = new THREE.Mesh(new THREE.PlaneGeometry(26, 60), dark);
-    pit.rotation.x = -Math.PI / 2;
-    pit.position.set(0, PAD_Y + 0.02, -30);
-    g.add(pit);
-    rails(g, -800, -10, 40);
-    // the service tower, moved away along its rails
-    const tower = buildTower(60);
-    tower.position.set(40, 0, -200);
-    g.add(tower);
-    g.userData.serviceTower = tower;
-  }
-  g.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  coastGroup.add(g);
-  styles[style] = g;
-  return g;
-}
-
-function applyPadStyle(style) {
-  padStyle = style;
-  padProps = {};
-  const styles = coastGroup.userData.padStyles;
-  if (style !== "lc39") buildPadStyle(style);
-  Object.keys(styles).forEach(function (key) { styles[key].visible = key === style; });
-  padProps = styles[style].userData || {}; // the moving parts of this pad (service tower, erector)
-  padGroup.children.forEach(function (child) { if (child.userData.lc39) child.visible = style === "lc39"; });
-  // the fixed tower with the crew arm: at Kennedy (39) and at the pads with an umbilical tower
-  const tower = style === "lc39" || style === "mst" || style === "erector";
-  if (towerGroup) towerGroup.visible = tower;
-  if (armPivot) armPivot.visible = style === "lc39";
-}
-
-// The pad's own steps during the countdown (sped up): the service tower rolls back, the erector lowers
-function updatePadProcess(t) {
-  const k = smoothstep(0.2, 2.0, t); // done before the caption says so (it appears at 2 s)
-  if (padProps.mst) padProps.mst.position.x = -30 - 130 * k;
-  if (padProps.erector) padProps.erector.rotation.z = (Math.PI / 2) * k;
-}
-
-// ----- The launch site card: which pad, where, with a dot on a map of Earth -----
-const siteCard = document.getElementById("cinema-site");
-function showLaunchSite(rocket) {
-  if (!siteCard) return;
-  const pad = rocket ? launchPad(rocket) : null;
-  if (!pad) { hideLaunchSite(); return; }
-  document.getElementById("cinema-site-pad").textContent = pad.pad;
-  document.getElementById("cinema-site-place").textContent = pad.place;
-  document.getElementById("cinema-site-coords").textContent = "About " + formatLatLon(pad.lat, pad.lon);
-  const dot = siteCard.querySelector(".cs-dot");
-  dot.style.left = ((pad.lon + 180) / 360 * 100).toFixed(2) + "%";
-  dot.style.top = ((90 - pad.lat) / 180 * 100).toFixed(2) + "%";
-  siteCard.classList.remove("hidden");
-  fitAboveSceneBar();
-}
-// In the mission player, the launch-site card and the stage list end just above the scene bar, wherever
-// it is (its controls wrap onto two rows on narrower screens, so a fixed distance did not fit)
-function fitAboveSceneBar() {
-  const bar = document.getElementById("mp-timeline");
-  const playerOn = document.body.classList.contains("player-on");
-  [siteCard].forEach(function (box) {
-    if (!box) return;
-    if (!playerOn || !bar || window.innerWidth <= 760 || !bar.getBoundingClientRect) { box.style.bottom = ""; return; }
-    // above the subtitle, not behind it (Master Doc 13): room is kept for a two-line subtitle
-    const cap = document.getElementById("mp-caption");
-    let top = bar.getBoundingClientRect().top;
-    if (cap && cap.getBoundingClientRect) top = Math.min(top, cap.getBoundingClientRect().bottom - 84);
-    if (top > 0) box.style.bottom = Math.round(window.innerHeight - top + 12) + "px";
-  });
-}
-window.addEventListener("resize", fitAboveSceneBar);
-function hideLaunchSite() {
-  if (siteCard) siteCard.classList.add("hidden");
-}
-
-// ----- Rollout rigs -----
-let rollout = null;
-
-// The crawler deck's steel truss sides: a frame with X bracing
-function trussTexture() {
-  const c = document.createElement("canvas");
-  c.width = 256; c.height = 64;
-  const ctx = c.getContext && c.getContext("2d");
-  if (!ctx || !ctx.fillRect) return null;
-  ctx.fillStyle = "#3a3e44";
-  ctx.fillRect(0, 0, 256, 64);
-  ctx.strokeStyle = "#a9aeb5";
-  ctx.lineWidth = 4;
-  ctx.strokeRect(2, 2, 252, 60);
-  for (let x = 0; x < 256; x += 32) {
-    ctx.beginPath(); ctx.moveTo(x, 2); ctx.lineTo(x, 62); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x, 2); ctx.lineTo(x + 32, 62); ctx.moveTo(x + 32, 2); ctx.lineTo(x, 62); ctx.stroke();
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-function trackUnit(width, length, height, material, tread) {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), material);
-  body.position.y = height / 2;
-  g.add(body);
-  for (let i = 0; i < 9; i++) {
-    const shoe = new THREE.Mesh(new THREE.BoxGeometry(width * 1.04, height * 0.12, length / 11), tread);
-    shoe.position.set(0, height * 0.06, -length / 2 + (i + 1) * length / 10);
-    g.add(shoe);
-  }
-  return g;
-}
-
-function buildRollout(style) {
-  if (rollout) { scene.remove(rollout.group); rollout = null; }
-  if (!style) return;
-  const group = new THREE.Group();
-  const steel = new THREE.MeshStandardMaterial({ color: 0x8f959c, roughness: 0.6, metalness: 0.5 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.8, metalness: 0.4 });
-  const grey = new THREE.MeshStandardMaterial({ color: 0x7e848c, roughness: 0.75, metalness: 0.3 });
-  const heightMeters = rocketModel.userData.height * ROCKET_SCALE;
-  const radiusMeters = (rocketModel.userData.radius || 1) * ROCKET_SCALE;
-  let deck = 0;
-  if (style === "crawler") {
-    // The crawler-transporter, after photos of the real machine: about 40 x 35 m, four trucks at the
-    // corners, each with two tread belts of big steel shoes, levelling cylinders up to a steel truss
-    // deck with railings, operator cabs at two opposite corners, and the mobile launcher on pedestals
-    const tread = new THREE.MeshStandardMaterial({ color: 0x2f3236, roughness: 0.9, metalness: 0.4 });
-    const shoe = new THREE.MeshStandardMaterial({ color: 0x54585e, roughness: 0.8, metalness: 0.5 });
-    const truss = new THREE.MeshStandardMaterial({ color: 0xffffff, map: trussTexture(), roughness: 0.7, metalness: 0.3 });
-    const white = new THREE.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.6 });
-    const glass = new THREE.MeshStandardMaterial({ color: 0x1d2a38, roughness: 0.3, metalness: 0.5 });
-    const rail = new THREE.MeshStandardMaterial({ color: 0xd8b13a, roughness: 0.6 });
-    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
-      [-1, 1].forEach(function (side) {
-        const belt = trackUnit(4.4, 12, 3, tread, shoe);
-        belt.position.set(c[0] * 14 + side * 2.6, 0, c[1] * 12.5);
-        group.add(belt);
-      });
-      // the truck frame and its levelling (jacking) cylinders
-      const frame = new THREE.Mesh(new THREE.BoxGeometry(10, 1.2, 9), steel);
-      frame.position.set(c[0] * 14, 3.6, c[1] * 12.5);
-      group.add(frame);
-      [-1, 1].forEach(function (k) {
-        const jack = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 2.4, 14), steel);
-        jack.position.set(c[0] * 14 + k * 2.4, 5.2, c[1] * 12.5);
-        group.add(jack);
-      });
-    });
-    // the deck: a steel truss box with railings along its top edge
-    const deckBody = new THREE.Mesh(new THREE.BoxGeometry(40, 4.2, 35), [truss, truss, grey, grey, truss, truss]);
-    deckBody.position.y = 8.5;
-    group.add(deckBody);
-    [-1, 1].forEach(function (side) {
-      const railA = new THREE.Mesh(new THREE.BoxGeometry(40, 0.25, 0.25), rail);
-      railA.position.set(0, 11.6, side * 17.4);
-      group.add(railA);
-      const railB = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 35), rail);
-      railB.position.set(side * 19.9, 11.6, 0);
-      group.add(railB);
-      for (let i = -4; i <= 4; i++) {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1, 0.15), rail);
-        post.position.set(i * 4.6, 11.1, side * 17.4);
-        group.add(post);
-      }
-    });
-    // operator cabs at two opposite corners, with dark windows
-    [[-1, 1], [1, -1]].forEach(function (c) {
-      const cab = new THREE.Mesh(new THREE.BoxGeometry(5, 3.4, 4), white);
-      cab.position.set(c[0] * 21.6, 8.6, c[1] * 15.5);
-      group.add(cab);
-      const win = new THREE.Mesh(new THREE.BoxGeometry(5.1, 1.2, 4.1), glass);
-      win.position.set(c[0] * 21.6, 9.4, c[1] * 15.5);
-      group.add(win);
-    });
-    // equipment houses and exhaust stacks on the deck's ends
-    [-1, 1].forEach(function (side) {
-      const house = new THREE.Mesh(new THREE.BoxGeometry(6, 2.6, 4), white);
-      house.position.set(side * 15, 11.9, side * -12);
-      group.add(house);
-      const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 3, 10), dark);
-      stack.position.set(side * 12, 12.1, side * 12);
-      group.add(stack);
-    });
-    // the mobile launcher, on six pedestals above the crawler's deck, with its tower
-    [[-1, -1], [0, -1], [1, -1], [-1, 1], [0, 1], [1, 1]].forEach(function (c) {
-      const pedestal = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), dark);
-      pedestal.position.set(c[0] * 15, 11.6, c[1] * 13);
-      group.add(pedestal);
-    });
-    const platformWidth = Math.max(48, radiusMeters * 2 + 18);
-    const launcherMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: facadeTexture(8, 3), roughness: 0.8 });
-    const platform = new THREE.Mesh(new THREE.BoxGeometry(platformWidth, 7.6, 42), launcherMat);
-    platform.position.y = 12.6 + 3.8;
-    group.add(platform);
-    deck = 12.6 + 7.6;
-    const tower = buildTower(Math.max(60, Math.ceil(heightMeters + 6)));
-    tower.position.set(-(radiusMeters + 9), deck, 0);
-    group.add(tower);
-  } else if (style === "rail") {
-    // A launch platform that rolls on rails (like the Atlas V and Ariane 5 launch tables): a panelled
-    // steel deck with railings, a hold-down base under the rocket, and two-axle rail bogies on two rails
-    const width = Math.max(26, radiusMeters * 2 + 12);
-    const launcherMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: facadeTexture(6, 2), roughness: 0.8 });
-    const truss = new THREE.MeshStandardMaterial({ color: 0xffffff, map: trussTexture(), roughness: 0.7, metalness: 0.3 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(width, 5, 24), [truss, truss, launcherMat, dark, truss, truss]);
-    body.position.y = 5.5;
-    group.add(body);
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(radiusMeters * 1.25, radiusMeters * 1.4, 1.6, 24), dark);
-    base.position.y = 8.8;
-    group.add(base);
-    const yellow = new THREE.MeshStandardMaterial({ color: 0xd8b13a, roughness: 0.6 });
-    [-1, 1].forEach(function (side) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(width, 0.2, 0.2), yellow);
-      rail.position.set(0, 9, side * 11.8);
-      group.add(rail);
-      // bogies: two axles each, on the rails
-      [-0.36, -0.12, 0.12, 0.36].forEach(function (f) {
-        const bogie = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.6, 2.2), steel);
-        bogie.position.set(f * width * 2, 2.4, side * 9);
-        group.add(bogie);
-        [-0.9, 0.9].forEach(function (dx) {
-          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.5, 16), dark);
-          wheel.rotation.x = Math.PI / 2;
-          wheel.position.set(f * width * 2 + dx, 0.85, side * 9);
-          group.add(wheel);
-        });
-      });
-    });
-    deck = 9.6;
-  } else {
-    // A transporter-erector (Falcon 9, Delta IV, Proton): a long steel truss frame on many sets of
-    // wheels, with clamp rings holding the rocket, which lies on it base first; at the pad it is raised
-    const length = heightMeters + 8;
-    const truss = new THREE.MeshStandardMaterial({ color: 0xffffff, map: trussTexture(), roughness: 0.7, metalness: 0.3 });
-    const halfW = radiusMeters * 0.9 + 1.6;
-    [-1, 1].forEach(function (side) {
-      const girder = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3, length), [grey, grey, grey, grey, truss, truss]);
-      girder.position.set(side * halfW, 3.6, -length / 2 + 4);
-      group.add(girder);
-      const face = new THREE.Mesh(new THREE.PlaneGeometry(length, 3), truss);
-      face.rotation.y = side * Math.PI / 2;
-      face.position.set(side * (halfW + 0.61), 3.6, -length / 2 + 4);
-      group.add(face);
-    });
-    // cross members and clamp rings around the rocket
-    const ringCount = Math.max(3, Math.round(length / 14));
-    for (let i = 0; i <= ringCount; i++) {
-      const z = 4 - (i / ringCount) * (length - 2);
-      const cross = new THREE.Mesh(new THREE.BoxGeometry(halfW * 2, 0.8, 1), grey);
-      cross.position.set(0, 2.4, z);
-      group.add(cross);
-      if (i > 0 && i < ringCount) {
-        const clamp = new THREE.Mesh(new THREE.TorusGeometry(radiusMeters * 1.02, 0.3, 6, 24, Math.PI), steel);
-        clamp.position.set(0, 4 + radiusMeters * 0.55, z); // an arch over the top of the rocket
-        group.add(clamp);
-      }
-    }
-    // wheel sets along both sides (many small wheels, like a heavy-load trailer)
-    const axles = Math.max(6, Math.round(length / 7));
-    for (let i = 0; i < axles; i++) {
-      const z = 2 - i * (length - 6) / (axles - 1);
-      [-1, 1].forEach(function (side) {
-        [0, 1].forEach(function (k) {
-          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.6, 14), dark);
-          wheel.rotation.z = Math.PI / 2;
-          wheel.position.set(side * (halfW + 0.6 + k * 0.7), 0.8, z);
-          group.add(wheel);
-        });
-      });
-    }
-    // the hinge frame at the base end (it raises the rocket at the pad), and a tractor cab at the front
-    const hinge = new THREE.Mesh(new THREE.BoxGeometry(halfW * 2 + 1, 6, 2.4), grey);
-    hinge.position.set(0, 5, 5.5);
-    group.add(hinge);
-    const cab = new THREE.Mesh(new THREE.BoxGeometry(halfW * 1.6, 3.2, 4), new THREE.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.6 }));
-    cab.position.set(0, 2.6, -length + 1);
-    group.add(cab);
-    deck = 4;
-  }
-  group.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  group.visible = false; // shown (and moved to the building) only during the rollout scene
-  scene.add(group);
-  rollout = { group: group, style: style, deck: deck, height: heightMeters, radius: radiusMeters };
-}
-
-function endRollout() {
-  if (rollout) rollout.group.visible = false;
-  if (!rocketRoot) return;
-  // the rocket stands on its pad mount again, lit by the pad's sun
-  rocketRoot.position.set(0, restY, 0);
-  rocketRoot.rotation.set(0, 0, 0);
-  const heightMeters = rocketModel.userData.height * ROCKET_SCALE;
-  sunLight.position.copy(missionSun || new THREE.Vector3(-200, 320, 400));
-  sunLight.target.position.set(0, heightMeters * 0.35, 0);
-  sunLight.target.updateMatrixWorld();
-}
-
-function updateRollout(t, dt) {
-  if (!rollout) return;
-  const d = ROLLOUT_SCENE.duration;
-  fadeBox.style.transition = "none";
-  fadeBox.style.opacity = String(Math.max(1 - smoothstep(0, 0.8, t), smoothstep(d - 0.7, d, t)));
-  rollout.group.visible = true;
-  // from inside the building, out through the door and along the crawlerway
-  const travel = 300;
-  const k = t / d;
-  const z = BUILDING.z + 10 + travel * k; // the front of the crawler reaches the door after about 2 seconds
-  rollout.group.position.set(BUILDING.x, 0, z);
-  const lift = restY - PAD_Y;
-  if (rollout.style === "horizontal") {
-    // lying down, engines first (the end that is raised at the pad)
-    rocketRoot.rotation.set(-Math.PI / 2, 0, 0);
-    rocketRoot.position.set(BUILDING.x, rollout.deck + rollout.radius * 0.55, z + 4);
-  } else {
-    rocketRoot.rotation.set(0, 0, 0);
-    rocketRoot.position.set(BUILDING.x, rollout.deck + lift, z);
-  }
-  // the sun's shadows follow the rig
-  const sunAt = missionSun || new THREE.Vector3(-200, 320, 400);
-  sunLight.position.set(BUILDING.x + sunAt.x, sunAt.y, z + sunAt.z);
-  sunLight.target.position.set(BUILDING.x, rollout.height * 0.35, z);
-  sunLight.target.updateMatrixWorld();
-  // dust from the tracks
-  if (rollout.style === "crawler") {
-    for (let n = perSecond("rolldust", 10, dt); n > 0; n--) {
-      particles.emit(false, new THREE.Vector3(BUILDING.x + random(-20, 20), 1, z + 18), new THREE.Vector3(random(-1, 1), random(0.5, 1.5), random(0, 1)), 2, random(6, 10), random(1.5, 2.5), 0.25, 0xd8cfbf, 0.8);
-    }
-  }
-  // Camera: low by the crawlerway as the rocket comes out of the door, then a long lens beside it
-  const s = Math.max(1, rollout.height / 70);
-  let target;
-  // (framed a little low, so the top of the rocket stays clear of the player's title bar)
-  if (t < 5.5) {
-    camera.fov = 36;
-    camera.position.set(BUILDING.x + 170 * s, 6, BUILDING.z + 80 + 330 * s);
-    target = new THREE.Vector3(BUILDING.x, rollout.height * 0.62, BUILDING.z + 80);
-  } else {
-    camera.fov = 22;
-    const pan = (t - 5.5) / (d - 5.5);
-    camera.position.set(BUILDING.x - 520 * s, 18, z + 220 * s - pan * 60 * s);
-    target = new THREE.Vector3(BUILDING.x, rollout.height * 0.62, z);
-  }
-  camera.updateProjectionMatrix();
-  camera.lookAt(target);
-  setRumble(0.08, 200);
-}
-
-// Where each rocket really launched from, and how the place looks
-const SITE_LOOKS = {
-  florida: {
-    name: "Florida", lat: 28.6, lon: -80.6, land: 0xffffff, sea: true, plants: [1, 1], plantTint: null, cloudy: 0,
-    horizon: 0xb7cde3, mid: 0x7fa9d8, zenith: 0x2a5ead, fog: 0xb4c8dc
-  },
-  // Guiana Space Centre: tropical rainforest close to the Atlantic, often under big cumulus clouds
-  kourou: {
-    name: "Kourou", lat: 5.2, lon: -52.8, land: 0x8fbf7a, sea: true, plants: [1.25, 1.6], plantTint: 0x2f6a2c, cloudy: 1,
-    horizon: 0xc9d4de, mid: 0x8fa8c2, zenith: 0x3d5f8e, fog: 0xc4ced8
-  },
-  // Baikonur: flat, dry steppe far from any sea
-  baikonur: {
-    name: "Baikonur", lat: 45.9, lon: 63.3, ground: "steppe", land: 0xffffff, sea: false, plants: [0.35, 0], plantTint: 0x9a8d5c, cloudy: 0,
-    horizon: 0xe4e6e2, mid: 0xa9c4e2, zenith: 0x4677bb, fog: 0xe0e2dc
-  }
-};
-const ROCKET_SITE = { "ariane-5": "kourou", proton: "baikonur" };
-let siteLook = SITE_LOOKS.florida;
-
-function applySiteLook(look) {
-  siteLook = look;
-  const u = coastGroup.userData;
-  if (u.land) {
-    if (!u.landMaps) u.landMaps = { grass: u.land.material.map, steppe: null };
-    if (look.ground === "steppe" && !u.landMaps.steppe) u.landMaps.steppe = steppeTexture();
-    u.land.material.map = look.ground === "steppe" ? u.landMaps.steppe : u.landMaps.grass;
-    u.land.material.color.set(look.land);
-    u.land.material.needsUpdate = true;
-  }
-  (u.sea || []).forEach(function (mesh) { mesh.visible = look.sea; });
-  (u.plants || []).forEach(function (mesh, i) {
-    mesh.visible = look.plants[i] > 0;
-    mesh.scale.set(1, look.plants[i] || 1, 1);
-    if (mesh.material) mesh.material.color.set(look.plantTint || 0xffffff);
-  });
-  (u.clouds || []).forEach(function (cloud, i) {
-    // more and lower clouds at Kourou; a few high ones elsewhere
-    cloud.visible = look.cloudy > 0 || i % 2 === 0;
-    cloud.scale.setScalar(look.cloudy ? 1.3 : 1);
-    if (cloud.userData.baseY === undefined) cloud.userData.baseY = cloud.position.y;
-    cloud.position.y = cloud.userData.baseY * (look.cloudy ? 0.85 : 1);
-  });
-  skyMaterial.uniforms.uHorizon.value.set(look.horizon);
-  skyMaterial.uniforms.uMid.value.set(look.mid);
-  skyMaterial.uniforms.uZenith.value.set(look.zenith);
-  scene.fog = new THREE.Fog(look.fog, look.cloudy ? 380 : 400, look.cloudy ? 4600 : 5200);
-  // the Earth of the climb turns so this site is under the rocket
-  if (earthBall && earthBall.children[0]) earthBall.children[0].quaternion.copy(siteOnTop(look.lat, look.lon));
-}
-
-// A number made from the mission's name and rocket: picks this mission's own camera shots, sun angle
-// and weather, so two missions never look the same (but the same mission always plays the same way)
-let missionSeed = 0;
-function seedFrom(text) {
-  let h = 2166136261;
-  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return (h >>> 0) / 4294967295;
-}
-function pick(list, salt) {
-  return list[Math.floor(seedFrom(String(missionSeed) + salt) * list.length) % list.length];
 }
 
 // Day or sunset: the intro uses the sunset hills, mission launches the coastal site in daylight
@@ -1384,8 +423,7 @@ function setLaunchSite(coast) {
   skyMaterial.uniforms.uZenith.value.set(coast ? 0x2c64c4 : 0x14214f);
   scene.fog = coast ? new THREE.Fog(0xcfe0f2, 400, 5200) : new THREE.Fog(0xf0b98a, 120, 2600);
   sunLight.color.set(coast ? 0xfff6e8 : 0xffc48a);
-  sunLight.intensity = coast ? 1.9 : 2.4; // natural daylight (3.0 washed the pad out to white)
-  if (renderer) renderer.toneMappingExposure = coast ? 0.82 : 1.2;
+  sunLight.intensity = coast ? 3.0 : 2.4;
   sunLight.position.set(coast ? -200 : -300, coast ? 320 : 70, coast ? 400 : 500);
   sunSprite.visible = !coast;
 }
@@ -1418,49 +456,21 @@ function buildEarthBall() {
   const globe = new THREE.Group();
   globe.quaternion.copy(siteOnTop(LAUNCH_SITE.lat, LAUNCH_SITE.lon));
   earthBall.add(globe);
-  const surface = planetMaterial("Earth", null, { hd: true }); // the 4096 px day map: much sharper this close
-  // fine grain on the ground for the close views early in the climb (fades out with distance)
-  addSurfaceDetail(surface, { repeat: 900, near: 400, far: 3500, strength: 0.28, bump: 0.25 });
+  const surface = planetMaterial("Earth");
   surface.fog = false;
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 192, 128), surface);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 128, 96), surface);
   globe.add(ball);
   const cloudLayer = cloudMaterial();
   cloudLayer.fog = false;
-  cloudLayer.opacity = 0.75; // clouds over the land and the sea, as in photos from high altitude
-  addSurfaceDetail(cloudLayer, { repeat: 700, near: 400, far: 3500, strength: 0.35, bump: 0.6 }); // puffy texture up close
-  const clouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.002, 192, 128), cloudLayer);
+  cloudLayer.opacity = 0.7; // thinner, so the coast and the ocean show through
+  const clouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.004, 128, 96), cloudLayer);
   globe.add(clouds);
-  // The air: the same soft glow as the Solar System's Earth (bright, thin blue haze at the horizon that
-  // fades into black space), instead of a flat colored shell
-  const air = createGlow(EARTH_R, { color: 0x6aa8ff, strength: 0.8, size: 1.018 });
-  air.traverse(function (o) { if (o.material) o.material.fog = false; });
+  const air = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.012, 96, 64), new THREE.MeshBasicMaterial({
+    color: 0x6fb2ff, transparent: true, opacity: 0.28, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false, fog: false
+  }));
   earthBall.add(air);
   earthBall.visible = false;
   scene.add(earthBall);
-  // The path flown so far, drawn on the turning Earth (it starts at the launch site), and a glowing
-  // marker on the rocket: in the final pull-back the rocket itself is far too small to see
-  const trailGeometry = new THREE.BufferGeometry();
-  trailGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(600 * 3), 3));
-  trailGeometry.setDrawRange(0, 0);
-  ascentTrail = new THREE.Line(trailGeometry, new THREE.LineBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0, depthWrite: false, fog: false }));
-  ascentTrail.frustumCulled = false;
-  earthBall.add(ascentTrail);
-  // a deck of clouds a little above the ground, which the rocket climbs up through early in the climb
-  cloudDeck = new THREE.Group();
-  const deckMap = cloudPuffTexture();
-  for (let i = 0; i < 70; i++) {
-    const puff = new THREE.Sprite(new THREE.SpriteMaterial({ map: deckMap, color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, fog: false }));
-    const a = random(0, Math.PI * 2);
-    const d = Math.pow(Math.random(), 0.6) * 900;
-    puff.position.set(Math.cos(a) * d, random(-6, 6), Math.sin(a) * d);
-    const size = random(90, 220);
-    puff.scale.set(size * 1.6, size * 0.6, 1);
-    cloudDeck.add(puff);
-  }
-  cloudDeck.visible = false;
-  scene.add(cloudDeck);
-  ascentMarker = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeSunTexture(), color: 0xfff1d6, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, fog: false }));
-  scene.add(ascentMarker);
 }
 
 function buildSky() {
@@ -1485,9 +495,7 @@ function buildSky() {
       " float h = clamp(vDir.y, 0.0, 1.0);" +
       " vec3 sky = mix(uHorizon, uMid, smoothstep(0.0, 0.25, h));" +
       " sky = mix(sky, uZenith, smoothstep(0.15, 0.9, h));" +
-      // above the air: a thin blue glow just over the horizon that fades into black space (like photos
-      // taken from high altitude), instead of one flat dark colour
-      " vec3 space = mix(vec3(0.12, 0.30, 0.68), vec3(0.003, 0.006, 0.02), smoothstep(0.0, 0.2, h));" +
+      " vec3 space = vec3(0.005, 0.01, 0.03);" +
       " gl_FragColor = vec4(mix(sky, space, uSpace), 1.0); }"
   });
   sky = new THREE.Mesh(new THREE.SphereGeometry(3000, 32, 16), skyMaterial);
@@ -1497,9 +505,9 @@ function buildSky() {
   const starPositions = new Float32Array(2500 * 3);
   for (let i = 0; i < 2500; i++) {
     const direction = new THREE.Vector3(random(-1, 1), random(-1, 1), random(-1, 1)).normalize();
-    starPositions[i * 3] = direction.x * 18000;
-    starPositions[i * 3 + 1] = direction.y * 18000;
-    starPositions[i * 3 + 2] = direction.z * 18000;
+    starPositions[i * 3] = direction.x * 2500;
+    starPositions[i * 3 + 1] = direction.y * 2500;
+    starPositions[i * 3 + 2] = direction.z * 2500;
   }
   const starGeometry = new THREE.BufferGeometry();
   starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
@@ -1507,11 +515,9 @@ function buildSky() {
     starGeometry,
     new THREE.PointsMaterial({
       color: 0xffffff, size: 2, sizeAttenuation: false,
-      transparent: true, opacity: 0, depthWrite: false, depthTest: true, fog: false
+      transparent: true, opacity: 0, depthWrite: false, depthTest: false, fog: false
     })
   );
-  // Stars sit far beyond Earth and test depth, so Earth hides them. (They were drawn with no depth test
-  // after Earth, which put stars on top of the planet.)
   stars.renderOrder = -1;
   scene.add(stars);
 
@@ -1651,7 +657,7 @@ function init() {
   scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xf0b98a, 120, 2600);
 
-  camera = new THREE.PerspectiveCamera(50, 1, 0.5, 40000);
+  camera = new THREE.PerspectiveCamera(50, 1, 0.5, 20000);
 
   // Reflections for metal and paint: a soft studio environment built in code (no download)
   try {
@@ -1793,13 +799,6 @@ function blink() {
 function enterScene(index) {
   currentScene = index;
   const id = activeScenes[index].id;
-  // Every scene after the rollout puts the rocket back on its pad and hides the crawler, before the
-  // scene sets itself up. (Jumping straight to the climb skipped the countdown, so the crawler and
-  // its tower stayed beside the rocket and flew up into space with it.)
-  if (id !== "rollout") endRollout();
-  if (id !== "ascent" && cloudDeck) cloudDeck.visible = false;
-  if (id === "ascent") hideLaunchSite();
-  if (id !== "ascent") hideStageHud();
 
   captionBox.textContent =
     id === "liftoff" && captionOverride ? captionOverride : activeScenes[index].caption;
@@ -1808,20 +807,11 @@ function enterScene(index) {
 
   rocketRoot.visible = id !== "cabin"; // in the cabin we are inside the spacecraft
   if (id === "ascent") beginAscent();
-  if (id === "launch") {
-    ignitionPlayed = false;
-    countdownBox.classList.remove("hidden");
-  }
-
-  if (id === "rollout" && rollout) {
-    captionBox.textContent = ROLLOUT_CAPTION[rollout.style];
-    countdownBox.textContent = "ROLLOUT";
-    countdownBox.classList.remove("hidden");
-  }
+  if (id === "launch") { ignitionPlayed = false; countdownBox.classList.remove("hidden"); }
   astronauts.forEach(function (astronaut) {
     astronaut.visible = id === "walkout"; // the crew is inside the vehicle after the walkout
   });
-  camera.fov = id === "cabin" ? 62 : id === "liftoff" ? 40 : id === "ascent" ? 45 : id === "launch" ? 30 : id === "rollout" ? 38 : 50;
+  camera.fov = id === "cabin" ? 62 : id === "liftoff" ? 40 : id === "ascent" ? 45 : id === "launch" ? 30 : 50;
   camera.updateProjectionMatrix();
 
   Object.keys(carry).forEach(function (key) { carry[key] = 0; });
@@ -1946,18 +936,6 @@ function emitSmoke(base, rocketY, power, t, dt) {
     }
   }
 
-  // Exhaust deflected down the flame trench comes out to both sides in big rolling clouds
-  if (power > 0.3 && rocketY < 220) {
-    carry.trench = (carry.trench || 0) + 24 * power * dt;
-    while (carry.trench >= 1) {
-      carry.trench -= 1;
-      const side = Math.random() < 0.5 ? -1 : 1;
-      const position = new THREE.Vector3(side * random(35, 55), PAD_Y + random(1, 4), random(-6, 6));
-      const velocity = new THREE.Vector3(side * random(14, 26), random(2, 7), random(-3, 3));
-      particles.emit(false, position, velocity, random(10, 16), random(36, 64), random(4.5, 6.5), random(0.45, 0.65), 0xf3f1ec, 0.4);
-    }
-  }
-
   // A trail left behind the rising vehicle
   if (rocketY > 6 && rocketY < 700) {
     carry.trail += 60 * dt;
@@ -2067,11 +1045,6 @@ function emitDeluge(power, dt) {
 }
 
 function updateMissionLaunch(t, dt) {
-  if (t > LAUNCH_LIFTOFF + 1) hideLaunchSite();
-  updatePadProcess(t);
-  const waves = coastGroup && coastGroup.userData.waves;
-  if (waves) { waves.offset.x += dt * 0.012; waves.offset.y += dt * 0.005; }
-  if (coastGroup && coastGroup.userData.surf) coastGroup.userData.surf.material.opacity = 0.6 + 0.25 * Math.sin(t * 1.3);
   const fadeIn = 1 - smoothstep(0, 0.8, t);
   const fadeOut = smoothstep(SCENES[4].duration - 0.5, SCENES[4].duration, t);
   fadeBox.style.transition = "none";
@@ -2097,88 +1070,36 @@ function updateMissionLaunch(t, dt) {
   padLight.intensity = 320 * ignition * flicker * (1 - smoothstep(10, 140, rocketY));
   padLight.position.set(0, base.y + 4, 0);
 
-  // Camera shots: four moments (venting, ignition, liftoff, climb), each filmed with one of several
-  // shots chosen for this mission (see shotPlan), so every mission's launch looks different
+  // Camera shots
   const s = frameScale;
   let shake = 0;
   let target;
-  const plan = shotPlan || { venting: "water", ignition: "engines", liftoff: "tower", climb: "tracking" };
-  const lift = Math.max(0, rocketY - restY);
   if (t < LAUNCH_IGNITION - 0.5) {
-    if (plan.venting === "front") {
-      // straight down the approach road: the pad, the rocket and its tower in the middle
-      camera.fov = 30;
-      camera.position.set(0, 6, 360 * s - t * 6);
-      target = new THREE.Vector3(0, 40 * s, 0);
-    } else if (plan.venting === "drone") {
-      // a slow drone circle high above the pad
-      const a = 0.6 + t * 0.05;
-      camera.fov = 40;
-      camera.position.set(Math.cos(a) * 160 * s, 150 * s, Math.sin(a) * 160 * s);
-      target = new THREE.Vector3(0, 20 * s, 0);
-    } else {
-      // long lens across the water (or the plain), steam venting
-      camera.fov = 16;
-      camera.position.set(620 * s, 12, 820 * s);
-      target = new THREE.Vector3(0, 32 * s, 0);
-    }
+    // 1. Long lens across the water: the rocket on the pad, steam venting
+    camera.fov = 16;
+    camera.position.set(620 * s, 12, 820 * s);
+    target = new THREE.Vector3(0, 32 * s, 0);
     for (let v = perSecond("vent", 18, dt); v > 0; v--) particles.emit(false, new THREE.Vector3(random(-2, 2), random(20, 50) * s, random(-2, 2)), new THREE.Vector3(random(1, 3), random(-0.5, 0.5), 0), random(1.5, 3), random(6, 10), 2.5, 0.4, 0xffffff, 0.5); // venting
   } else if (t < LAUNCH_LIFTOFF + 1.2) {
-    if (plan.ignition === "under") {
-      // a camera beside the flame trench, looking up past the engines at the whole rocket
-      camera.fov = 70;
-      camera.position.set(-9 * s, 1.2, 9 * s);
-      target = new THREE.Vector3(0, 30 * s + lift, 0);
-      shake = 0.1 + 0.35 * ignition;
-    } else {
-      // close on the engines, from in front of the pad: the trench smoke rolls out to both sides
-      camera.fov = 38;
-      camera.position.set(10 * s, 4, 58 * s);
-      target = new THREE.Vector3(0, 3.5 * s + lift * 0.6, 0);
-      shake = 0.05 + 0.25 * ignition;
-    }
+    // 2. Close on the engines: ignition, flames into the flame trench
+    // aimed low, so the engines and their fire sit in the middle of the picture (above the captions)
+    camera.fov = 38;
+    camera.position.set(-34 * s, 4, 46 * s);
+    target = new THREE.Vector3(0, 3.5 * s + Math.max(0, rocketY - restY) * 0.6, 0);
+    shake = 0.05 + 0.25 * ignition;
   } else if (t < LAUNCH_LIFTOFF + 4.2) {
-    if (plan.liftoff === "front") {
-      // head-on from the approach road: smoke rolling out to both sides, the rocket rising in the middle
-      camera.fov = 34;
-      camera.position.set(0, 5, 300 * s);
-      target = new THREE.Vector3(0, 35 * s + lift * 0.8, 0);
-      shake = 0.15;
-    } else if (plan.liftoff === "drone") {
-      // looking straight down from above: the rocket climbs toward the camera out of its own smoke
-      camera.fov = 50;
-      camera.position.set(6 * s, rocketY + 140 * s - (t - LAUNCH_LIFTOFF) * 6 * s, 30 * s);
-      target = new THREE.Vector3(0, 0, 0);
-      shake = 0.05;
-    } else {
-      // from the base of the tower looking up as the rocket clears it
-      camera.fov = 55;
-      camera.position.set(22 * s, 3, 18 * s);
-      target = new THREE.Vector3(0, rocketY + 30 * s, 0);
-      shake = 0.35;
-    }
+    // 3. From the base of the tower looking up as the rocket clears it
+    camera.fov = 55;
+    camera.position.set(22 * s, 3, 18 * s);
+    target = new THREE.Vector3(0, rocketY + 30 * s, 0);
+    shake = 0.35;
   } else {
-    if (plan.climb === "clouds") {
-      // closer, from the side, as it climbs toward the clouds
-      camera.fov = 30;
-      camera.position.set(-260 * s, rocketY * 0.7 + 40, 380 * s);
-      target = new THREE.Vector3(0, rocketY + 10 * s, 0);
-      shake = 0.03;
-    } else if (plan.climb === "below") {
-      // from near the pad, looking almost straight up at the rising flame
-      camera.fov = 45;
-      camera.position.set(60 * s, 4, 90 * s);
-      target = new THREE.Vector3(0, rocketY + 10 * s, 0);
-      shake = 0.08;
-    } else {
-      // a tracking camera far away follows the rocket up into the sky
-      camera.fov = 24;
-      camera.position.set(-520 * s, 20, 760 * s);
-      target = new THREE.Vector3(0, rocketY + 20 * s, 0);
-      shake = 0.04;
-    }
+    // 4. A tracking camera far away follows the rocket up into the sky
+    camera.fov = 24;
+    camera.position.set(-520 * s, 20, 760 * s);
+    target = new THREE.Vector3(0, rocketY + 20 * s, 0);
+    shake = 0.04;
   }
-  if (camera.position.distanceTo(target) < 1) target.x += 1; // (never look from a point at itself)
   camera.updateProjectionMatrix();
   shakeCamera(shake, target);
   camera.lookAt(target);
@@ -2199,7 +1120,7 @@ function updateMissionLaunch(t, dt) {
     launchStep = step;
     captionBox.textContent = [
       captionOverride || "Final countdown.",
-      PAD_CAPTION[padStyle] || "T-10 seconds. The water deluge floods the pad to absorb the sound and heat of the engines.",
+      "T-10 seconds. The water deluge floods the pad to absorb the sound and heat of the engines.",
       "Ignition sequence start. The engines build up to full thrust while the hold-down arms keep the rocket on the pad.",
       "Liftoff! The hold-down arms release. A heavy rocket rises slowly at first.",
       "The rocket has cleared the tower. The roll and pitch program turns it toward its path to orbit."
@@ -2208,8 +1129,6 @@ function updateMissionLaunch(t, dt) {
   }
 }
 let launchStep = -1;
-let shotPlan = null;
-let missionSun = null; // this mission's sun position at the pad
 
 // ----- Scene 4: the climb to orbit -----
 function hasAscent() {
@@ -2243,312 +1162,85 @@ function beginAscent() {
   sunLight.intensity = 2.8;
   sunLight.castShadow = false; // nothing below the rocket to receive a shadow up here
   sunSprite.visible = false;
-  if (cloudDeck) cloudDeck.visible = true;
   detached.forEach(function (part) { scene.remove(part); });
   detached = [];
   rocketRoot.position.set(0, 0, 0);
   rocketRoot.rotation.set(0, 0, 0);
   const split = STAGE_SPLIT[rocketKey];
-  if (ascentTrail) { ascentTrail.geometry.setDrawRange(0, 0); ascentTrail.material.opacity = 0; }
-  if (ascentMarker) ascentMarker.material.opacity = 0;
   ascent = {
-    trailCount: 0,
-    trailTimer: 0,
     step: -1,
     split: split ? split * rocketModel.userData.height : 0,
     lower: null,
-    nose: [],
-    clips: [],
-    frame: 0,
     upperPlane: null,
     engineOff: 0,
     secondStage: false,
     fairing: [],
-    downrange: 0,
-    sepIn: 0,
-    hadBoosters: boosters.length > 0
+    downrange: 0
   };
-  buildStageHud();
   fadeBox.style.transition = "none";
   fadeBox.style.opacity = "1";
 }
 
 const UPV = new THREE.Vector3(0, 1, 0);
 
-// ----- Separations -----
-// A part comes off by cloning the rocket and cutting both copies with clipping planes (in the model's
-// own space, so the cut follows every tumble). Each cut face gets a dark cap, so no part looks hollow.
-function clipPart(object, localPlanes) {
-  const entry = { object: object, locals: localPlanes, worlds: localPlanes.map(function () { return new THREE.Plane(); }) };
-  ascent.clips = (ascent.clips || []).filter(function (c) { return c.object !== object; });
-  ascent.clips.push(entry);
-  object.traverse(function (o) { if (o.isMesh && o.material && !o.userData.cap) o.material.clippingPlanes = entry.worlds; });
-  return entry;
+// Cut the rocket in two at the stage line: the upper part keeps flying, the lower part falls away
+function separateStage() {
+  if (!ascent.split || ascent.lower) return;
+  const localUpper = new THREE.Plane(new THREE.Vector3(0, 1, 0), -ascent.split);
+  const localLower = new THREE.Plane(new THREE.Vector3(0, -1, 0), ascent.split);
+  const lower = rocketModel.clone(true);
+  lower.traverse(function (o) {
+    if (o.isMesh && o.material && o.material.clone) o.material = o.material.clone();
+  });
+  rocketRoot.updateMatrixWorld(true);
+  lower.matrixAutoUpdate = true;
+  scene.add(lower);
+  lower.position.setFromMatrixPosition(rocketModel.matrixWorld);
+  lower.quaternion.setFromRotationMatrix(rocketModel.matrixWorld);
+  lower.scale.setScalar(ROCKET_SCALE);
+  lower.userData.velocity = new THREE.Vector3(0, -14, 0).applyQuaternion(rocketRoot.quaternion);
+  lower.userData.spin = random(-0.25, 0.25);
+  ascent.lower = lower;
+  ascent.planes = [
+    { object: rocketModel, local: localUpper, world: new THREE.Plane() },
+    { object: lower, local: localLower, world: new THREE.Plane() }
+  ];
+  ascent.planes.forEach(function (p) {
+    p.object.traverse(function (o) { if (o.isMesh && o.material) o.material.clippingPlanes = [p.world]; });
+  });
+  updateClipping();
+  play("separation");
 }
 
 function updateClipping() {
-  if (!ascent || !ascent.clips) return;
-  ascent.clips.forEach(function (c) {
-    c.object.updateMatrixWorld(true);
-    c.locals.forEach(function (local, i) { c.worlds[i].copy(local).applyMatrix4(c.object.matrixWorld); });
+  if (!ascent || !ascent.planes) return;
+  ascent.planes.forEach(function (p) {
+    p.object.updateMatrixWorld(true);
+    p.world.copy(p.local).applyMatrix4(p.object.matrixWorld);
   });
 }
 
-// The rocket body's radius (model units) at a height, measured from the core's cylinders
-function radiusAt(model, y) {
-  model.updateMatrixWorld(true);
-  const toModel = new THREE.Matrix4().copy(model.matrixWorld).invert();
-  const box = new THREE.Box3();
-  let best = 0;
-  model.traverse(function (o) {
-    if (!o.isMesh || !o.geometry || !o.geometry.parameters || o.geometry.parameters.radiusTop === undefined) return;
-    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
-    box.copy(o.geometry.boundingBox).applyMatrix4(new THREE.Matrix4().multiplyMatrices(toModel, o.matrixWorld));
-    const cx = (box.min.x + box.max.x) / 2;
-    const cz = (box.min.z + box.max.z) / 2;
-    const r = (box.max.x - box.min.x) / 2;
-    if (box.min.y <= y && box.max.y >= y && Math.hypot(cx, cz) < r * 0.5) best = Math.max(best, r);
-  });
-  return best || (model.userData.radius || 1) * 0.4;
-}
-
-// A dark disc that closes a cut (the inside of the interstage: tanks' domes and plumbing, simplified)
-function capAt(model, y, facingUp) {
-  const cap = new THREE.Mesh(
-    new THREE.CircleGeometry(radiusAt(model, y) * 0.99, 40),
-    new THREE.MeshStandardMaterial({ color: 0x2b2d31, roughness: 0.75, metalness: 0.4, side: THREE.DoubleSide })
-  );
-  cap.userData.cap = true;
-  cap.rotation.x = facingUp ? -Math.PI / 2 : Math.PI / 2;
-  cap.position.y = y;
-  model.add(cap);
-  return cap;
-}
-
-function cloneForSeparation() {
-  const copy = rocketModel.clone(true);
-  const caps = [];
-  copy.traverse(function (o) { if (o.userData.cap && o.parent === copy) caps.push(o); });
-  caps.forEach(function (o) { copy.remove(o); }); // earlier cut faces and the payload stay with the rocket
-  copy.traverse(function (o) {
-    if (o.isMesh && o.material && o.material.clone) {
-      o.material = o.material.clone();
-      o.material.clippingPlanes = null;
-    }
-  });
-  rocketRoot.updateMatrixWorld(true);
-  copy.matrixAutoUpdate = true;
-  scene.add(copy);
-  // Copy where the rocket is and which way it points. (Reading the rotation straight from the matrix
-  // went wrong, because the matrix also holds the model's x8 scale: the dropped stage came out turned
-  // sideways and swung across the camera, looking huge.)
-  rocketModel.matrixWorld.decompose(copy.position, copy.quaternion, copy.scale);
-  return copy;
-}
-
-// A short puff of gas and a flash in the gap between two separating parts
-function separationPuff(localY, radius, count, warm) {
-  rocketRoot.updateMatrixWorld(true);
-  const center = rocketModel.localToWorld(new THREE.Vector3(0, localY, 0));
-  const r = radius * ROCKET_SCALE;
-  for (let i = 0; i < count; i++) {
-    const angle = random(0, Math.PI * 2);
-    const out = new THREE.Vector3(Math.cos(angle), random(-0.2, 0.2), Math.sin(angle)).applyQuaternion(rocketRoot.quaternion);
-    const position = center.clone().addScaledVector(out, r);
-    const velocity = out.clone().multiplyScalar(random(6, 16));
-    particles.emit(warm && i % 3 === 0, position, velocity, random(1, 2) * (r / 4 + 0.5), random(6, 12) * (r / 4 + 0.5), random(0.6, 1.4), 0.6, warm ? 0xffd6a8 : 0xe6eef8, 1.2);
-  }
-}
-
-// Staging: the first stage is cut off at the stage line and falls away, tumbling slowly, while the
-// upper stage carries on. Simplified, but in the real order: engines off, a short coast, the stages
-// part (a puff of gas between them), then the next engine lights.
-function separateStage() {
-  if (!ascent.split || ascent.lower) return;
-  const lower = cloneForSeparation();
-  clipPart(rocketModel, [new THREE.Plane(new THREE.Vector3(0, 1, 0), -ascent.split)]);
-  clipPart(lower, [new THREE.Plane(new THREE.Vector3(0, -1, 0), ascent.split)]);
-  capAt(rocketModel, ascent.split + 0.002, false);
-  capAt(lower, ascent.split - 0.002, true);
-  // relative speed: a few meters per second at first; the gap then grows as the upper stage accelerates
-  lower.userData.velocity = new THREE.Vector3(0, -2.2, 0).applyQuaternion(rocketRoot.quaternion);
-  lower.userData.spin = random(0.04, 0.09) * (Math.random() < 0.5 ? -1 : 1);
-  lower.userData.tumble = random(0.02, 0.05);
-  lower.userData.age = 0;
-  ascent.lower = lower;
-  separationPuff(ascent.split, radiusAt(rocketModel, ascent.split), 70, true);
-  play("separation");
-}
-
-function stageApart() {
-  if (!ascent || ascent.lower) return;
-  separateStage();
-  markStage("first", "separated");
-}
-
-// Small puffs from the upper stage's thrusters just above the separation line
-function ullagePuffs(dt) {
-  const n = perSecond("ullage", 24, dt);
-  if (!n) return;
-  rocketRoot.updateMatrixWorld(true);
-  const r = radiusAt(rocketModel, ascent.split + 0.05) * ROCKET_SCALE;
-  const back = new THREE.Vector3(0, -1, 0).applyQuaternion(rocketRoot.quaternion);
-  for (let i = 0; i < n; i++) {
-    const angle = random(0, Math.PI * 2);
-    const side = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)).applyQuaternion(rocketRoot.quaternion);
-    const at = rocketModel.localToWorld(new THREE.Vector3(0, ascent.split + 0.12, 0)).addScaledVector(side, r * 1.02);
-    particles.emit(false, at, back.clone().multiplyScalar(random(8, 14)).addScaledVector(side, random(2, 5)), random(0.4, 0.8), random(2, 4), random(0.3, 0.6), 0.5, 0xeef3fa, 0.6);
-  }
-}
-
-// ----- Stage list (inspired by how flight-simulator games show staging): every part of the rocket, top
-// to bottom, lit while its engines burn, greyed out and marked when it has separated -----
-let stageHud = null;
-function buildStageHud() {
-  if (!stageHud) {
-    stageHud = document.createElement("aside");
-    stageHud.className = "cinema-stages hidden";
-    stageHud.setAttribute("aria-label", "Rocket stages");
-    stageHud.innerHTML = '<p class="cs-title">Stages</p><ol></ol>';
-    // on the launch screen itself (its .cinema-ui panel is hidden while the mission player runs)
-    const screen = document.getElementById("launch-screen");
-    (screen || document.body).appendChild(stageHud);
-  }
-  const shuttle = rocketKey === "shuttle" || rocketKey === "shuttle-sts31";
-  const rows = [];
-  if (ESCAPE_TOWER[rocketKey]) rows.push(["nose", "Launch escape tower", "attached"]);
-  else if (NOSE_CUT[rocketKey]) rows.push(["nose", "Payload fairing", "attached"]);
-  rows.push(["payload", shuttle ? "Orbiter and payload" : "Spacecraft", "attached"]);
-  if (ascent && ascent.split) {
-    rows.push(["upper", "Upper stage", "waiting"]);
-    rows.push(["first", "First stage", "burning"]);
-  } else {
-    rows.push(["core", shuttle ? "External tank (main engines)" : "Core stage", "burning"]);
-  }
-  if (ascent && ascent.hadBoosters) rows.push(["boosters", shuttle ? "Solid rocket boosters" : "Side boosters", "burning"]);
-  const list = stageHud.querySelector("ol");
-  list.innerHTML = "";
-  rows.forEach(function (row) {
-    const li = document.createElement("li");
-    li.dataset.stage = row[0];
-    li.innerHTML = '<i aria-hidden="true"></i><b></b><span></span>';
-    li.querySelector("b").textContent = row[1];
-    list.appendChild(li);
-    setStageRow(li, row[2]);
-  });
-  stageHud.classList.remove("hidden");
-  fitAboveSceneBar();
-}
-const STAGE_WORDS = { burning: "Engines firing", waiting: "Waiting", attached: "Attached", off: "Engines off", separated: "Separated" };
-function setStageRow(li, state) {
-  li.className = "st-" + state;
-  li.querySelector("span").textContent = STAGE_WORDS[state] || state;
-}
-function markStage(id, state) {
-  if (!stageHud) return;
-  const li = stageHud.querySelector('li[data-stage="' + id + '"]');
-  if (li) setStageRow(li, state);
-}
-function hideStageHud() {
-  if (stageHud) stageHud.classList.add("hidden");
-}
-
-// The nose comes off: the launch escape tower flies away on its own motor, or the payload fairing
-// opens like a clamshell and its two halves fall away to the sides.
+// Two halves of the nose shell drift apart (fairing or escape tower)
 function separateNose() {
-  const cut = NOSE_CUT[rocketKey];
-  if (!cut) return;
-  const y = (cut[0] / cut[1]) * rocketModel.userData.height;
-  const tower = Boolean(ESCAPE_TOWER[rocketKey]);
-  const keepBelow = new THREE.Plane(new THREE.Vector3(0, -1, 0), y);
-  const existing = (ascent.clips || []).find(function (c) { return c.object === rocketModel; });
-  clipPart(rocketModel, (existing ? existing.locals : []).concat([keepBelow]));
-  const r = radiusAt(rocketModel, y + 0.01);
-  if (tower) {
-    const piece = cloneForSeparation();
-    clipPart(piece, [new THREE.Plane(new THREE.Vector3(0, 1, 0), -y)]);
-    piece.userData.kind = "tower";
-    piece.userData.age = 0;
-    piece.userData.velocity = new THREE.Vector3(0, 6, 0).applyQuaternion(rocketRoot.quaternion);
-    piece.userData.localY = y;
-    ascent.nose = [piece];
-  } else {
-    // the payload inside, now in view (an illustrative stand-in: a foil-wrapped spacecraft on an adapter)
-    const top = rocketModel.userData.height;
-    const inner = new THREE.Group();
-    const foil = new THREE.MeshStandardMaterial({ color: 0xc9a24a, roughness: 0.35, metalness: 0.85 });
-    const white = new THREE.MeshStandardMaterial({ color: 0xdedfe2, roughness: 0.6, metalness: 0.2 });
-    const adapter = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.45, r * 0.8, (top - y) * 0.12, 24), white);
-    adapter.position.y = (top - y) * 0.06;
-    inner.add(adapter);
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.55, r * 0.55, (top - y) * 0.42, 8), foil);
-    body.position.y = (top - y) * 0.33;
-    inner.add(body);
-    const dish = new THREE.Mesh(new THREE.SphereGeometry(r * 0.38, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2.4), white);
-    dish.position.y = (top - y) * 0.56;
-    inner.add(dish);
-    inner.position.y = y;
-    inner.userData.cap = true;
-    inner.traverse(function (o) { o.userData.cap = true; });
-    rocketModel.add(inner);
-    capAt(rocketModel, y, true);
-    // two halves: cut above the fairing base, then split down the middle
-    ascent.nose = [-1, 1].map(function (side) {
-      const half = cloneForSeparation();
-      clipPart(half, [new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), new THREE.Plane(new THREE.Vector3(side, 0, 0), 0)]);
-      half.userData.kind = "fairing";
-      half.userData.side = side;
-      half.userData.age = 0;
-      half.userData.localY = y;
-      half.userData.velocity = new THREE.Vector3(side * 2.5, 0.5, 0).applyQuaternion(rocketRoot.quaternion);
-      return half;
-    });
-  }
-  separationPuff(y, r, tower ? 18 : 30, tower);
-  play("separation");
-}
-
-// Moves the separated parts. Everything is seen from the upper stage, which keeps accelerating,
-// so dropped parts fall back ("back" = down the rocket's axis) and drift slowly to the side.
-function updateSeparatedParts(dt) {
-  const back = new THREE.Vector3(0, -1, 0).applyQuaternion(rocketRoot.quaternion);
-  const up = back.clone().negate();
-  if (ascent.lower) {
-    const lower = ascent.lower;
-    lower.userData.age += dt;
-    // while both coast (before the upper engine lights) they drift apart slowly, so the separation can be
-    // seen; once the upper stage is firing, the spent stage falls back quickly
-    lower.userData.velocity.addScaledVector(back, dt * (ascent.engineOff > 0 ? 1.2 : 9));
-    lower.position.addScaledVector(lower.userData.velocity, dt);
-    lower.rotateZ(dt * lower.userData.spin);
-    lower.rotateX(dt * lower.userData.tumble);
-  }
-  (ascent.nose || []).forEach(function (piece) {
-    piece.userData.age += dt;
-    const age = piece.userData.age;
-    if (piece.userData.kind === "tower") {
-      // its own solid motor burns for about a second and a half, pulling it ahead and to one side
-      if (age < 1.6) {
-        piece.userData.velocity.addScaledVector(up, dt * 60).addScaledVector(new THREE.Vector3(1, 0, 0).applyQuaternion(rocketRoot.quaternion), dt * 14);
-        piece.updateMatrixWorld(true);
-        const nozzle = piece.localToWorld(new THREE.Vector3(0, piece.userData.localY + 0.5, 0));
-        for (let k = perSecond("towerFire", 90, dt); k > 0; k--) {
-          const angle = random(0, Math.PI * 2);
-          const v = back.clone().multiplyScalar(random(30, 50)).add(new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)).multiplyScalar(random(6, 12)));
-          particles.emit(true, nozzle.clone(), v, 1.2, 4, random(0.25, 0.4), 0.9, undefined, 0);
-        }
-      } else {
-        piece.userData.velocity.addScaledVector(back, dt * 9);
-      }
-      piece.rotateZ(dt * 0.15);
-    } else {
-      // fairing halves swing open on their base hinge, then tumble away to the side
-      piece.userData.velocity.addScaledVector(back, dt * (age > 0.6 ? 9 : 2));
-      const open = Math.min(1, age / 1.4);
-      piece.rotateZ(-piece.userData.side * dt * (0.35 + open * 0.4));
-    }
-    piece.position.addScaledVector(piece.userData.velocity, dt);
+  const top = rocketModel.userData.height * ROCKET_SCALE;
+  const radius = Math.max(1.5, (rocketModel.userData.radius || 1) * ROCKET_SCALE * 0.5);
+  const material = new THREE.MeshStandardMaterial({ color: 0xe8e8e4, roughness: 0.6, side: THREE.DoubleSide });
+  const pieces = ESCAPE_TOWER[rocketKey]
+    ? [new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.12, radius * 0.25, top * 0.08, 8), material)]
+    : [-1, 1].map(function () { return new THREE.Mesh(new THREE.CylinderGeometry(0.01, radius, top * 0.1, 16, 1, true, 0, Math.PI), material); });
+  pieces.forEach(function (piece, i) {
+    const local = new THREE.Vector3(0, top * 0.95, 0);
+    piece.position.copy(local.applyQuaternion(rocketRoot.quaternion));
+    piece.quaternion.copy(rocketRoot.quaternion);
+    if (pieces.length > 1) piece.rotateY(i * Math.PI);
+    const side = new THREE.Vector3(i === 0 ? -1 : 1, 0, 0).applyQuaternion(rocketRoot.quaternion);
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(rocketRoot.quaternion);
+    piece.userData.velocity = pieces.length > 1 ? side.multiplyScalar(6).addScaledVector(up, -8) : up.multiplyScalar(12).add(side.multiplyScalar(3));
+    piece.userData.spin = random(0.5, 1.2) * (i === 0 ? -1 : 1);
+    scene.add(piece);
+    detached.push(piece);
   });
+  play("separation");
 }
 
 function emitAscentFire(power, altitude, dt) {
@@ -2597,14 +1289,12 @@ function vaporCone(dt) {
 }
 
 function updateAscent(t, dt) {
-  // fades in; no fade to black at the end: the next scene takes over from the whole-Earth view
-  fadeBox.style.opacity = String(1 - smoothstep(0, 0.6, t));
+  const fadeIn = 1 - smoothstep(0, 0.6, t);
+  const fadeOut = smoothstep(SCENES[3].duration - 1.4, SCENES[3].duration, t);
+  fadeBox.style.opacity = String(Math.max(fadeIn, fadeOut));
 
-  // Height above Earth in display units. Not to scale: the rocket is drawn hundreds of times too big,
-  // so Earth is moved much farther away than the real altitude, until the whole planet is in view and
-  // looks like the Solar System's Earth (same maps), instead of a blurred close-up of the ground.
-  const climb = smoothstep(0, 25, t);
-  const altitude = 10 + 1500 * Math.pow(climb, 1.6);
+  // Altitude in km (compressed): from about 10 km to about 200 km
+  const altitude = 10 + 190 * smoothstep(0, 22, t) * (0.6 + 0.4 * smoothstep(0, 22, t));
   const pitch = 0.25 + 1.0 * smoothstep(0, 21, t);          // the gravity turn (radians from vertical)
   rocketRoot.rotation.set(0, 0, -pitch);
 
@@ -2615,31 +1305,13 @@ function updateAscent(t, dt) {
     const step = steps[ascent.step];
     captionBox.textContent = step[1] + " · " + step[2];
     blink();
-    if (ascent.step === 2 && boosters.length > 0) { separateBoosters(); markStage("boosters", "separated"); }
-    if (ascent.step === 3 && ascent.split) {
-      // MECO: the first stage's engines stop; the stages part a moment later, then the upper engine lights
-      ascent.engineOff = 99;
-      ascent.sepIn = 0.7;
-      markStage("first", "off");
-      play("event");
-    }
-    if (ascent.step === 4 && ascent.split) {
-      if (!ascent.lower) stageApart();            // (when the clock jumped past the separation)
-      ascent.engineOff = 0;
-      ascent.secondStage = true;
-      markStage("upper", "burning");
-      play("ignition");
-    }
-    if (ascent.step === 5) { separateNose(); markStage("nose", "separated"); }
-    if (ascent.step === 6) { ascent.engineOff = 99; markStage(ascent.split ? "upper" : "core", "off"); play("success"); }
+    if (ascent.step === 2 && boosters.length > 0) separateBoosters();
+    if (ascent.step === 3 && ascent.split) { ascent.engineOff = 1.4; play("event"); }
+    if (ascent.step === 4 && ascent.split) { separateStage(); ascent.secondStage = true; }
+    if (ascent.step === 5) separateNose();
+    if (ascent.step === 6) { ascent.engineOff = 99; play("success"); }
   }
-  if (ascent.sepIn > 0) {
-    ascent.sepIn -= dt;
-    if (ascent.sepIn <= 0) stageApart();
-  }
-  // between separation and ignition: small thrusters settle the upper stage's fuel (ullage), seen as puffs
-  if (ascent.lower && ascent.engineOff > 0 && ascent.step === 3) ullagePuffs(dt);
-  if (ascent.engineOff < 90) ascent.engineOff = Math.max(0, ascent.engineOff - dt);
+  ascent.engineOff = Math.max(0, ascent.engineOff - dt);
   const throttle = ascent.step === 1 ? 0.7 : 1;
   if (ascent.engineOff <= 0) emitAscentFire(throttle, altitude, dt);
   if (ascent.step === 1) vaporCone(dt);
@@ -2649,21 +1321,8 @@ function updateAscent(t, dt) {
   ascent.downrange += dt * (0.002 + 0.01 * smoothstep(0, 20, t));
   earthBall.position.set(0, -(EARTH_R + altitude * 0.94), 0);
   earthBall.rotation.z = ascent.downrange;
-  skyMaterial.uniforms.uSpace.value = smoothstep(15, 160, altitude);
-  stars.material.opacity = smoothstep(60, 260, altitude); // stars come out as the sky turns black
-  // the cloud layer sits about 30 units above the ground: the rocket passes up through it, and it drops
-  // away quickly (left longer, its soft puffs lay along the horizon like sea fog)
-  if (cloudDeck) {
-    cloudDeck.visible = altitude < 140;
-    cloudDeck.position.set(0, earthBall.position.y + EARTH_R + 30, 0);
-    const fade = 1 - smoothstep(45, 140, altitude);
-    cloudDeck.children.forEach(function (puff) { puff.material.opacity = 0.85 * fade * (siteLook.cloudy ? 1 : 0.7); });
-  }
-  // above the air the Sun shines in a black sky
-  sunSprite.visible = altitude > 150;
-  sunSprite.position.copy(sunLight.position).normalize().multiplyScalar(2600).add(camera.position);
-  sunSprite.scale.setScalar(700);
-  updateAscentTrail(dt);
+  skyMaterial.uniforms.uSpace.value = smoothstep(15, 90, altitude);
+  stars.material.opacity = smoothstep(50, 140, altitude);
 
   // Parts that have separated fall behind (in the rocket's frame they drift back and down)
   const back = new THREE.Vector3(0, -1, 0).applyQuaternion(rocketRoot.quaternion);
@@ -2673,82 +1332,22 @@ function updateAscent(t, dt) {
     part.position.addScaledVector(part.userData.velocity, dt);
     part.rotation.z += dt * (part.userData.spin || 0.5);
   });
-  updateSeparatedParts(dt);
+  if (ascent.lower) {
+    ascent.lower.userData.velocity.addScaledVector(back, dt * 14);
+    ascent.lower.position.addScaledVector(ascent.lower.userData.velocity, dt);
+    ascent.lower.rotateZ(dt * ascent.lower.userData.spin);
+  }
   updateClipping();
 
   // Chase camera beside and a little below the rocket; it slowly swings round
-  const fullSize = rocketModel.userData.height * ROCKET_SCALE;
-  // after staging the camera eases in on the upper stage (the part still flying)
-  if (ascent.lower && ascent.lower.userData.age > 1.8) ascent.frame = Math.min(1, (ascent.frame || 0) + dt / 3.5);
-  const f = ascent.frame ? ascent.frame * ascent.frame * (3 - 2 * ascent.frame) : 0;
-  const splitAt = ascent.split * ROCKET_SCALE;
-  const size = fullSize - f * splitAt * 0.7;
-  const middle = fullSize * 0.45 + f * (splitAt + (fullSize - splitAt) * 0.5 - fullSize * 0.45);
+  const size = rocketModel.userData.height * ROCKET_SCALE;
   const swing = t * 0.035;
-  // Early in the climb the camera stays low and looks out toward the horizon and the sky, so the rocket
-  // is seen leaving Earth (not skimming over a blurred ground). By the separations (which keep the
-  // camera they had) it is beside and a little above the rocket.
-  const low = 1 - smoothstep(6, 9.5, t);
-  const offset = new THREE.Vector3(Math.sin(swing) * size * 1.6 - size * 0.4, size * (0.9 - low * 0.75), Math.cos(swing) * size * 2.2);
-  offset.add(new THREE.Vector3(0, middle - fullSize * 0.45, 0).applyQuaternion(rocketRoot.quaternion));
-  const target = new THREE.Vector3(0, middle, 0).applyQuaternion(rocketRoot.quaternion);
-  target.y -= low * size * 0.45; // aimed a little down: the horizon and Earth in the lower part, the rocket climbing above
-
-  // The end of the climb: a long, smooth pull-back to the whole Earth (the same Earth as the Solar
-  // System), with the path flown traced on it and a glow on the rocket
-  const away = smoothstep(16.5, 25, t); // slow and steady (team feedback: no fast zooms)
-  const earthCenter = earthBall.position;
-  const linger = Math.max(0, t - 25);
-  const farPos = earthCenter.clone().add(new THREE.Vector3(-0.35, 0.78, 0.92).normalize().applyAxisAngle(UPV, linger * 0.05).multiplyScalar(EARTH_R * 2.6));
-  if (t > 24) hideStageHud();
-  const farTarget = earthCenter.clone().lerp(new THREE.Vector3(0, 0, 0), 0.4);
-  if (away > 0) {
-    const nearDir = offset.clone().normalize();
-    const farDir = farPos.clone().normalize();
-    const k = away * away * (3 - 2 * away);
-    const distance = Math.exp(Math.log(offset.length()) * (1 - k) + Math.log(farPos.length()) * k);
-    // first straight out and up, away from Earth (never down close to the ground), keeping the rocket
-    // in the middle; the look only turns to the whole planet near the end
-    const up = new THREE.Vector3(0, 1, 0);
-    const dir = nearDir.lerp(farDir, k).add(up.multiplyScalar(Math.sin(Math.PI * k) * 0.8)).normalize();
-    camera.position.copy(dir.multiplyScalar(distance));
-    target.lerp(farTarget, Math.pow(k, 2.5));
-  } else {
-    camera.position.copy(offset);
-  }
-  if (ascentTrail) ascentTrail.material.opacity = 0.85 * smoothstep(16.5, 19.5, t);
-  if (ascentMarker) {
-    ascentMarker.material.opacity = smoothstep(18, 20.5, t);
-    ascentMarker.position.set(0, size * 0.5, 0);
-    const d = camera.position.distanceTo(ascentMarker.position);
-    ascentMarker.scale.setScalar(d * 0.028); // about the same size on screen however far the camera is
-  }
-  shakeCamera(away > 0.05 ? 0 : ascent.step === 1 ? 0.35 : ascent.engineOff > 0 ? 0 : 0.08, target);
+  const offset = new THREE.Vector3(Math.sin(swing) * size * 1.6 - size * 0.4, size * 0.9, Math.cos(swing) * size * 2.2);
+  camera.position.copy(offset);
+  const target = new THREE.Vector3(0, size * 0.45, 0).applyQuaternion(rocketRoot.quaternion);
+  shakeCamera(ascent.step === 1 ? 0.35 : ascent.engineOff > 0 ? 0 : 0.08, target);
   camera.lookAt(target);
   setRumble(ascent.engineOff > 0 ? 0.05 : 0.3 * (1 - smoothstep(20, 120, altitude)) + 0.05, 300);
-}
-
-// Records where the rocket is, in Earth's own (turning) frame, a few times a second
-function updateAscentTrail(dt) {
-  if (!ascentTrail || !ascent) return;
-  ascent.trailTimer -= dt;
-  if (ascent.trailTimer > 0 || ascent.trailCount >= 600) return;
-  ascent.trailTimer = 0.08;
-  earthBall.updateMatrixWorld(true);
-  const local = earthBall.worldToLocal(new THREE.Vector3(0, 0, 0));
-  const array = ascentTrail.geometry.attributes.position.array;
-  if (ascent.trailCount === 0) {
-    // start at the launch site on the ground, straight below the rocket's first position
-    const ground = local.clone().setLength(EARTH_R * 1.001);
-    array[0] = ground.x; array[1] = ground.y; array[2] = ground.z;
-    ascent.trailCount = 1;
-  }
-  array[ascent.trailCount * 3] = local.x;
-  array[ascent.trailCount * 3 + 1] = local.y;
-  array[ascent.trailCount * 3 + 2] = local.z;
-  ascent.trailCount += 1;
-  ascentTrail.geometry.attributes.position.needsUpdate = true;
-  ascentTrail.geometry.setDrawRange(0, ascent.trailCount);
 }
 
 // ----- Main loop -----
@@ -2761,7 +1360,7 @@ function frame(now) {
     renderer.render(scene, camera);
     return;
   }
-  // Playback speed (0.5x or 2x from the mission player): move the start time so the clock runs slower or faster
+  // Faster playback (2x or 4x from the mission player): move the start time back so the clock runs faster
   const speed = getPlaybackSpeed();
   if (speed !== 1) startTime -= (now - lastTime) * (speed - 1);
   const time = (now - startTime) / 1000;
@@ -2769,16 +1368,8 @@ function frame(now) {
   lastTime = now;
 
   if (time >= totalTime) {
-    if (!canLinger()) {
-      finish();
-      return;
-    }
-    if (!lingering) {
-      lingering = true;
-      const callback = finishCallback;
-      finishCallback = null;
-      if (callback) setTimeout(callback, 0);
-    }
+    finish();
+    return;
   }
 
   let index = 0;
@@ -2795,7 +1386,6 @@ function frame(now) {
   else if (id === "cabin") updateScene2(local);
   else if (id === "ascent") updateAscent(local, dt);
   else if (id === "launch") updateMissionLaunch(local, dt);
-  else if (id === "rollout") updateRollout(local, dt);
   else updateScene3(local, dt);
 
   particles.update(dt);
@@ -2805,13 +1395,6 @@ function frame(now) {
   progressBar.style.setProperty("--fill", String(time / totalTime));
 
   renderer.render(scene, camera);
-}
-
-// In a mission the last view (the whole Earth) keeps moving after the scene ends, under the next scene's
-// card; the mission player stops it when the next scene starts
-let lingering = false;
-function canLinger() {
-  return Boolean(lastOptions && lastOptions.mission && activeScenes.length && activeScenes[activeScenes.length - 1].id === "ascent");
 }
 
 // ----- Functions that main.js uses -----
@@ -2826,16 +1409,12 @@ function finish() {
 //   liftoffOnly: true = play only the liftoff (used before a mission replay)
 //   caption: text shown during the liftoff, for example "Voyager 1 · Launch from Earth · September 5, 1977"
 //   rocket: which real rocket to show ("saturn-v", "titan-3e", "titan-4b", "delta-4-heavy", "atlas-v-541", "shuttle")
-let lastOptions = null;
 export function startCinematic(onFinish, options) {
-  lingering = false;
   options = options || {};
-  lastOptions = options;
   finishCallback = onFinish;
 
+  activeScenes = options.mission ? [SCENES[4], SCENES[3]] : options.liftoffOnly ? [SCENES[2]] : SCENES.slice(0, 3);
   rocketKey = options.rocket || null;
-  const rollStyle = options.mission && !options.noRollout ? ROLLOUT_STYLE[rocketKey] : null;
-  activeScenes = options.mission ? (rollStyle ? [ROLLOUT_SCENE, SCENES[4], SCENES[3]] : [SCENES[4], SCENES[3]]) : options.liftoffOnly ? [SCENES[2]] : SCENES.slice(0, 3);
   totalTime = activeScenes.reduce(function (sum, scene) { return sum + scene.duration; }, 0);
   captionOverride = options.caption || null;
   skipButton.textContent = options.liftoffOnly || options.mission ? "Skip launch" : "Skip intro";
@@ -2847,38 +1426,11 @@ export function startCinematic(onFinish, options) {
     spawnAstronauts();
     particles.clear();
     if (ascent && ascent.lower) scene.remove(ascent.lower);
-    if (ascent && ascent.nose) ascent.nose.forEach(function (piece) { scene.remove(piece); });
     padGroup.visible = true;
     rocketRoot.rotation.set(0, 0, 0);
     earthBall.visible = false;
     sunLight.castShadow = true; // switched off during the climb to orbit
     setLaunchSite(Boolean(options.mission));
-    // the climb's cloud layer, path and rocket glow belong to the climb only: hidden until it starts
-    // (left over from an earlier launch, the clouds hung around the pad as a bright white haze)
-    if (cloudDeck) cloudDeck.visible = false;
-    if (ascentTrail) ascentTrail.material.opacity = 0;
-    if (ascentMarker) ascentMarker.material.opacity = 0;
-    showLaunchSite(options.mission ? rocketKey : null);
-    if (!options.mission && coastGroup.userData.padStyles) applyPadStyle("lc39");
-    missionSeed = seedFrom((options.caption || "") + "|" + (rocketKey || ""));
-    missionSun = null;
-    shotPlan = null;
-    if (options.mission) {
-      applySiteLook(SITE_LOOKS[ROCKET_SITE[rocketKey]] || SITE_LOOKS.florida);
-      applyPadStyle(PAD_STYLE[rocketKey] || "lc39");
-      // the sun's height and direction differ from mission to mission (morning, midday, afternoon)
-      const sunAngle = -0.6 + seedFrom(missionSeed + "sun") * 1.4;
-      const sunHeight = 220 + seedFrom(missionSeed + "high") * 260;
-      sunLight.position.set(Math.sin(sunAngle) * 450, sunHeight, Math.cos(sunAngle) * 450);
-      missionSun = sunLight.position.clone();
-      shotPlan = {
-        venting: pick(["water", "front", "drone"], "a"),
-        ignition: pick(["engines", "under"], "b"),
-        liftoff: pick(["tower", "front", "drone"], "c"),
-        climb: pick(["tracking", "clouds", "below"], "d")
-      };
-    }
-    buildRollout(rollStyle);
     ascent = null;
     pausedAt = null;
     armPivot.rotation.y = options.liftoffOnly || options.mission ? 1.55 : 0; // the crew arm is already swung away
@@ -2913,8 +1465,6 @@ export function startCinematic(onFinish, options) {
 
 export function stopCinematic() {
   running = false;
-  hideLaunchSite();
-  hideStageHud();
   if (rafId !== null) {
     cancelAnimationFrame(rafId);
     rafId = null;
@@ -2934,10 +1484,6 @@ export function skipCinematic() {
 let pausedAt = null;
 export function pauseCinematic(on) {
   if (!running) return;
-  // the rumble stops with the picture and comes back with it
-  if (audio && audio.ctx && audio.ctx.suspend) {
-    try { if (on) audio.ctx.suspend(); else audio.ctx.resume(); } catch (error) { /* ignore */ }
-  }
   if (on && pausedAt === null) pausedAt = performance.now();
   else if (!on && pausedAt !== null) {
     startTime += performance.now() - pausedAt;
@@ -2967,24 +1513,7 @@ export function cinematicInfo() {
     local -= activeScenes[index].duration;
     index++;
   }
-  return { index: index, count: activeScenes.length, id: activeScenes[index].id, progress: Math.min(1, local / activeScenes[index].duration) };
-}
-
-// Jump to a point (0 to 1, each scene an equal share, like the player's progress bar). The launch is
-// restarted and its clock moved forward, so every separation happens in order.
-export function seekCinematic(fraction) {
-  if (!running || !lastOptions) return;
-  const callback = finishCallback;
-  const wasPaused = pausedAt !== null;
-  stopCinematic(); // one animation loop only
-  const f = Math.max(0, Math.min(0.995, fraction)) * activeScenes.length;
-  const sceneIndex = Math.floor(f);
-  let time = 0;
-  for (let i = 0; i < sceneIndex; i++) time += activeScenes[i].duration;
-  time += (f - sceneIndex) * activeScenes[sceneIndex].duration;
-  startCinematic(callback, lastOptions);
-  startTime -= time * 1000;
-  if (wasPaused) pauseCinematic(true);
+  return { index: index, id: activeScenes[index].id, progress: Math.min(1, local / activeScenes[index].duration) };
 }
 
 export function isCinematicRunning() {

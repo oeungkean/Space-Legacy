@@ -37,7 +37,7 @@ export const CATEGORIES = [
 
 export const REGIONS = [
   "Earth orbit", "Sun–Earth L2", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn & Titan",
-  "Asteroids & comets", "The Sun", "Orbit around the Sun", "Outer solar system", "Launch site (Earth)"
+  "Asteroids & comets", "The Sun", "Outer solar system", "Launch site (Earth)"
 ];
 
 export const MODEL_NOTE =
@@ -68,12 +68,6 @@ const VOYAGER_NOW = { label: "NASA Science: Where are Voyager 1 and 2 now?", url
 const ARIANE5 = { label: "ESA: Ariane 5 ECA", url: "https://www.esa.int/Enabling_Support/Space_Transportation/Ariane/Ariane_5_ECA" };
 const TITAN_HISTORY = { label: "U.S. Centennial of Flight: Titan", url: "https://centennialofflight.net/essay/SPACEFLIGHT/titan/SP11.htm" };
 const PV_NSSDC = { label: "NASA NSSDC: Pioneer Venus", url: "https://nssdc.gsfc.nasa.gov/planetary/pioneer_venus.html" };
-const KEPLER = { label: "NASA Science: Kepler / K2", url: "https://science.nasa.gov/mission/kepler/" };
-const KEPLER_LAUNCH = { label: "NASA: Kepler's launch", url: "https://www.nasa.gov/kepler/keplers-launch" };
-const DAWN = { label: "NASA Science: Dawn", url: "https://science.nasa.gov/mission/dawn/" };
-const DAWN_FACTS = { label: "NASA Science: Dawn quick facts", url: "https://science.nasa.gov/mission/dawn/toolkit/quick-facts" };
-const DAWN_END = { label: "NASA Science: Dawn end of mission", url: "https://science.nasa.gov/mission/dawn/toolkit/end-of-mission/" };
-const NEAR = { label: "NASA Science: NEAR Shoemaker", url: "https://science.nasa.gov/mission/near-shoemaker/" };
 const DELTA2_LAST = { label: "ULA: final Delta II launch (ICESat-2)", url: "https://www.ulalaunch.com/about/news/2018/09/15/united-launch-alliance-successfully-launches-final-delta-ii-rocket-with-nasa-s-icesat-2" };
 
 export const catalog = [
@@ -155,7 +149,7 @@ export const catalog = [
   {
     id: "atlas-centaur", name: "Atlas-Centaur", category: "rockets", mission: "Surveyor, Pioneer, Pioneer Venus",
     launchDate: "May 30, 1966 (Surveyor 1)", destination: "Moon, Jupiter, Saturn, Venus", region: "Launch site (Earth)", bodies: ["Earth"],
-    status: { label: "Retired", text: "Launched Surveyor 1, Surveyor 3, Pioneer 10 (AC-27), Pioneer 11 (AC-30) and both Pioneer Venus spacecraft." },
+    status: { label: "Retired", text: "Launched Surveyor 1, Pioneer 10 (AC-27), Pioneer 11 (AC-30) and both Pioneer Venus spacecraft." },
     description: "A thin stainless-steel Atlas booster with a Centaur upper stage, one of the first rockets to use liquid hydrogen.",
     background: "Pioneer 10 launched on Atlas-Centaur AC-27 on March 2, 1972, and Pioneer 11 on AC-30 from Launch Complex 36B in April 1973.",
     purpose: "To send robotic explorers to the Moon and the planets.",
@@ -171,49 +165,47 @@ export const catalog = [
     model: { type: "rocket", key: "atlas-centaur" }
   },
   {
-    id: "delta-2", name: "Delta II", category: "rockets", mission: "NEAR Shoemaker, Pathfinder, Stardust, Spirit, Opportunity, Phoenix, Kepler",
-    launchDate: "February 17, 1996 (NEAR Shoemaker)", destination: "Mars, asteroids, comets, orbit around the Sun", region: "Launch site (Earth)", bodies: ["Earth"],
+    id: "delta-2", name: "Delta II", category: "rockets", mission: "Pathfinder, Stardust, Spirit, Opportunity, Phoenix",
+    launchDate: "December 4, 1996 (Mars Pathfinder)", destination: "Mars, comets", region: "Launch site (Earth)", bodies: ["Earth"],
     status: { label: "Retired", text: "The last Delta II launched ICESat-2 on September 15, 2018." },
     description: "A slim, turquoise-painted rocket ringed by nine white solid motors. It launched many of NASA's Mars missions.",
     background: "NASA's Launch Services Program lists Delta II launches of Stardust (February 7, 1999), Spirit (June 10, 2003), Opportunity (July 7, 2003) and Phoenix (7925 version).",
     purpose: "A reliable, medium-sized rocket for science missions.",
     specs: [["Strap-on motors", "Nine (7925 version)"], ["Final flight", "September 15, 2018"]],
     timeline: [
-      { date: "February 17, 1996", text: "Launches NEAR Shoemaker (Delta 7925-8)." },
-      { date: "December 4, 1996", text: "Launches Mars Pathfinder (Delta II 7925)." },
+      { date: "December 4, 1996", text: "Launches Mars Pathfinder." },
       { date: "February 7, 1999", text: "Launches Stardust." },
       { date: "June 10 and July 7, 2003", text: "Launches Spirit and Opportunity." },
-      { date: "March 6, 2009", text: "Launches the Kepler space telescope from Launch Complex 17-B." },
       { date: "September 15, 2018", text: "Final flight." }
     ],
-    related: ["near-shoemaker", "pathfinder", "stardust", "spirit", "opportunity", "phoenix", "kepler", "delta-2-heavy"],
-    sources: [LSP, DELTA2_LAST, NEAR, KEPLER_LAUNCH],
+    related: ["pathfinder", "stardust", "spirit", "opportunity", "phoenix", "delta-2-heavy"],
+    sources: [LSP, DELTA2_LAST],
     model: { type: "rocket", key: "delta-2" }
   },
   {
-    id: "delta-2-heavy", name: "Delta II Heavy", category: "rockets", mission: "Dawn, MESSENGER",
-    launchDate: "September 27, 2007 (Dawn)", destination: "Asteroid belt, Mercury", region: "Launch site (Earth)", bodies: ["Earth"],
+    id: "delta-2-heavy", name: "Delta II Heavy", category: "rockets", mission: "MESSENGER",
+    launchDate: "August 3, 2004", destination: "Mercury", region: "Launch site (Earth)", bodies: ["Earth"],
     status: { label: "Retired", text: "Retired with the Delta II family in 2018." },
     description: "A Delta II with larger strap-on solid motors for heavier spacecraft.",
-    background: "MESSENGER launched on a Delta II Heavy on August 3, 2004. Dawn followed on September 27, 2007, on a Delta II Heavy 2925H-9.5 with a Star 48 upper stage.",
-    purpose: "Extra performance for long trips, such as MESSENGER's to Mercury and Dawn's to the asteroid belt.",
+    background: "MESSENGER launched on a Delta II Heavy on August 3, 2004.",
+    purpose: "Extra performance for MESSENGER's long trip to Mercury.",
     specs: [["Strap-on motors", "Nine, larger than on the 7925"]],
-    timeline: [{ date: "August 3, 2004", text: "Launches MESSENGER." }, { date: "September 27, 2007", text: "Launches Dawn from Pad 17B." }],
-    related: ["messenger", "dawn", "delta-2"],
-    sources: [LSP, DAWN_FACTS],
+    timeline: [{ date: "August 3, 2004", text: "Launches MESSENGER." }],
+    related: ["messenger", "delta-2"],
+    sources: [LSP],
     model: { type: "rocket", key: "delta-2-heavy" }
   },
   {
-    id: "atlas-v-401", name: "Atlas V 401", category: "rockets", mission: "LRO and LCROSS, InSight",
+    id: "atlas-v-401", name: "Atlas V 401", category: "rockets", mission: "LRO and LCROSS",
     launchDate: "June 18, 2009", destination: "Moon", region: "Launch site (Earth)", bodies: ["Earth", "Moon"],
     status: { label: "Flown", text: "This configuration has no solid boosters. The Atlas V's current flight status was not checked." },
     description: "The plainest Atlas V: a 4 m fairing, no solid boosters, one Centaur engine.",
-    background: "LRO and LCROSS launched together on an Atlas V 401 in June 2009. InSight launched on an Atlas V-401 from Vandenberg Air Force Base, California, on May 5, 2018.",
+    background: "LRO and LCROSS launched together on an Atlas V 401 in June 2009.",
     purpose: "To launch medium-weight spacecraft.",
     specs: [["Fairing", "4 m"], ["Solid boosters", "None"], ["Centaur engines", "One"]],
-    timeline: [{ date: "June 18, 2009", text: "Launches LRO and LCROSS." }, { date: "May 5, 2018", text: "Launches InSight from Vandenberg, California." }],
-    related: ["lro", "lcross", "insight"],
-    sources: [LSP, LRO_HISTORY, { label: "NASA Science: InSight Lander", url: "https://science.nasa.gov/mission/insight/" }],
+    timeline: [{ date: "June 18, 2009", text: "Launches LRO and LCROSS." }],
+    related: ["lro", "lcross"],
+    sources: [LSP, LRO_HISTORY],
     model: { type: "rocket", key: "atlas-v-401" }
   },
   {
@@ -373,20 +365,16 @@ export const catalog = [
     id: "pioneer10", name: "Pioneer 10", category: "spacecraft", mission: "Pioneer 10",
     launchDate: "March 2, 1972", rocket: "atlas-centaur", destination: "Jupiter, then out of the solar system", region: "Outer solar system",
     bodies: ["Jupiter"],
-    status: { label: "Ended", text: "Inert. The last signal arrived on January 23, 2003, from about 12.23 billion km away. A final contact attempt on March 4, 2006 got no answer. On November 5, 2017 it was about 118.8 AU from Earth, second only to Voyager 1.", asOf: "NASA Science page (2017 distance)" },
+    status: { label: "Ended", text: "The last signal arrived on January 23, 2003, from about 12.23 billion km away. A final contact attempt on March 4, 2006 got no answer." },
     description: "The first spacecraft to cross the asteroid belt and the first to fly past Jupiter.",
     background: "Pioneer 10 launched on Atlas-Centaur AC-27. It carries a plaque with a message about its makers.",
     purpose: "To explore the asteroid belt and Jupiter's environment.",
-    specs: [["Launch", "March 2, 1972, 01:49:04 UT, Launch Complex 36A"], ["Mass", "258 kg"], ["Jupiter closest approach", "130,354 km, at about 126,000 km/h"], ["Heading", "Toward the red star Aldebaran, which it should pass in about two million years"], ["Message", "Pioneer plaque"], ["Last signal's travel time", "11 h 20 min (from 12.23 billion km)"]],
+    specs: [["Launch", "March 2, 1972, 01:49:04 UT"], ["Jupiter closest approach", "130,354 km"], ["Message", "Pioneer plaque"]],
     timeline: [
       { date: "March 2, 1972", text: "Launch on Atlas-Centaur AC-27." },
-      { date: "July 15, 1972", text: "Enters the asteroid belt, the first spacecraft to do so. It comes out the other side in February 1973." },
+      { date: "July 15, 1972", text: "Enters the asteroid belt, the first spacecraft to do so." },
       { date: "December 4, 1973", text: "First flyby of Jupiter." },
-      { date: "February 1976", text: "Crosses the orbit of Saturn." },
-      { date: "June 13, 1983", text: "Crosses the orbit of Neptune, then the outermost planet: the first human-made object beyond it." },
-      { date: "March 31, 1997", text: "Routine contact ends, for budget reasons, 67 AU from Earth." },
-      { date: "February 17, 1998", text: "Voyager 1 passes it as the farthest human-made object." },
-      { date: "January 23, 2003", text: "Last signal received. Its radioisotope power had decayed too far to run the radio." }
+      { date: "January 23, 2003", text: "Last signal received." }
     ],
     related: ["pioneer11", "voyager1", "atlas-centaur"],
     sources: [PIONEER10],
@@ -553,28 +541,6 @@ export const catalog = [
     related: ["lro", "atlas-v-401"],
     model: { type: "model", key: "lcross" }, landing: "lcross"
   },
-  // Dawn (NASA resources, 2026-11-15)
-  {
-    id: "dawn", name: "Dawn", category: "spacecraft", mission: "Dawn",
-    launchDate: "September 27, 2007", rocket: "delta-2-heavy", destination: "Asteroid Vesta, then dwarf planet Ceres", region: "Asteroids & comets", bodies: [],
-    status: { label: "Ended", text: "Dawn ran out of hydrazine in the last week of October 2018, and NASA ended the mission on November 1, 2018. It stays silent in orbit around Ceres, which NASA expects to last for decades: a new \"moon\" of Ceres.", asOf: "NASA, November 2018" },
-    description: "NASA's first truly interplanetary spaceship. Pushed by ion engines, it orbited two worlds in the asteroid belt: the giant asteroid Vesta and the dwarf planet Ceres.",
-    background: "When Dawn went into orbit around Ceres in 2015, it became the first mission to visit a dwarf planet and the first to orbit two destinations beyond Earth. Without hydrazine for its thrusters it can no longer point its antenna at Earth or its solar panels at the Sun.",
-    purpose: "To study Vesta and Ceres, two of the largest bodies in the main asteroid belt between Mars and Jupiter, as time capsules from the early solar system.",
-    specs: [["Launch", "September 27, 2007, 11:34 UTC, Cape Canaveral Pad 17B"], ["Rocket", "Delta II Heavy 2925H-9.5 with a Star 48 upper stage"], ["At Vesta", "July 16, 2011 to September 5, 2012"], ["At Ceres", "From March 6, 2015"], ["Mission end", "November 1, 2018"]],
-    timeline: [
-      { date: "September 27, 2007", text: "Launch from Cape Canaveral." },
-      { date: "February 17, 2009", text: "Gravity assist at Mars." },
-      { date: "July 16, 2011", text: "Arrives at Vesta and goes into orbit." },
-      { date: "September 5, 2012", text: "Leaves Vesta for Ceres." },
-      { date: "March 6, 2015", text: "Arrives at Ceres: the first spacecraft to orbit a dwarf planet." },
-      { date: "June 2016", text: "The prime mission ends; two extended missions follow." },
-      { date: "November 1, 2018", text: "NASA announces the end of the mission after Dawn runs out of hydrazine and misses its contacts with Earth." }
-    ],
-    related: ["delta-2-heavy", "near-shoemaker"],
-    sources: [DAWN, DAWN_FACTS, DAWN_END, { label: "NASA: Dawn mission to asteroid belt comes to end", url: "https://solarsystem.nasa.gov/news/746/nasas-dawn-mission-to-asteroid-belt-comes-to-end" }],
-    model: { type: "model", key: "dawn" }
-  },
 
   // ================= Satellites & space telescopes =================
   {
@@ -636,32 +602,12 @@ export const catalog = [
     model: { type: "model", key: "lro" },
     replay: { type: "mission", id: "lro" }
   },
-  // Kepler (NASA resources, 2026-11-15)
-  {
-    id: "kepler", name: "Kepler Space Telescope", category: "telescopes", mission: "Kepler / K2",
-    launchDate: "March 6, 2009", rocket: "delta-2", destination: "Orbit around the Sun", region: "Orbit around the Sun", bodies: [],
-    status: { label: "Retired", text: "Kepler ran out of the fuel it needed for science. NASA retired it on October 30, 2018, leaving it in its safe orbit around the Sun, away from Earth.", asOf: "NASA, October 2018" },
-    description: "A space telescope that stared at stars and watched for tiny dips in their light when a planet passed in front. It found more than 2,600 planets outside our solar system.",
-    background: "It first watched about 150,000 stars in the constellation Cygnus. In 2010 it found the first confirmed system of several planets crossing the same star (Kepler-9), and later a system of six planets (Kepler-11). After a second reaction wheel failed in May 2013, engineers used the pressure of sunlight to steady it, and the K2 mission scanned along the ecliptic in about three-month campaigns: 19, where 10 were expected.",
-    purpose: "To find out how common Earth-size planets are around other stars. Its results suggest that 20 to 50 percent of the stars in the sky may have small, possibly rocky planets in their habitable zones.",
-    specs: [["Launch", "March 6, 2009, 10:49 p.m. EST, Launch Complex 17-B, Cape Canaveral"], ["Mirror", "1.4 m (1 m aperture)"], ["Method", "Planet transits"], ["Planets found", "More than 2,600"], ["Stars surveyed (with K2)", "More than 500,000"], ["Retired", "October 30, 2018"]],
-    timeline: [
-      { date: "March 6, 2009", text: "Launch on a Delta II from Cape Canaveral." },
-      { date: "2010", text: "Finds Kepler-9, the first confirmed system of several planets crossing the same star." },
-      { date: "May 2013", text: "A second reaction wheel fails. Sunlight pressure is used to keep it pointed, and the K2 mission begins." },
-      { date: "October 30, 2018", text: "Out of fuel, Kepler is retired in its orbit around the Sun." }
-    ],
-    related: ["delta-2", "hubble", "jwst"],
-    sources: [KEPLER, KEPLER_LAUNCH],
-    model: { type: "model", key: "kepler" }
-  },
 
   // ================= Landers, rovers & probes =================
   {
     id: "apollo11-lm", name: "Apollo 11 Lunar Module Eagle", category: "landers", mission: "Apollo 11", hardware: "apollo11",
     launchDate: "July 16, 1969", rocket: "saturn-v", destination: "Moon, Sea of Tranquility", region: "Moon", bodies: ["Moon"],
     status: { label: "On the surface" },
-    specs: [["Mass at launch", "15,103 kg (both stages, with propellant)"], ["Footpad span", "9.4 m"], ["Descent burn", "756.3 s"], ["Time on the Moon", "21 h 36 min"], ["Moonwalk distance", "About 250 m in total"]],
     related: ["apollo11-csm", "apollo11-cm", "lrrr", "pse", "saturn-v"],
     model: { type: "model", key: "lunar-module" },
     replay: { type: "hardware", id: "apollo11" }, landing: "apollo11"
@@ -670,34 +616,14 @@ export const catalog = [
     id: "lrv", name: "Lunar Roving Vehicle (Apollo 15)", category: "landers", mission: "Apollo 15", hardware: "apollo15",
     launchDate: "July 26, 1971", rocket: "saturn-v", destination: "Moon, Hadley-Apennine", region: "Moon", bodies: ["Moon"],
     status: { label: "On the surface" },
-    specs: [["Lunar module mass", "16,430 kg (both stages, with propellant)"], ["Rover drives", "10.3 km, 12.5 km and 5.1 km (27.9 km)"], ["Time on the Moon", "66 h 55 min"], ["Samples", "77.31 kg"]],
     related: ["saturn-v", "apollo11-lm"],
     model: { type: "model", key: "lrv" }, landing: "apollo15"
   },
   {
     id: "surveyor1", name: "Surveyor 1", category: "landers", mission: "Surveyor 1", hardware: "surveyor1",
     launchDate: "May 30, 1966", rocket: "atlas-centaur", destination: "Moon", region: "Moon", bodies: ["Moon"],
-    status: { label: "On the surface" }, related: ["surveyor3", "atlas-centaur"],
+    status: { label: "On the surface" }, related: ["atlas-centaur"],
     model: { type: "model", key: "surveyor" }, landing: "surveyor1"
-  },
-  // Surveyor 3 and Apollo 12 (NASA resources, 2026-11-15): profiles in data/hardware.js
-  {
-    id: "surveyor3", name: "Surveyor 3", category: "landers", mission: "Surveyor 3", hardware: "surveyor3",
-    launchDate: "April 17, 1967", rocket: "atlas-centaur", destination: "Moon, Ocean of Storms", region: "Moon", bodies: ["Moon"],
-    status: { label: "On the surface" },
-    specs: [["Mass at launch", "997.9 kg"], ["Pictures", "6,326"], ["Scoop reach", "1.5 m, digging up to 18 cm deep"], ["Last contact", "May 4, 1967"]],
-    related: ["apollo12-lm", "surveyor1", "atlas-centaur"],
-    model: { type: "model", key: "surveyor" }, landing: "surveyor3",
-    image: { label: "NASA Image Library: AS12-48-7136, Conrad examines Surveyor 3 (Apollo 12)", url: "https://images.nasa.gov/details/as12-48-7136" }
-  },
-  {
-    id: "apollo12-lm", name: "Apollo 12 Lunar Module Intrepid", category: "landers", mission: "Apollo 12", hardware: "apollo12",
-    launchDate: "November 14, 1969", rocket: "saturn-v", destination: "Moon, Ocean of Storms", region: "Moon", bodies: ["Moon"],
-    status: { label: "On the surface" },
-    specs: [["Lunar module mass", "15,235 kg (both stages, with propellant)"], ["Moonwalks", "Two, 7 h 45 min in total"], ["Samples", "34.35 kg, plus about 10 kg of Surveyor 3"], ["Time on the Moon", "31 h 31 min"]],
-    related: ["surveyor3", "apollo11-lm", "saturn-v"],
-    model: { type: "model", key: "lunar-module" }, landing: "apollo12",
-    image: { label: "NASA Image Library: AS12-48-7136, Conrad examines Surveyor 3 with Intrepid behind", url: "https://images.nasa.gov/details/as12-48-7136" }
   },
   {
     id: "blueghost1", name: "Blue Ghost Mission 1", category: "landers", mission: "Blue Ghost Mission 1 (Firefly, NASA CLPS)", hardware: "blueghost1",
@@ -708,54 +634,25 @@ export const catalog = [
   {
     id: "viking1", name: "Viking 1 lander", category: "landers", mission: "Viking 1", hardware: "viking1",
     launchDate: "August 20, 1975", rocket: "titan-3e", destination: "Mars, Chryse Planitia", region: "Mars", bodies: ["Mars"],
-    status: { label: "On the surface" },
-    specs: [["Lander mass", "978 kg"], ["Landing", "July 20, 1976, 11:53:06 UTC, about 28 km from its target"], ["Last contact", "November 11, 1982"]],
-    related: ["titan-3e"],
+    status: { label: "On the surface" }, related: ["titan-3e"],
     model: { type: "model", key: "viking-lander" }, landing: "viking1"
   },
   {
     id: "pathfinder", name: "Mars Pathfinder & Sojourner", category: "landers", mission: "Mars Pathfinder", hardware: "pathfinder",
     launchDate: "December 4, 1996", rocket: "delta-2", destination: "Mars, Ares Vallis", region: "Mars", bodies: ["Mars"],
-    status: { label: "On the surface" },
-    specs: [["Rocket", "Delta II 7925"], ["Sojourner", "10.6 kg, 30 cm tall"], ["Pictures", "More than 16,500 from the lander, 550 from the rover"], ["Last data", "September 27, 1997"]],
-    related: ["delta-2", "spirit"],
+    status: { label: "On the surface" }, related: ["delta-2", "spirit"],
     model: { type: "model", key: "pathfinder-lander" }, landing: "pathfinder"
-  },
-  // NEAR Shoemaker (NASA resources, 2026-11-15)
-  {
-    id: "near-shoemaker", name: "NEAR Shoemaker", category: "landers", mission: "NEAR Shoemaker",
-    launchDate: "February 17, 1996", rocket: "delta-2", destination: "Asteroid Eros", region: "Asteroids & comets", bodies: [],
-    status: { label: "On the surface", text: "NEAR touched down on Eros on February 12, 2001. It was last heard from on February 28, 2001, when extreme cold (about -173 \u00B0C) silenced it, and a NASA attempt to contact it on December 10, 2002 failed.", asOf: "NASA Science page" },
-    description: "The first spacecraft to orbit an asteroid, and the first to land on one. It was built as an orbiter, but at the end of its mission it touched down gently on Eros.",
-    background: "NEAR was the first mission of NASA's Discovery program and the first spacecraft to rely on solar cells for power beyond the orbit of Mars. On the way to Eros it flew past the asteroid Mathilde.",
-    purpose: "To study a near-Earth asteroid up close from orbit for about a year.",
-    specs: [["Launch", "February 17, 1996, 20:43 UTC, Delta 7925-8, Launch Complex 17B"], ["Mathilde flyby", "June 27, 1997, about 1,200 km away"], ["Eros orbit", "From February 14, 2000"], ["Touchdown", "February 12, 2001, at about 6.4 km/h"], ["Last contact", "February 28, 2001"]],
-    timeline: [
-      { date: "February 17, 1996", text: "Launch from Cape Canaveral." },
-      { date: "June 27, 1997", text: "Flies past asteroid Mathilde at about 1,200 km." },
-      { date: "February 14, 2000", text: "Goes into orbit around Eros: the first human-made object to orbit an asteroid." },
-      { date: "February 12, 2001", text: "Touches down on Eros at about 6.4 km/h, just south of a saddle-shaped feature called Himeros." },
-      { date: "February 28, 2001", text: "Last contact." },
-      { date: "December 10, 2002", text: "A final attempt to contact it fails." }
-    ],
-    related: ["delta-2", "dawn"],
-    sources: [NEAR],
-    model: { type: "model", key: "near" }
   },
   {
     id: "spirit", name: "Spirit rover", category: "landers", mission: "Mars Exploration Rover A", hardware: "spirit",
     launchDate: "June 10, 2003", rocket: "delta-2", destination: "Mars, Gusev crater", region: "Mars", bodies: ["Mars"],
-    status: { label: "Ended" },
-    specs: [["Landed", "January 3, 2004 (U.S. date), Gusev crater"], ["Distance driven", "7.7 km (4.8 miles)"]],
-    related: ["opportunity", "delta-2"],
+    status: { label: "Ended" }, related: ["opportunity", "delta-2"],
     model: { type: "model", key: "mer-rover" }, landing: "spirit"
   },
   {
     id: "opportunity", name: "Opportunity rover", category: "landers", mission: "Mars Exploration Rover B", hardware: "opportunity",
     launchDate: "July 7, 2003", rocket: "delta-2", destination: "Mars, Meridiani Planum", region: "Mars", bodies: ["Mars"],
-    status: { label: "Ended" },
-    specs: [["Landed", "January 24, 2004 (U.S. date), Meridiani Planum"], ["Distance driven", "45.16 km (28.06 miles)"], ["Last contact", "June 10, 2018"]],
-    related: ["spirit", "delta-2"],
+    status: { label: "Ended" }, related: ["spirit", "delta-2"],
     model: { type: "model", key: "mer-rover" }, landing: "opportunity"
   },
   {
@@ -766,11 +663,9 @@ export const catalog = [
   },
   {
     id: "insight", name: "InSight lander", category: "landers", mission: "InSight", hardware: "insight",
-    launchDate: "May 5, 2018", rocket: "atlas-v-401", vehicle: "Atlas V-401, from Vandenberg (the first interplanetary launch from the US West Coast)",
+    launchDate: "May 5, 2018", vehicle: "Atlas V, from Vandenberg (the first interplanetary launch from the US West Coast)",
     destination: "Mars, Elysium Planitia", region: "Mars", bodies: ["Mars"],
-    status: { label: "Ended" },
-    specs: [["Landing", "November 26, 2018, 11:52:59 a.m. PT"], ["Robotic arm", "Over 1.8 m long"], ["Mission end", "December 15, 2022"]],
-    related: ["seis", "atlas-v-401"],
+    status: { label: "Ended" }, related: ["seis"],
     model: { type: "model", key: "insight" }, landing: "insight"
   },
   {
@@ -792,15 +687,6 @@ export const catalog = [
     launchDate: "July 30, 2020", rocket: "atlas-v-541", destination: "Mars, Jezero Crater", region: "Mars", bodies: ["Mars"],
     status: { label: "Ended", text: "NASA ended the helicopter's mission on January 25, 2024." },
     description: "A small helicopter carried under Perseverance. It made the first powered flight on Mars on April 19, 2021, and its 72nd and final flight on January 18, 2024.",
-    purpose: "A technology demonstration planned for up to five test flights in 30 days. It went on to scout ahead for Perseverance's scientists and drivers, and to test its own limits.",
-    specs: [["Flights", "72"], ["Time in the air", "128.8 minutes"], ["Distance flown", "17.0 km"], ["Highest altitude", "24.0 m"], ["Mass", "1.8 kg"], ["Rotor span", "About 1.2 m"], ["Power", "Solar-charged batteries, about 350 W during flight"]],
-    timeline: [
-      { date: "February 18, 2021", text: "Lands in Jezero Crater, attached under the Perseverance rover." },
-      { date: "April 19, 2021", text: "The first powered, controlled flight on another planet." },
-      { date: "January 18, 2024", text: "Flies for the last time." },
-      { date: "January 25, 2024", text: "NASA ends the mission after nearly three years and 72 flights." }
-    ],
-    sources: [{ label: "NASA Science: Ingenuity Mars Helicopter", url: "https://science.nasa.gov/mission/mars-2020-perseverance/ingenuity-mars-helicopter/" }],
     related: ["perseverance"],
     model: { type: "model", key: "helicopter-flying" }
   },

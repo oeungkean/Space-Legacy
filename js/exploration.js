@@ -20,14 +20,11 @@ import { createSuitedAstronaut } from "./astronaut.js";
 import { SITES, EQUIPMENT, GRAVITY, SUITS } from "../data/simulator.js";
 import {
   buildTerrainShape, heightAt as terrainHeight, terrainNormal, buildGround as buildTerrainGround,
-  collideBoulders, boulderAhead, reliefPainter, getTerrain, updateGround
+  collideBoulders, boulderAhead, drawRelief, getTerrain
 } from "./terrain.js";
-import { planetMaterial as lookMaterial, cloudMaterial } from "./planet-look.js";
 import { uiIcon } from "./icons.js";
 import { modelIcon } from "./explorer.js";
 import { collectiblesForSite } from "../data/collectibles.js";
-import { createGuide } from "./guide-astronaut.js";
-import { getSetting, setSetting } from "./settings.js";
 import { play, setLoop } from "./sounds.js";
 import {
   recordObject, isRecorded, addPhoto, addSample, completeObjective, failObjective, setMissionState, addDiscovery, getMission,
@@ -36,9 +33,6 @@ import {
 
 // ----- Page elements -----
 const canvas = document.getElementById("explore-canvas");
-const guideAsk = document.getElementById("guide-ask");
-const guideToggle = document.getElementById("guide-toggle");
-let guide = null; // Free Build: the astronaut guide (js/guide-astronaut.js)
 const titleText = document.getElementById("explore-title");
 const modeText = document.getElementById("explore-mode");
 const fictionTag = document.getElementById("explore-fiction");
@@ -117,8 +111,6 @@ export function heightAt(x, z) {
   return terrainHeight(x, z);
 }
 
-let skyGroup = null;
-
 function buildSky(world) {
   // Stars (the Moon and orbit show a black sky; Mars has a dusty butterscotch sky)
   const positions = new Float32Array(1500 * 3);
@@ -129,11 +121,7 @@ function buildSky(world) {
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   const stars = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: world === "mars" ? 0 : 0.85 }));
-  // The sky (stars, and Earth seen from the Moon) moves with the camera, so it stays at the same place
-  // in the sky however far you travel (the ground goes on forever)
-  skyGroup = new THREE.Group();
-  skyGroup.add(stars);
-  worldGroup.add(skyGroup);
+  worldGroup.add(stars);
 
   if (hemi) hemi.intensity = 0;
   if (world === "mars") {
@@ -155,13 +143,9 @@ function buildSky(world) {
     sunDirection.set(0.85, 0.3, 0.42).normalize();
     if (hemi) { hemi.color.set(0x9aa7c0); hemi.groundColor.set(0x5e5c58); hemi.intensity = 0.12; }
     // Earth hanging in the black sky
-    // the real Earth (same maps as the Solar System), lit by the same Sun as the ground
-    const earth = new THREE.Mesh(new THREE.SphereGeometry(40, 48, 32), lookMaterial("Earth"));
-    const earthClouds = new THREE.Mesh(new THREE.SphereGeometry(40.4, 48, 32), cloudMaterial());
-    earth.add(earthClouds);
-    earth.rotation.y = 2.2;
+    const earth = new THREE.Mesh(new THREE.SphereGeometry(40, 32, 24), new THREE.MeshStandardMaterial({ color: 0x3d6fd1, emissive: 0x0a1a3a, roughness: 0.7 }));
     earth.position.set(-500, 420, -900);
-    skyGroup.add(earth);
+    worldGroup.add(earth);
   } else {
     scene.background = new THREE.Color(0x000000);
     scene.fog = null;
@@ -169,8 +153,7 @@ function buildSky(world) {
     sun.intensity = 2.8;
     ambient.intensity = 0.2;
     sunDirection.set(0.8, 0.5, 0.35).normalize();
-    const earth = new THREE.Mesh(new THREE.SphereGeometry(900, 96, 64), lookMaterial("Earth", null, { hd: true })); // the real Earth below
-    earth.add(new THREE.Mesh(new THREE.SphereGeometry(903, 96, 64), cloudMaterial()));
+    const earth = new THREE.Mesh(new THREE.SphereGeometry(900, 64, 48), new THREE.MeshStandardMaterial({ color: 0x2f62c6, emissive: 0x06132c, roughness: 0.8 }));
     earth.position.set(0, -1000, 0);
     worldGroup.add(earth);
     const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(915, 64, 48), new THREE.MeshBasicMaterial({ color: 0x6fa8ff, transparent: true, opacity: 0.12, side: THREE.BackSide }));
@@ -270,7 +253,6 @@ function clearWorld() {
   while (worldGroup.children.length) worldGroup.remove(worldGroup.children[0]);
   labelLayer.innerHTML = "";
   objects = [];
-  if (guide) { guide.dispose(); guide = null; }
   lander = vehicle = craft = interior = astronaut = null;
   boulders = [];
   trail.length = 0;
@@ -310,13 +292,6 @@ export function loadSite(id, options) {
     astronaut = castShadows(createSuitedAstronaut(suitOverride || site.suit || "axemu"));
     worldGroup.add(astronaut);
   }
-  // Free Build (Master Doc 17): a second astronaut who can tell you about the objects left here
-  const freeBuild = Boolean(site.fictional || (getMission() && getMission().mode === "sandbox"));
-  if (astronaut && freeBuild && site.world !== "orbit") {
-    guide = createGuide(worldGroup, suitOverride || site.suit || "axemu", heightAt);
-    guide.setHidden(getSetting("guideHidden"));
-  }
-  updateGuideToggle();
 
   // The landed spacecraft (Apollo sites)
   if (site.start === "lm-landing" || (site.fictional && site.world === "moon")) {
@@ -332,8 +307,7 @@ export function loadSite(id, options) {
     const model = createModel("lrv");
     fitTo(model, 3.1);
     castShadows(model);
-    vehicle = { kind: "lrv", model: model, speed: 0, steer: 0, yaw: 0.6, pos: new THREE.Vector3(8, 0, 6), vy: 0, y: 0, air: 0, slip: 0, bodyY: 0, suspVel: 0, pitch: 0, roll: 0 };
-    parkVehicle(vehicle);
+    vehicle = { kind: "lrv", model: model, speed: 0, steer: 0, yaw: 0.6, pos: new THREE.Vector3(6, 0, 5), vy: 0, y: 0, air: 0, slip: 0, bodyY: 0, suspVel: 0, pitch: 0, roll: 0 };
     worldGroup.add(model);
   } else if (site.vehicle === "rover") {
     const model = createModel(site.rover || "perseverance");
@@ -342,7 +316,6 @@ export function loadSite(id, options) {
     model.add(arm);
     castShadows(model);
     vehicle = { kind: "rover", model: model, speed: 0, yaw: 0, pos: new THREE.Vector3(0, 0, 4), arm: arm, armOut: 0, armGoal: 0, pitch: 0, roll: 0 };
-    parkVehicle(vehicle);
     worldGroup.add(model);
   }
 
@@ -477,9 +450,8 @@ const HINTS = {
 
 function enterMode(next) {
   mode = next;
-  if (next !== "lm" && vehicle && vehicle.kind === "lrv" && !vehicle.model.visible) { parkVehicle(vehicle); vehicle.model.visible = true; }
   modeText.textContent = {
-    lm: "Lunar Module landing", foot: "On foot · gravity " + (GRAVITY[site.world] || 0) + " m/s²", lrv: "Driving the Lunar Roving Vehicle",
+    lm: "Lunar Module landing", foot: "On foot", lrv: "Driving the Lunar Roving Vehicle",
     rover: "Driving the " + (site && site.rover === "curiosity" ? "Curiosity" : "Perseverance") + " rover",
     eva: "Spacewalk (zero gravity)", cockpit: "Inside the spacecraft"
   }[next];
@@ -501,7 +473,6 @@ function enterMode(next) {
     });
   }
   updateAutoStatus();
-  if (chargeButton) chargeButton.classList.toggle("hidden", next !== "lrv" && next !== "rover");
 
   if (next === "foot") {
     if (vehicle && vehicle.kind === "lrv" && astronaut.parent === vehicle.model) {
@@ -520,12 +491,10 @@ function enterMode(next) {
   } else if (next === "lrv") {
     worldGroup.remove(astronaut);
     vehicle.model.add(astronaut);
-    // In the left seat (the commander drove the LRV from the left), facing forward, hands on the controller
-    const k = 1 / vehicle.model.scale.x;
-    astronaut.scale.setScalar(k);
-    astronaut.position.set(0.28, 0.705 - 0.43 * k, 0.05);
+    astronaut.position.set(-0.32, 0.55, -0.1);
     astronaut.rotation.set(0, 0, 0);
-    astronaut.visible = true;
+    astronaut.scale.setScalar(1 / vehicle.model.scale.x);
+    astronaut.visible = false; // while driving, only the vehicle is shown
     camDistance = 9;
   } else if (next === "rover") {
     camDistance = 8;
@@ -549,7 +518,6 @@ function startLmLanding() {
   // The autopilot lands by default. "Take control" (or L) hands the controls to you, with a short guide.
   lm = { alt: 70, vy: -3, vx: 0.8, vz: -0.6, x: -14, z: 10, fuel: 100 + extraFuel, throttle: 0.45, done: false, auto: true };
   if (astronaut) astronaut.visible = false;
-  if (vehicle && vehicle.kind === "lrv") vehicle.model.visible = false; // the rover rides folded on the LM's side
   enterMode("lm");
   if (astronaut) astronaut.visible = false;
   updateLmPanel();
@@ -636,7 +604,6 @@ function pressed(k) {
   else if (k === "e") interact();
   else if (k === "f") collectNearest();
   else if (k === "q") useEquipment();
-  else if (k === "y") askGuide();
   else if (k === "p") useEquipment("camera");
   else if (k >= "1" && k <= "9" && Number(k) <= inventory.length) selectSlot(Number(k) - 1);
   else if (k === "r" && mode === "rover") toggleArm();
@@ -775,41 +742,6 @@ function interact() {
     if (near.object.entry.kind === "target") completeObjective("examine");
   }
 }
-
-// Y (or the button): the guide walks to the nearest object and tells its story (Free Build only)
-function askGuide() {
-  if (!guide || mode !== "foot" || action) return;
-  if (guide.isHidden()) {
-    guide.setHidden(false);
-    setSetting("guideHidden", false);
-    updateGuideToggle();
-  }
-  const near = nearest(8);
-  if (!near) {
-    setMessage("Walk up to a labelled object, then ask your guide about it.", 3);
-    play("noResults");
-    return;
-  }
-  play("open");
-  const p = near.object.group.getWorldPosition ? near.object.group.getWorldPosition(new THREE.Vector3()) : near.object.group.position.clone();
-  guide.talkAbout(near.object.entry, p);
-}
-function updateGuideToggle() {
-  if (!guideToggle) return;
-  guideToggle.classList.toggle("hidden", !guide);
-  guideToggle.textContent = guide && guide.isHidden() ? "Show guide" : "Hide guide";
-  guideToggle.setAttribute("aria-pressed", guide && !guide.isHidden() ? "true" : "false");
-}
-if (guideToggle) {
-  guideToggle.addEventListener("click", function () {
-    if (!guide) return;
-    guide.setHidden(!guide.isHidden());
-    setSetting("guideHidden", guide.isHidden());
-    updateGuideToggle();
-    play("click");
-  });
-}
-if (guideAsk) guideAsk.addEventListener("click", function () { askGuide(); });
 
 // F: record the nearest object into My Collection (with a short animation)
 function collectNearest() {
@@ -1115,7 +1047,6 @@ function updateLm(dt, g) {
       // Move the whole site so the landing spot becomes the new origin of the objects' layout
       lander.position.set(lm.x, ground, lm.z);
       relocateLanding(lm.x, lm.z);
-      if (vehicle && vehicle.kind === "lrv") { parkVehicle(vehicle); vehicle.model.visible = true; } // unfolded beside the LM
       play("thud", 0.4);
       completeObjective("land");
       updateLmPanel();
@@ -1134,15 +1065,6 @@ function updateLm(dt, g) {
 }
 
 // After a landing away from the planned spot, shift everything so the lander sits at the origin again
-// Put a vehicle's model where it is parked (before, it stayed at the site's centre until someone drove it,
-// which is exactly where the Lunar Module lands)
-function parkVehicle(v) {
-  v.y = heightAt(v.pos.x, v.pos.z);
-  v.pos.y = v.y;
-  v.model.position.set(v.pos.x, v.y, v.pos.z);
-  v.model.rotation.y = v.yaw || 0;
-}
-
 function relocateLanding(x, z) {
   lander.position.set(0, heightAt(0, 0), 0);
   void x; void z;
@@ -1319,12 +1241,8 @@ function updateFoot(dt, g) {
     }
   }
   const moving = input.lengthSq() > 0;
-  // Speeds follow gravity. Legs act like a pendulum: the fastest comfortable walk is about where the
-  // Froude number (speed squared / (gravity x leg length)) reaches 0.5, so weaker gravity means slower
-  // walking and a switch to hopping or loping sooner. Leg length 0.9 m; a suit slows everything down.
-  // (A simple physics rule for the game, not measured astronaut speeds.)
-  const legPendulum = Math.sqrt(Math.max(0.1, g) * 0.9);
-  const speed = Math.min(running ? 3.2 : 1.6, legPendulum * (running ? 0.95 : 0.6));
+  // Suited walking speeds for the game (Moon: hops, Mars: heavier steps)
+  const speed = world === "moon" ? (running ? 2.2 : 1.3) : (running ? 2.4 : 1.3);
   if (moving) {
     input.normalize();
     player.yaw = Math.atan2(input.x, input.z);
@@ -1332,10 +1250,8 @@ function updateFoot(dt, g) {
   // On the ground, feet push; in the air, you keep your momentum (hardly any control)
   if (player.onGround) {
     const target = input.multiplyScalar(moving ? speed : 0);
-    // Grip depends on weight: in low gravity your feet push less, so starting and stopping take longer
-    const grip = Math.min(1, dt * (1 + g * 0.55));
-    player.vel.x += (target.x - player.vel.x) * grip;
-    player.vel.z += (target.z - player.vel.z) * grip;
+    player.vel.x += (target.x - player.vel.x) * Math.min(1, dt * (world === "moon" ? 3 : 6));
+    player.vel.z += (target.z - player.vel.z) * Math.min(1, dt * (world === "moon" ? 3 : 6));
     if (keys[" "] || jumpQueued) {
       jumpQueued = false;
       player.vel.y = 2.0; // the same push gives a ~1.2 m jump on the Moon but ~0.5 m on Mars and ~0.2 m on Earth
@@ -1395,7 +1311,7 @@ function followCamera(target, height, dt) {
     if (astronaut) astronaut.visible = false;
     return;
   }
-  if (astronaut && mode !== "rover") astronaut.visible = true; // the LRV shows its driver; robotic rovers have none
+  if (astronaut && mode !== "rover" && mode !== "lrv") astronaut.visible = true; // driving shows only the vehicle
   const distance = cameraMode === 2 ? camDistance * 3 : camDistance;
   const goal = new THREE.Vector3(
     target.x + Math.sin(camYaw) * Math.cos(camPitch) * distance,
@@ -1480,7 +1396,7 @@ function updateBattery(v, dt, max, boosting) {
       v.charging = false;
       setMessage("Charging stopped: you started driving.", 2);
     } else {
-      v.battery = Math.min(100, v.battery + dt * 20);
+      v.battery = Math.min(100, v.battery + dt * 16);
       if (v.battery >= 100) {
         v.charging = false;
         play("success");
@@ -1490,20 +1406,19 @@ function updateBattery(v, dt, max, boosting) {
     }
   }
   const load = Math.min(1.6, Math.abs(v.speed) / max);
-  let drain = 0.02 + load * 0.16 + (boosting ? 0.9 : 0); // about 10 minutes of full-speed driving per charge
+  let drain = 0.05 + load * 0.4 + (boosting ? 1.8 : 0);
   // Slow top-up: the rover's MMRTG, or (game) the lander's power when the LRV is parked beside it
   let gain = v.kind === "rover" ? 0.15 : lander && v.pos.distanceTo(lander.position) < 12 && Math.abs(v.speed) < 0.2 ? 3 : 0;
   v.battery = Math.max(0, Math.min(100, v.battery - drain * dt + gain * dt));
-  if (before >= 20 && v.battery < 20) setMessage("Battery low (20%). Stop and press ⚡ Charge (or B).", 4);
-  if (before > 0 && v.battery <= 0) setMessage("Battery empty: crawling at low power. Press ⚡ Charge (or B).", 5);
+  if (before >= 20 && v.battery < 20) setMessage("Battery low (20%). Stop and press B to recharge.", 4);
+  if (before > 0 && v.battery <= 0) setMessage("Battery empty: crawling at low power. Press B to recharge.", 5);
 }
 
 export function startCharging() {
   if ((mode !== "lrv" && mode !== "rover") || !vehicle) return false;
   if (Math.abs(vehicle.speed) > 0.3) {
-    // the button brakes for you, then starts charging
-    vehicle.speed = 0;
-    stopAuto();
+    setMessage("Stop first, then press B to recharge.", 2.5);
+    return false;
   }
   vehicle.charging = !vehicle.charging;
   if (vehicle.charging) stopAuto();
@@ -1514,21 +1429,7 @@ export function startCharging() {
   return true;
 }
 
-// The Charge button (next to the auto buttons): shown while driving, glows when the battery is low
-const chargeButton = document.getElementById("explore-charge");
-if (chargeButton) chargeButton.addEventListener("click", function () { startCharging(); });
-function updateChargeButton(v) {
-  if (!chargeButton) return;
-  const pct = Math.round(v.battery === undefined ? 100 : v.battery);
-  const label = chargeButton.querySelector ? chargeButton.querySelector(".charge-label") : null;
-  if (label) label.textContent = v.charging ? "Charging " + pct + "%" : "Charge " + pct + "%";
-  chargeButton.classList.toggle("charging", Boolean(v.charging));
-  chargeButton.classList.toggle("low", !v.charging && pct < 25);
-  chargeButton.style.setProperty("--b", String(pct / 100));
-}
-
 function batteryGauge(v) {
-  updateChargeButton(v);
   const pct = Math.round(v.battery === undefined ? 100 : v.battery);
   const color = pct > 50 ? "#6fd08c" : pct > 20 ? "#ffd36e" : "#ff6a5a";
   return '<span class="gauge gauge-battery"><em>Battery' + (v.charging ? " · charging" : "") + "</em><b>" + pct + '%</b><i style="--b:' + (pct / 100) + ";--c:" + color + '"></i></span>';
@@ -1652,20 +1553,9 @@ function updateLrv(dt, g) {
   v.model.position.set(v.pos.x, v.y + v.bodyY * 0.25, v.pos.z);
   orientVehicle(v, dt, LRV.base, LRV.track, onGround ? 8 : 1);
 
-  // Wheels: steer first, then spin around the (steered) axle. With the default rotation order the spin
-  // tilted the steering axis, so the wheels wobbled and looked broken whenever the rover turned.
-  // Each wheel also has its own suspension: it reaches down to the ground under it (up to 15 cm),
-  // like the LRV's torsion-bar suspension, while the body stays steadier.
-  v.model.updateMatrixWorld(true);
   (v.model.userData.wheels || []).forEach(function (wheel, i) {
-    if (wheel.userData.baseY === undefined) {
-      wheel.userData.baseY = wheel.position.y;
-      wheel.userData.drop = 0;
-      wheel.rotation.order = "YXZ";
-    }
     wheel.rotation.x += v.speed * dt / 0.41;
     wheel.rotation.y = (i < 2 ? 1 : -1) * v.steer;
-    suspendWheel(v, wheel, 0.41, 0.15, dt);
   });
   if (onGround && Math.abs(v.speed) > 0.3) {
     wheelTracks(v, LRV.track, Math.abs(v.speed) * dt);
@@ -1683,19 +1573,6 @@ function updateLrv(dt, g) {
   speedFov(v.speed, LRV.max * (boosting ? 0.8 : 1.3));
   followCamera(v.pos, 1.6, dt);
   setMissionState({ distance: nearestText() });
-}
-
-// Moves one wheel up or down (model units) so its bottom meets the ground, within the suspension travel
-const wheelWorld = new THREE.Vector3();
-function suspendWheel(v, wheel, radius, travel, dt) {
-  const scale = v.model.scale.x || 1;
-  wheelWorld.set(wheel.position.x, wheel.userData.baseY, wheel.position.z);
-  v.model.localToWorld(wheelWorld);
-  const bottom = wheelWorld.y - radius * scale;
-  const ground = heightAt(wheelWorld.x, wheelWorld.z);
-  const goal = Math.max(-travel, Math.min(travel, (ground - bottom) / scale));
-  wheel.userData.drop += (goal - wheel.userData.drop) * Math.min(1, dt * 14);
-  wheel.position.y = wheel.userData.baseY + wheel.userData.drop;
 }
 
 function updateRover(dt) {
@@ -1954,44 +1831,16 @@ function updateDust(dt) {
 }
 
 // ----- Mini map -----
-// The relief picture covers 640 m around a centre that follows you: when you get 100 m from its centre,
-// a new picture around you is drawn in the background (a few rows per frame) and swapped in, so the map
-// never runs out (it used to be one fixed picture of the landing area, black beyond it)
-const RELIEF_RANGE = 320;
-let relief = makeReliefCanvas();
-let reliefCenter = { x: 0, z: 0 };
-let reliefNext = null;
-function makeReliefCanvas() {
-  const c = document.createElement("canvas");
-  c.width = 512;
-  c.height = 512;
-  return c;
-}
-function keepReliefAround(center) {
-  if (reliefNext) {
-    if (reliefNext.painter.step(10)) {
-      relief = reliefNext.canvas;
-      reliefCenter = { x: reliefNext.x, z: reliefNext.z };
-      reliefNext = null;
-    }
-    return;
-  }
-  if (Math.hypot(center.x - reliefCenter.x, center.z - reliefCenter.z) > 100) {
-    const x = Math.round(center.x / 20) * 20;
-    const z = Math.round(center.z / 20) * 20;
-    const canvas = makeReliefCanvas();
-    reliefNext = { canvas: canvas, x: x, z: z, painter: reliefPainter(canvas, x, z, RELIEF_RANGE) };
-  }
-}
+const RELIEF_RANGE = 230;
+const relief = document.createElement("canvas");
+relief.width = 400;
+relief.height = 400;
 let mapRange = 70;     // meters from the center to the edge
 let mapDrawn = 0;
 
 function buildMap() {
   if (!mapCanvas || site.world === "orbit") return;
-  relief = makeReliefCanvas();
-  reliefCenter = { x: 0, z: 0 };
-  reliefNext = null;
-  reliefPainter(relief, 0, 0, RELIEF_RANGE).step(relief.height);
+  drawRelief(relief, RELIEF_RANGE);
   mapDrawn = 0;
 }
 
@@ -2022,7 +1871,6 @@ function drawMap(force) {
   if (!ctx || !ctx.drawImage) return;
   const size = mapCanvas.width;
   const center = focusPosition();
-  keepReliefAround(center);
   const scale = size / (mapRange * 2);
   const toX = function (x) { return size / 2 + (x - center.x) * scale; };
   const toY = function (z) { return size / 2 + (z - center.z) * scale; };
@@ -2036,7 +1884,7 @@ function drawMap(force) {
   // Relief picture: the part around you
   const k = relief.width / (RELIEF_RANGE * 2);
   ctx.globalAlpha = 0.95;
-  ctx.drawImage(relief, (center.x - reliefCenter.x - mapRange + RELIEF_RANGE) * k, (center.z - reliefCenter.z - mapRange + RELIEF_RANGE) * k, mapRange * 2 * k, mapRange * 2 * k, 0, 0, size, size);
+  ctx.drawImage(relief, (center.x - mapRange + RELIEF_RANGE) * k, (center.z - mapRange + RELIEF_RANGE) * k, mapRange * 2 * k, mapRange * 2 * k, 0, 0, size, size);
   ctx.globalAlpha = 1;
   // Boulders
   ctx.fillStyle = "rgba(15,15,18,0.65)";
@@ -2252,7 +2100,7 @@ function updateLabels() {
     promptBox.classList.remove("hidden");
     promptName.textContent = near.object.entry.card.name;
     const recorded = isRecorded(near.object.entry.id);
-    promptKeys.textContent = (recorded ? "Recorded ✓ · " : "[F] Record in My Collection · ") + "[E] Examine" + (guide && mode === "foot" ? " · [Y] Ask your guide" : "");
+    promptKeys.textContent = (recorded ? "Recorded ✓ · " : "[F] Record in My Collection · ") + "[E] Examine";
   } else if (mode === "foot" && vehicle && player.pos.distanceTo(vehicle.pos) < (vehicle.kind === "lrv" ? 3.2 : 3.5)) {
     promptBox.classList.remove("hidden");
     promptName.textContent = vehicle.kind === "lrv" ? "Lunar Roving Vehicle" : "Rover (Free Build: fictional)";
@@ -2280,18 +2128,11 @@ function frame(time) {
   const dt = Math.min(0.05, Math.max(0, ((time || 0) - lastTime) / 1000)) || 1 / 60;
   lastTime = time || lastTime + 16;
   if (site && !isInfoCardOpen()) update(dt);
-  if (guide && site && !isInfoCardOpen()) guide.update(dt, mode === "foot" ? player.pos : focusPosition(), player.yaw, mode === "foot", site.world);
-  if (guideAsk) {
-    const askable = Boolean(guide && !guide.isHidden() && mode === "foot" && !action && nearest(5));
-    guideAsk.classList.toggle("hidden", !askable || guide.isTalking());
-  }
   if (site && site.world !== "orbit") {
     const f = focusPosition();
     sun.position.set(f.x + sunDirection.x * 150, f.y + sunDirection.y * 150, f.z + sunDirection.z * 150);
     if (sun.target) { sun.target.position.set(f.x, f.y, f.z); if (sun.target.updateMatrixWorld) sun.target.updateMatrixWorld(); }
     if (!isInfoCardOpen()) { updateDust(dt); updateSmoke(dt); }
-    updateGround(f.x, f.z);
-    if (skyGroup) skyGroup.position.set(camera.position.x, 0, camera.position.z);
     drawMap(false);
   } else {
     sun.position.copy(sunDirection).multiplyScalar(150);
@@ -2326,7 +2167,6 @@ export function startExploration(id, options) {
 
 export function stopExploration() {
   running = false;
-  if (guide) guide.stopTalking();
   Object.keys(keys).forEach(function (k) { keys[k] = false; });
   Object.keys(held).forEach(function (k) { held[k] = false; });
   setLoop("engine", 0);
